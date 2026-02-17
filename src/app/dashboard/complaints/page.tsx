@@ -177,6 +177,12 @@ export default function ComplaintsPage() {
     setSelectedComplaintForResubmission,
   ] = useState<SubmittedComplaint | null>(null);
 
+  // Employee not satisfied / appeal modal
+  const [isNotSatisfiedModalOpen, setIsNotSatisfiedModalOpen] = useState(false);
+  const [notSatisfiedReason, setNotSatisfiedReason] = useState('');
+  const [selectedComplaintForAppeal, setSelectedComplaintForAppeal] =
+    useState<SubmittedComplaint | null>(null);
+
   // Commission decision modal
   const [isCommissionDecisionModalOpen, setIsCommissionDecisionModalOpen] =
     useState(false);
@@ -609,6 +615,62 @@ export default function ComplaintsPage() {
     }
   };
 
+  const handleEmployeeNotSatisfied = async () => {
+    if (!selectedComplaintForAppeal || !notSatisfiedReason.trim()) {
+      toast({
+        title: 'Hitilafu',
+        description: 'Tafadhali eleza sababu ya kutoridhika na matokeo.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const complaintId = selectedComplaintForAppeal.id;
+
+    // Close modal immediately
+    setIsNotSatisfiedModalOpen(false);
+    setNotSatisfiedReason('');
+    setSelectedComplaintForAppeal(null);
+
+    // Optimistic update
+    const optimisticUpdate = complaints.map((c) =>
+      c.id === complaintId
+        ? { ...c, status: 'Appealed to Commission' }
+        : c
+    );
+    setComplaints(optimisticUpdate);
+
+    toast({
+      title: 'Rufaa Imewasilishwa',
+      description:
+        'Lalamiko lako limepelekwa kwa Tume ya Utumishi kwa maamuzi ya mwisho.',
+    });
+
+    const payload = {
+      status: 'Appealed to Commission',
+      officerInternalNote: `Mtumishi hakuridhika na matokeo: ${notSatisfiedReason}`,
+    };
+
+    try {
+      const updated = await handleUpdateComplaint(complaintId, payload);
+      if (!updated) {
+        setComplaints(complaints);
+        toast({
+          title: 'Hitilafu',
+          description: 'Imeshindwa kuwasilisha rufaa.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      setComplaints(complaints);
+      toast({
+        title: 'Hitilafu',
+        description: 'Imeshindwa kuwasilisha rufaa.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const openProvideInfoModal = (complaint: SubmittedComplaint) => {
     setSelectedComplaintForInfo(complaint);
     setAdditionalInfo('');
@@ -786,12 +848,15 @@ export default function ComplaintsPage() {
       return;
     }
 
-    // Require commission letter for resolved complaints
-    if (commissionDecisionType === 'resolved' && !commissionLetter) {
+    // Require commission letter for resolved complaints, and for all appeal cases
+    const isAppeal =
+      selectedComplaintForCommissionDecision.status === 'Appealed to Commission';
+    if ((commissionDecisionType === 'resolved' || isAppeal) && !commissionLetter) {
       toast({
         title: 'Hitilafu',
-        description:
-          'Tafadhali chagua barua ya tume kwa maamuzi yaliyotatuliwa.',
+        description: isAppeal
+          ? 'Tafadhali pakia barua rasmi ya maamuzi kutoka Tume ya Utumishi Serikalini.'
+          : 'Tafadhali chagua barua ya tume kwa maamuzi yaliyotatuliwa.',
         variant: 'destructive',
       });
       return;
@@ -832,30 +897,49 @@ export default function ComplaintsPage() {
     });
 
     try {
-      let commissionLetterUrl = null;
+      let commissionLetterObjectKey: string | null = null;
 
       // Upload commission letter if provided
       if (commissionLetter) {
-        const formData = new FormData();
-        formData.append('file', commissionLetter);
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', commissionLetter);
+        uploadFormData.append('folder', 'commission-letters');
 
-        // Note: We'll need to implement file upload endpoint, for now simulate
-        console.log(
-          'Commission letter would be uploaded:',
-          commissionLetter.name
-        );
-        commissionLetterUrl = `uploads/commission-letters/${commissionLetter.name}`;
+        const uploadResponse = await fetch('/api/files/upload', {
+          method: 'POST',
+          body: uploadFormData,
+        });
+
+        if (!uploadResponse.ok) {
+          const uploadError = await uploadResponse.json().catch(() => ({}));
+          toast({
+            title: 'Hitilafu ya Upakiaji',
+            description:
+              uploadError?.message ||
+              'Imeshindwa kupakia barua ya tume. Tafadhali jaribu tena.',
+            variant: 'destructive',
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        const uploadData = await uploadResponse.json();
+        commissionLetterObjectKey = uploadData.data.objectKey;
       }
+
+      // Append commission letter to existing attachments
+      const existingAttachments =
+        selectedComplaintForCommissionDecision.attachments || [];
+      const updatedAttachments = commissionLetterObjectKey
+        ? [...existingAttachments, commissionLetterObjectKey]
+        : existingAttachments;
 
       const payload = {
         status: finalStatus,
         officerComments: commissionDecision,
         reviewStage: 'final_decision',
         reviewedById: user?.id,
-        // Add commission letter URL to attachments if available
-        ...(commissionLetterUrl && {
-          attachments: [commissionLetterUrl],
-        }),
+        attachments: updatedAttachments,
       };
 
       const updated = await handleUpdateComplaint(
@@ -987,10 +1071,15 @@ export default function ComplaintsPage() {
                                       : complaint.status ===
                                           'lalamiko lako limepokelewa, linafanyiwa kazi'
                                         ? 'bg-blue-100 text-blue-700'
-                                        : 'bg-gray-100 text-gray-700'
+                                        : complaint.status ===
+                                            'Appealed to Commission'
+                                          ? 'bg-orange-100 text-orange-700'
+                                          : 'bg-gray-100 text-gray-700'
                         }`}
                       >
-                        {complaint.status}
+                        {complaint.status === 'Appealed to Commission'
+                          ? 'Pingamizi Limewasilishwa — Linasubiri Maamuzi ya Tume'
+                          : complaint.status}
                       </span>
                     </div>
                     {/* Workflow Progress Indicator for Complaints */}
@@ -1007,6 +1096,7 @@ export default function ComplaintsPage() {
                                 'Under Review - Additional Information Provided',
                                 'Resolved - Pending Employee Confirmation',
                                 'Rejected - Pending Employee Confirmation',
+                                'Appealed to Commission',
                                 'Mtumishi ameridhika na hatua',
                                 'Closed - Satisfied',
                               ].includes(complaint.status) ||
@@ -1025,6 +1115,7 @@ export default function ComplaintsPage() {
                                 'Under Review - Additional Information Provided',
                                 'Resolved - Pending Employee Confirmation',
                                 'Rejected - Pending Employee Confirmation',
+                                'Appealed to Commission',
                                 'Mtumishi ameridhika na hatua',
                                 'Closed - Satisfied',
                               ].includes(complaint.status) ||
@@ -1085,6 +1176,48 @@ export default function ComplaintsPage() {
                           </CardContent>
                         </Card>
                       )}
+                    {complaint.status.startsWith(
+                      'Closed - Commission Decision'
+                    ) && (
+                      <Card className="mt-2 bg-blue-50 border-blue-200">
+                        <CardHeader className="pb-1 pt-2">
+                          <CardTitle className="text-sm font-medium text-blue-800">
+                            Maamuzi ya Tume ya Utumishi:
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pb-3 space-y-2">
+                          {complaint.officerComments ? (
+                            <p className="text-sm text-blue-700 whitespace-pre-wrap">
+                              {complaint.officerComments}
+                            </p>
+                          ) : (
+                            <p className="text-sm text-blue-500 italic">
+                              Maamuzi yameandikwa. Tazama maelezo kamili.
+                            </p>
+                          )}
+                          {complaint.attachments &&
+                            complaint.attachments
+                              .filter((a) =>
+                                a.includes('commission-letters')
+                              )
+                              .map((objectKey, i) => (
+                                <Button
+                                  key={i}
+                                  size="sm"
+                                  variant="outline"
+                                  className="border-blue-400 text-blue-700 hover:bg-blue-100"
+                                  onClick={() => {
+                                    setPreviewObjectKey(objectKey);
+                                    setIsPreviewModalOpen(true);
+                                  }}
+                                >
+                                  <FileText className="mr-2 h-4 w-4" />
+                                  Tazama Barua ya Tume
+                                </Button>
+                              ))}
+                        </CardContent>
+                      </Card>
+                    )}
                     {complaint.rejectionReason &&
                       complaint.status.startsWith('Rejected by') && (
                         <Card className="mt-2 bg-red-50 border-red-200">
@@ -1125,17 +1258,38 @@ export default function ComplaintsPage() {
                       'Resolved - Pending Employee Confirmation' ||
                       complaint.status ===
                         'Rejected - Pending Employee Confirmation') && (
-                      <div className="mt-3 pt-3 border-t">
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            handleEmployeeConfirmOutcome(complaint.id)
-                          }
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                        >
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                          Thibitisha Matokeo na Funga Lalamiko
-                        </Button>
+                      <div className="mt-3 pt-3 border-t space-y-2">
+                        <p className="text-xs text-muted-foreground font-medium">
+                          Je, umeridhika na matokeo ya lalamiko lako?
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              handleEmployeeConfirmOutcome(complaint.id)
+                            }
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            <CheckCircle className="mr-2 h-4 w-4" />
+                            Ndiyo, Nimeridhika — Funga Lalamiko
+                          </Button>
+                          {complaint.status ===
+                            'Resolved - Pending Employee Confirmation' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedComplaintForAppeal(complaint);
+                                setNotSatisfiedReason('');
+                                setIsNotSatisfiedModalOpen(true);
+                              }}
+                              className="border-red-400 text-red-700 hover:bg-red-50"
+                            >
+                              <XCircle className="mr-2 h-4 w-4" />
+                              Hapana, Sijaridhika — Pinga Uamuzi
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     )}
                     {complaint.status === 'Awaiting More Information' && (
@@ -1481,18 +1635,24 @@ export default function ComplaintsPage() {
                                   : complaint.status ===
                                       'lalamiko lako limepokelewa, linafanyiwa kazi'
                                     ? 'bg-blue-100 text-blue-700'
-                                    : complaint.status.startsWith('Resolved')
-                                      ? 'bg-green-100 text-green-700'
-                                      : complaint.status.startsWith('Rejected')
-                                        ? 'bg-red-100 text-red-700'
-                                        : complaint.status.startsWith(
-                                              'Closed - Commission Decision'
-                                            )
-                                          ? 'bg-gray-100 text-gray-700'
-                                          : 'bg-gray-100 text-gray-700'
+                                    : complaint.status === 'Appealed to Commission'
+                                      ? 'bg-red-100 text-red-700'
+                                      : complaint.status.startsWith('Resolved')
+                                        ? 'bg-green-100 text-green-700'
+                                        : complaint.status.startsWith('Rejected')
+                                          ? 'bg-red-100 text-red-700'
+                                          : complaint.status.startsWith(
+                                                'Closed - Commission Decision'
+                                              )
+                                            ? 'bg-gray-100 text-gray-700'
+                                            : 'bg-gray-100 text-gray-700'
                         }`}
                       >
-                        {complaint.status}
+                        {complaint.status === 'lalamiko lako limepokelewa, linafanyiwa kazi'
+                          ? 'Lalamiko Limepokelewa - Linasubiri Ukaguzi'
+                          : complaint.status === 'Appealed to Commission'
+                            ? 'Mtumishi Amepinga — Inahitaji Maamuzi ya Tume'
+                            : complaint.status}
                       </span>
                     </div>
                     {/* Workflow Progress Indicator for Complaints */}
@@ -1659,6 +1819,25 @@ export default function ComplaintsPage() {
                         <Eye className="mr-2 h-4 w-4" />
                         Tazama Maelezo Kamili
                       </Button>
+                      {complaint.status === 'Appealed to Commission' && (
+                        <div className="flex flex-col gap-2">
+                          <p className="text-xs text-orange-700 font-medium bg-orange-50 border border-orange-200 rounded px-2 py-1">
+                            Mtumishi amepinga uamuzi — Lalamiko linahitaji
+                            barua rasmi ya maamuzi kutoka Tume ya Utumishi
+                            Serikalini.
+                          </p>
+                          <Button
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={() =>
+                              openCommissionDecisionModal(complaint)
+                            }
+                          >
+                            <FileText className="mr-2 h-4 w-4" />
+                            Pakia Barua ya Maamuzi ya Tume
+                          </Button>
+                        </div>
+                      )}
                       {complaint.reviewStage === 'initial' &&
                         (complaint.status === 'Submitted' ||
                           complaint.status === 'Under Review' ||
@@ -1827,7 +2006,17 @@ export default function ComplaintsPage() {
               </div>
               <div>
                 <strong className="text-muted-foreground">Hali:</strong>{' '}
-                <span className="text-primary">{selectedComplaint.status}</span>
+                <span className="text-primary">
+                  {selectedComplaint.status === 'lalamiko lako limepokelewa, linafanyiwa kazi'
+                    ? (role === ROLES.EMPLOYEE
+                        ? 'Lalamiko lako limepokelewa, linafanyiwa kazi'
+                        : 'Lalamiko Limepokelewa - Linasubiri Ukaguzi Wako')
+                    : selectedComplaint.status === 'Appealed to Commission'
+                      ? (role === ROLES.EMPLOYEE
+                          ? 'Pingamizi Limewasilishwa — Linasubiri Maamuzi ya Tume'
+                          : 'Mtumishi Amepinga — Inahitaji Maamuzi ya Tume')
+                      : selectedComplaint.status}
+                </span>
               </div>
 
               {(role === ROLES.DO ||
@@ -1966,7 +2155,42 @@ export default function ComplaintsPage() {
                 </div>
               </div>
 
-              {selectedComplaint.officerComments && (
+              {selectedComplaint.status.startsWith(
+                'Closed - Commission Decision'
+              ) && selectedComplaint.officerComments ? (
+                <div className="mt-2 pt-2 border-t">
+                  <Card className="bg-blue-50 border-blue-300">
+                    <CardHeader className="pb-2 pt-3">
+                      <CardTitle className="text-sm font-semibold text-blue-800">
+                        Maamuzi ya Tume ya Utumishi wa Umma
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pb-3 space-y-3">
+                      <p className="text-sm text-blue-700 whitespace-pre-wrap">
+                        {selectedComplaint.officerComments}
+                      </p>
+                      {selectedComplaint.attachments &&
+                        selectedComplaint.attachments
+                          .filter((a) => a.includes('commission-letters'))
+                          .map((objectKey, i) => (
+                            <Button
+                              key={i}
+                              size="sm"
+                              variant="outline"
+                              className="border-blue-400 text-blue-700 hover:bg-blue-100"
+                              onClick={() => {
+                                setPreviewObjectKey(objectKey);
+                                setIsPreviewModalOpen(true);
+                              }}
+                            >
+                              <FileText className="mr-2 h-4 w-4" />
+                              Tazama Barua ya Tume
+                            </Button>
+                          ))}
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : selectedComplaint.officerComments ? (
                 <div className="mt-2 pt-2 border-t">
                   <strong className="text-muted-foreground">
                     Maoni/Mrejesho wa Afisa:
@@ -1975,7 +2199,7 @@ export default function ComplaintsPage() {
                     {selectedComplaint.officerComments}
                   </p>
                 </div>
-              )}
+              ) : null}
               {selectedComplaint.rejectionReason && (
                 <div className="mt-2 pt-2 border-t">
                   <strong className="text-muted-foreground text-destructive">
@@ -2421,11 +2645,24 @@ export default function ComplaintsPage() {
           >
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Weka Maamuzi ya Tume</DialogTitle>
+                <DialogTitle>
+                  {selectedComplaintForCommissionDecision.status ===
+                  'Appealed to Commission'
+                    ? 'Pakia Barua ya Maamuzi ya Tume ya Utumishi Serikalini'
+                    : 'Weka Maamuzi ya Tume'}
+                </DialogTitle>
                 <DialogDescription>
-                  Weka maamuzi wa mwisho wa Tume ya Utumishi kuhusu lalamiko
-                  hili. Baada ya kuweka maamuzi, lalamiko litafungwa rasmi na
-                  hakutakuwa na uwezekano wa kuliwasilisha upya.
+                  {selectedComplaintForCommissionDecision.status ===
+                  'Appealed to Commission' ? (
+                    <>
+                      Mtumishi alipinga uamuzi wa awali. Pakia barua rasmi ya
+                      maamuzi kutoka{' '}
+                      <strong>Tume ya Utumishi Serikalini</strong> kuhusu
+                      lalamiko hili. Maamuzi haya ni ya mwisho.
+                    </>
+                  ) : (
+                    'Weka maamuzi wa mwisho wa Tume ya Utumishi kuhusu lalamiko hili. Baada ya kuweka maamuzi, lalamiko litafungwa rasmi na hakutakuwa na uwezekano wa kuliwasilisha upya.'
+                  )}
                 </DialogDescription>
               </DialogHeader>
 
@@ -2473,15 +2710,18 @@ export default function ComplaintsPage() {
                   />
                 </div>
 
-                {commissionDecisionType === 'resolved' && (
+                {(commissionDecisionType === 'resolved' ||
+                  selectedComplaintForCommissionDecision.status ===
+                    'Appealed to Commission') && (
                   <div>
                     <Label htmlFor="commissionLetter">
-                      Barua ya Tume <span className="text-red-500">*</span>
+                      Barua Rasmi ya Tume ya Utumishi Serikalini{' '}
+                      <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       id="commissionLetter"
                       type="file"
-                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      accept=".pdf"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         setCommissionLetter(file || null);
@@ -2489,8 +2729,8 @@ export default function ComplaintsPage() {
                       className="mt-1"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Chagua barua rasmi ya tume inayoonyesha maamuzi. PDF,
-                      Word, au picha zinazokubaliwa.
+                      Pakia barua rasmi ya tume kwa muundo wa PDF pekee. Ukubwa
+                      wa juu ni 1MB.
                     </p>
                   </div>
                 )}
@@ -2524,6 +2764,75 @@ export default function ComplaintsPage() {
             </DialogContent>
           </Dialog>
         )}
+
+      {/* Employee Not Satisfied / Appeal Modal */}
+      {isNotSatisfiedModalOpen && selectedComplaintForAppeal && (
+        <Dialog
+          open={isNotSatisfiedModalOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsNotSatisfiedModalOpen(false);
+              setNotSatisfiedReason('');
+              setSelectedComplaintForAppeal(null);
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Pinga Uamuzi wa Lalamiko</DialogTitle>
+              <DialogDescription>
+                Unapinga uamuzi wa lalamiko:{' '}
+                <strong>{selectedComplaintForAppeal.subject}</strong>. Lalamiko
+                lako litapelekwa kwa Tume ya Utumishi kwa maamuzi ya mwisho.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <Card className="bg-amber-50 border-amber-200">
+                <CardContent className="pt-4 pb-3">
+                  <p className="text-sm text-amber-800">
+                    <strong>Tahadhari:</strong> Baada ya kupinga, lalamiko
+                    litapelekwa moja kwa moja kwa Tume ya Utumishi wa Umma
+                    (CSCS) kwa maamuzi ya mwisho ambayo hayarudi nyuma.
+                  </p>
+                </CardContent>
+              </Card>
+              <div className="space-y-2">
+                <Label htmlFor="notSatisfiedReason">
+                  Eleza sababu ya kutoridhika na uamuzi huu{' '}
+                  <span className="text-destructive">*</span>
+                </Label>
+                <Textarea
+                  id="notSatisfiedReason"
+                  placeholder="Andika kwa undani zaidi kwa nini hukuridhika na matokeo ya lalamiko lako..."
+                  value={notSatisfiedReason}
+                  onChange={(e) => setNotSatisfiedReason(e.target.value)}
+                  rows={4}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsNotSatisfiedModalOpen(false);
+                  setNotSatisfiedReason('');
+                  setSelectedComplaintForAppeal(null);
+                }}
+              >
+                Rudi Nyuma
+              </Button>
+              <Button
+                onClick={handleEmployeeNotSatisfied}
+                disabled={!notSatisfiedReason.trim()}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                Wasilisha Pingamizi kwa Tume
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* File Preview Modal */}
       <FilePreviewModal

@@ -878,7 +878,7 @@ export default function ConfirmationPage() {
                         }
                         folder="confirmation/evaluation-forms"
                         accept=".pdf"
-                        maxSize={2}
+                        maxSize={1}
                         disabled={
                           isSubmitting ||
                           isAlreadyConfirmed ||
@@ -901,7 +901,7 @@ export default function ConfirmationPage() {
                           }
                           folder="confirmation/ipa-certificates"
                           accept=".pdf"
-                          maxSize={2}
+                          maxSize={1}
                           disabled={
                             isSubmitting ||
                             isAlreadyConfirmed ||
@@ -924,7 +924,7 @@ export default function ConfirmationPage() {
                         }
                         folder="confirmation/letters"
                         accept=".pdf"
-                        maxSize={2}
+                        maxSize={1}
                         disabled={
                           isSubmitting ||
                           isAlreadyConfirmed ||
@@ -1607,7 +1607,7 @@ export default function ConfirmationPage() {
                       }
                       folder="confirmation/evaluation-forms"
                       accept=".pdf"
-                      maxSize={2}
+                      maxSize={1}
                     />
                   </div>
                   {((requestToCorrect?.Employee?.employmentDate &&
@@ -1635,7 +1635,7 @@ export default function ConfirmationPage() {
                         }
                         folder="confirmation/ipa-certificates"
                         accept=".pdf"
-                        maxSize={2}
+                        maxSize={1}
                       />
                     </div>
                   )}
@@ -1653,7 +1653,7 @@ export default function ConfirmationPage() {
                       }
                       folder="confirmation/letters"
                       accept=".pdf"
-                      maxSize={2}
+                      maxSize={1}
                     />
                   </div>
                 </div>

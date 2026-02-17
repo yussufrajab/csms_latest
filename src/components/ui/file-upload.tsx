@@ -36,7 +36,7 @@ export function FileUpload({
   label,
   description,
   accept = '.pdf',
-  maxSize = 2,
+  maxSize = 1,
   multiple = false,
   folder = 'documents',
   value,

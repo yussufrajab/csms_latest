@@ -6,12 +6,21 @@ import { createNotification, NotificationTemplates } from '@/lib/notifications';
 const updateComplaintSchema = z.object({
   status: z.string().optional(),
   reviewStage: z.string().optional(),
+  complaintType: z.string().optional(),
+  subject: z.string().optional(),
+  details: z.string().optional(),
+  complainantPhoneNumber: z.string().optional(),
+  nextOfKinPhoneNumber: z.string().optional(),
   officerComments: z.string().optional(),
   internalNotes: z.string().optional(),
-  rejectionReason: z.string().optional(),
+  officerInternalNote: z.string().optional(),
+  rejectionReason: z.string().nullable().optional(),
   assignedOfficerRole: z.string().optional(),
   reviewedById: z.string().optional(),
+  attachments: z.array(z.string()).optional(),
 });
+
+type UpdateComplaintInput = z.infer<typeof updateComplaintSchema>;
 
 export async function PUT(
   req: Request,
@@ -22,9 +31,18 @@ export async function PUT(
     const body = await req.json();
     const validatedData = updateComplaintSchema.parse(body);
 
+    // Map officerInternalNote → internalNotes and strip it from the Prisma payload
+    const { officerInternalNote, ...prismaData } = validatedData;
+    const dbData = {
+      ...prismaData,
+      ...(officerInternalNote
+        ? { internalNotes: officerInternalNote }
+        : {}),
+    };
+
     const updatedComplaint = await db.complaint.update({
       where: { id },
-      data: validatedData,
+      data: dbData,
       include: {
         User_Complaint_complainantIdToUser: {
           select: {

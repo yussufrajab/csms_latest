@@ -25,11 +25,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file size (max 2MB)
-    const maxSize = 2 * 1024 * 1024; // 2MB
+    // Validate file size (max 1MB)
+    const maxSize = 1 * 1024 * 1024; // 1MB
     if (file.size > maxSize) {
       return NextResponse.json(
-        { success: false, message: 'File size exceeds 2MB limit' },
+        { success: false, message: 'File size exceeds 1MB limit' },
         { status: 400 }
       );
     }

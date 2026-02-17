@@ -68,16 +68,16 @@ export function MinioFileExample() {
           <CardTitle>MinIO File Management Demo</CardTitle>
           <CardDescription>
             Try uploading, previewing, and downloading PDF files using MinIO
-            (Max size: 2MB)
+            (Max size: 1MB)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* File Upload Component */}
           <FileUpload
             label="Select PDF File"
-            description="Upload PDF file to MinIO storage (Max size: 2MB)"
+            description="Upload PDF file to MinIO storage (Max size: 1MB)"
             accept=".pdf"
-            maxSize={2}
+            maxSize={1}
             multiple={true}
             folder="test-uploads"
             value={uploadedFiles}

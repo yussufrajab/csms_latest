@@ -1211,7 +1211,7 @@ export default function PromotionPage() {
                             }
                             folder="promotion/performance-appraisals"
                             accept=".pdf"
-                            maxSize={2}
+                            maxSize={1}
                             disabled={
                               isSubmitting ||
                               !!eligibilityError ||
@@ -1233,7 +1233,7 @@ export default function PromotionPage() {
                             }
                             folder="promotion/performance-appraisals"
                             accept=".pdf"
-                            maxSize={2}
+                            maxSize={1}
                             disabled={
                               isSubmitting ||
                               !!eligibilityError ||
@@ -1255,7 +1255,7 @@ export default function PromotionPage() {
                             }
                             folder="promotion/performance-appraisals"
                             accept=".pdf"
-                            maxSize={2}
+                            maxSize={1}
                             disabled={
                               isSubmitting ||
                               !!eligibilityError ||
@@ -1278,7 +1278,7 @@ export default function PromotionPage() {
                             }
                             folder="promotion/csc-forms"
                             accept=".pdf"
-                            maxSize={2}
+                            maxSize={1}
                             disabled={
                               isSubmitting ||
                               !!eligibilityError ||
@@ -1305,7 +1305,7 @@ export default function PromotionPage() {
                             }
                             folder="promotion/certificates"
                             accept=".pdf"
-                            maxSize={2}
+                            maxSize={1}
                             disabled={
                               isSubmitting ||
                               !!eligibilityError ||
@@ -1349,7 +1349,7 @@ export default function PromotionPage() {
                               }
                               folder="promotion/tcu-forms"
                               accept=".pdf"
-                              maxSize={2}
+                              maxSize={1}
                               disabled={
                                 isSubmitting ||
                                 !!eligibilityError ||
@@ -1374,7 +1374,7 @@ export default function PromotionPage() {
                         }
                         folder="promotion/letters"
                         accept=".pdf"
-                        maxSize={2}
+                        maxSize={1}
                         disabled={
                           isSubmitting ||
                           !!eligibilityError ||
@@ -2166,7 +2166,7 @@ export default function PromotionPage() {
                         }
                         folder="promotion/performance-appraisals"
                         accept=".pdf"
-                        maxSize={2}
+                        maxSize={1}
                       />
                     </div>
                     <div>
@@ -2183,7 +2183,7 @@ export default function PromotionPage() {
                         }
                         folder="promotion/performance-appraisals"
                         accept=".pdf"
-                        maxSize={2}
+                        maxSize={1}
                       />
                     </div>
                     <div>
@@ -2200,7 +2200,7 @@ export default function PromotionPage() {
                         }
                         folder="promotion/performance-appraisals"
                         accept=".pdf"
-                        maxSize={2}
+                        maxSize={1}
                       />
                     </div>
                     <div>
@@ -2217,7 +2217,7 @@ export default function PromotionPage() {
                         }
                         folder="promotion/csc-forms"
                         accept=".pdf"
-                        maxSize={2}
+                        maxSize={1}
                       />
                     </div>
                     <div>
@@ -2234,7 +2234,7 @@ export default function PromotionPage() {
                         }
                         folder="promotion/letters"
                         accept=".pdf"
-                        maxSize={2}
+                        maxSize={1}
                       />
                     </div>
                   </>
@@ -2254,7 +2254,7 @@ export default function PromotionPage() {
                         }
                         folder="promotion/certificates"
                         accept=".pdf"
-                        maxSize={2}
+                        maxSize={1}
                       />
                     </div>
                     <div className="flex items-center space-x-2">
@@ -2286,7 +2286,7 @@ export default function PromotionPage() {
                           }
                           folder="promotion/tcu-forms"
                           accept=".pdf"
-                          maxSize={2}
+                          maxSize={1}
                         />
                       </div>
                     )}
@@ -2304,7 +2304,7 @@ export default function PromotionPage() {
                         }
                         folder="promotion/letters"
                         accept=".pdf"
-                        maxSize={2}
+                        maxSize={1}
                       />
                     </div>
                   </>
