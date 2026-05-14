@@ -38,11 +38,17 @@ export async function GET(req: Request) {
     const userId = searchParams.get('userId');
     const userRole = searchParams.get('userRole');
     const userInstitutionId = searchParams.get('userInstitutionId');
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const size = parseInt(searchParams.get('size') || '50', 10);
+    const status = searchParams.get('status') || 'all';
 
     console.log('Confirmations API called with:', {
       userId,
       userRole,
       userInstitutionId,
+      page,
+      size,
+      status,
     });
 
     // Build where clause based on user role and institution
@@ -62,33 +68,54 @@ export async function GET(req: Request) {
       );
     }
 
-    const requests = await db.confirmationRequest.findMany({
-      where: whereClause,
-      include: {
-        Employee: {
-          select: {
-            id: true,
-            name: true,
-            zanId: true,
-            payrollNumber: true,
-            zssfNumber: true,
-            department: true,
-            cadre: true,
-            status: true,
-            dateOfBirth: true,
-            employmentDate: true,
-            Institution: { select: { id: true, name: true } },
+    // Apply status filter
+    if (status && status !== 'all') {
+      if (status === 'pending') {
+        whereClause.OR = [
+          { status: { contains: 'Pending' } },
+          { status: { contains: 'Awaiting' } },
+        ];
+      } else if (status === 'approved') {
+        whereClause.status = { contains: 'Approved' };
+      } else if (status === 'rejected') {
+        whereClause.OR = [
+          { status: { contains: 'Rejected' } },
+        ];
+      }
+    }
+
+    const [requests, total] = await Promise.all([
+      db.confirmationRequest.findMany({
+        where: whereClause,
+        include: {
+          Employee: {
+            select: {
+              id: true,
+              name: true,
+              zanId: true,
+              payrollNumber: true,
+              zssfNumber: true,
+              department: true,
+              cadre: true,
+              status: true,
+              dateOfBirth: true,
+              employmentDate: true,
+              Institution: { select: { id: true, name: true } },
+            },
+          },
+          User_ConfirmationRequest_submittedByIdToUser: {
+            select: { id: true, name: true, username: true },
+          },
+          User_ConfirmationRequest_reviewedByIdToUser: {
+            select: { id: true, name: true, username: true },
           },
         },
-        User_ConfirmationRequest_submittedByIdToUser: {
-          select: { id: true, name: true, username: true },
-        },
-        User_ConfirmationRequest_reviewedByIdToUser: {
-          select: { id: true, name: true, username: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * size,
+        take: size,
+      }),
+      db.confirmationRequest.count({ where: whereClause }),
+    ]);
 
     // Transform the data to match frontend expectations
     const transformedRequests = requests.map((req: any) => ({
@@ -99,7 +126,15 @@ export async function GET(req: Request) {
       User_ConfirmationRequest_reviewedByIdToUser: undefined,
     }));
 
-    return NextResponse.json(transformedRequests);
+    return NextResponse.json({
+      data: transformedRequests,
+      pagination: {
+        total,
+        page,
+        totalPages: Math.ceil(total / size),
+        size,
+      },
+    });
   } catch (error) {
     console.error('[CONFIRMATIONS_GET]', error);
     return NextResponse.json(

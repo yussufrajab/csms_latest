@@ -23,11 +23,17 @@ export async function GET(req: Request) {
     const userId = searchParams.get('userId');
     const userRole = searchParams.get('userRole');
     const userInstitutionId = searchParams.get('userInstitutionId');
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const size = parseInt(searchParams.get('size') || '50', 10);
+    const status = searchParams.get('status') || 'all';
 
     console.log('Promotions API called with:', {
       userId,
       userRole,
       userInstitutionId,
+      page,
+      size,
+      status,
     });
 
     // Build where clause based on user role and institution
@@ -47,8 +53,24 @@ export async function GET(req: Request) {
       );
     }
 
-    const promotionRequests = await db.promotionRequest
-      .findMany({
+    // Apply status filter
+    if (status && status !== 'all') {
+      if (status === 'pending') {
+        whereClause.OR = [
+          { status: { contains: 'Pending' } },
+          { status: { contains: 'Awaiting' } },
+        ];
+      } else if (status === 'approved') {
+        whereClause.status = { contains: 'Approved' };
+      } else if (status === 'rejected') {
+        whereClause.OR = [
+          { status: { contains: 'Rejected' } },
+        ];
+      }
+    }
+
+    const [promotionRequests, total] = await Promise.all([
+      db.promotionRequest.findMany({
         where: whereClause,
         include: {
           Employee: {
@@ -86,10 +108,13 @@ export async function GET(req: Request) {
           },
         },
         orderBy: { createdAt: 'desc' },
-      })
-      .catch(() => []);
+        skip: (page - 1) * size,
+        take: size,
+      }),
+      db.promotionRequest.count({ where: whereClause }),
+    ]);
 
-    console.log(`Found ${promotionRequests.length} promotion requests`);
+    console.log(`Found ${promotionRequests.length} promotion requests (page ${page} of ${Math.ceil(total / size)})`);
 
     // Transform the data to match frontend expectations
     const transformedRequests = promotionRequests.map((req: any) => ({
@@ -101,8 +126,13 @@ export async function GET(req: Request) {
     }));
 
     return NextResponse.json({
-      success: true,
       data: transformedRequests,
+      pagination: {
+        total,
+        page,
+        totalPages: Math.ceil(total / size),
+        size,
+      },
     });
   } catch (error) {
     console.error('[PROMOTIONS_GET]', error);

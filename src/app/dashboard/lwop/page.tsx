@@ -111,9 +111,10 @@ export default function LwopPage() {
   const [currentRequestToAction, setCurrentRequestToAction] =
     useState<LWOPRequest | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50;
+  const itemsPerPage = 50; // Server-side pagination
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
   const [requestToCorrect, setRequestToCorrect] = useState<LWOPRequest | null>(
@@ -217,6 +218,11 @@ export default function LwopPage() {
           size: itemsPerPage.toString(),
         });
 
+        // Add status filter if not 'all'
+        if (statusFilter !== 'all') {
+          params.append('status', statusFilter);
+        }
+
         // Add cache-busting parameter for refresh
         if (isRefresh) {
           params.append('_t', Date.now().toString());
@@ -233,22 +239,22 @@ export default function LwopPage() {
           },
         });
         if (!response.ok) throw new Error('Failed to fetch LWOP requests');
-        const data = await response.json();
-        console.log('[LWOP_FRONTEND] Data received from API:', data);
+        const result = await response.json();
+        console.log('[LWOP_FRONTEND] Data received from API:', result);
 
         // Handle both array and paginated object responses
         let requests = [];
-        if (Array.isArray(data)) {
-          requests = data;
-          setTotalItems(data.length);
-          setTotalPages(Math.ceil(data.length / itemsPerPage));
-        } else if (data.data && Array.isArray(data.data)) {
-          requests = data.data;
-          setTotalItems(data.pagination?.total || data.data.length);
+        if (Array.isArray(result)) {
+          requests = result;
+          setTotalItems(result.length);
+          setTotalPages(Math.ceil(result.length / itemsPerPage));
+        } else if (result.data && Array.isArray(result.data)) {
+          requests = result.data;
+          setTotalItems(result.pagination?.total || result.data.length);
           setTotalPages(
-            data.pagination?.totalPages ||
+            result.pagination?.totalPages ||
               Math.ceil(
-                (data.pagination?.total || data.data.length) / itemsPerPage
+                (result.pagination?.total || result.data.length) / itemsPerPage
               )
           );
         }
@@ -287,7 +293,7 @@ export default function LwopPage() {
         }
       }
     },
-    [user, role, currentPage, itemsPerPage]
+    [user, role, currentPage, itemsPerPage, statusFilter]
   );
 
   useEffect(() => {
@@ -299,6 +305,13 @@ export default function LwopPage() {
       fetchRequests(false, currentPage);
     }
   }, [currentPage]);
+
+  // Re-fetch when status filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+    fetchRequests(false, 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
 
   const resetForm = () => {
     setStartDate('');
@@ -992,6 +1005,26 @@ export default function LwopPage() {
                 />
                 Refresh
               </Button>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {[
+                { value: 'all', label: 'All' },
+                { value: 'pending', label: 'Pending' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'rejected', label: 'Rejected' },
+              ].map((opt) => (
+                <Button
+                  key={opt.value}
+                  variant={statusFilter === opt.value ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setStatusFilter(opt.value);
+                    setCurrentPage(1);
+                  }}
+                >
+                  {opt.label}
+                </Button>
+              ))}
             </div>
           </CardHeader>
           <CardContent>

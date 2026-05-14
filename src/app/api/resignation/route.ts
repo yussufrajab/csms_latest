@@ -18,11 +18,17 @@ export async function GET(req: Request) {
     const userId = searchParams.get('userId');
     const userRole = searchParams.get('userRole');
     const userInstitutionId = searchParams.get('userInstitutionId');
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const size = parseInt(searchParams.get('size') || '50', 10);
+    const status = searchParams.get('status') || 'all';
 
     console.log('Resignation API called with:', {
       userId,
       userRole,
       userInstitutionId,
+      page,
+      size,
+      status,
     });
 
     // Build where clause based on user role and institution
@@ -42,8 +48,24 @@ export async function GET(req: Request) {
       );
     }
 
-    const requests = await db.resignationRequest
-      .findMany({
+    // Apply status filter
+    if (status && status !== 'all') {
+      if (status === 'pending') {
+        whereClause.OR = [
+          { status: { contains: 'Pending' } },
+          { status: { contains: 'Awaiting' } },
+        ];
+      } else if (status === 'approved') {
+        whereClause.status = { contains: 'Approved' };
+      } else if (status === 'rejected') {
+        whereClause.OR = [
+          { status: { contains: 'Rejected' } },
+        ];
+      }
+    }
+
+    const [requests, total] = await Promise.all([
+      db.resignationRequest.findMany({
         where: whereClause,
         include: {
           Employee: {
@@ -68,8 +90,11 @@ export async function GET(req: Request) {
           },
         },
         orderBy: { createdAt: 'desc' },
-      })
-      .catch(() => []);
+        skip: (page - 1) * size,
+        take: size,
+      }),
+      db.resignationRequest.count({ where: whereClause }),
+    ]);
 
     // Transform the data to match frontend expectations
     const transformedRequests = requests.map((req: any) => ({
@@ -80,7 +105,15 @@ export async function GET(req: Request) {
       User_ResignationRequest_reviewedByIdToUser: undefined,
     }));
 
-    return NextResponse.json(transformedRequests);
+    return NextResponse.json({
+      data: transformedRequests,
+      pagination: {
+        total,
+        page,
+        totalPages: Math.ceil(total / size),
+        size,
+      },
+    });
   } catch (error) {
     console.error('[RESIGNATION_GET]', error);
     return NextResponse.json(

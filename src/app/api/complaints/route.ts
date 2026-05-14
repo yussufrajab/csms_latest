@@ -91,13 +91,15 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const userId = searchParams.get('userId');
   const userRole = searchParams.get('userRole');
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const size = parseInt(searchParams.get('size') || '50', 10);
+  const status = searchParams.get('status') || 'all';
 
   if (!userId || !userRole) {
     return new NextResponse('User ID and Role are required', { status: 400 });
   }
 
   try {
-    let complaints;
     const includeOptions = {
       User_Complaint_complainantIdToUser: {
         select: {
@@ -121,33 +123,53 @@ export async function GET(req: Request) {
       },
     };
 
+    // Build base where clause based on role
+    let baseWhere: any = {};
     if (userRole === ROLES.EMPLOYEE) {
-      complaints = await db.complaint.findMany({
-        where: { complainantId: userId },
-        orderBy: { createdAt: 'desc' },
-        include: includeOptions,
-      });
+      baseWhere = { complainantId: userId };
     } else if (userRole === ROLES.DO || userRole === ROLES.HHRMD) {
-      // Both DO and HHRMD can see all complaints (including completed ones as history)
       const doRole = ROLES.DO || 'DO';
       const hhrmdRole = ROLES.HHRMD || 'HHRMD';
-      complaints = await db.complaint.findMany({
-        where: {
-          OR: [
-            { assignedOfficerRole: doRole },
-            { assignedOfficerRole: hhrmdRole },
-          ],
-        },
-        orderBy: { createdAt: 'desc' },
-        include: includeOptions,
-      });
-    } else {
-      // For higher roles like Admin/CSCS, might want to see all
-      complaints = await db.complaint.findMany({
-        orderBy: { createdAt: 'desc' },
-        include: includeOptions,
-      });
+      baseWhere = {
+        OR: [
+          { assignedOfficerRole: doRole },
+          { assignedOfficerRole: hhrmdRole },
+        ],
+      };
     }
+    // else: Admin/CSCS sees all (empty where)
+
+    // Apply status filter using AND to combine with role-based conditions
+    const closedStatuses = ['Closed - Satisfied', 'Mtumishi ameridhika na hatua', 'Closed - Commission Decision (Resolved)', 'Closed - Commission Decision (Rejected)'];
+    const resolvedStatuses = ['Closed - Satisfied', 'Mtumishi ameridhika na hatua', 'Closed - Commission Decision (Resolved)'];
+    const rejectedStatuses = ['Closed - Commission Decision (Rejected)'];
+
+    let statusFilterWhere: any = {};
+    if (status && status !== 'all') {
+      if (status === 'pending') {
+        statusFilterWhere = { status: { notIn: closedStatuses } };
+      } else if (status === 'resolved') {
+        statusFilterWhere = { status: { in: resolvedStatuses } };
+      } else if (status === 'rejected') {
+        statusFilterWhere = { status: { in: rejectedStatuses } };
+      }
+    }
+
+    // Combine role-based and status-based filters with AND
+    const finalWhere: any = Object.keys(statusFilterWhere).length > 0
+      ? { AND: [baseWhere, statusFilterWhere] }
+      : baseWhere;
+
+    const [complaints, total] = await Promise.all([
+      db.complaint.findMany({
+        where: finalWhere,
+        orderBy: { createdAt: 'desc' },
+        include: includeOptions,
+        skip: (page - 1) * size,
+        take: size,
+      }),
+      db.complaint.count({ where: finalWhere }),
+    ]);
 
     // Map the response to match frontend expectations
     const formattedComplaints = complaints.map((c) => ({
@@ -174,7 +196,15 @@ export async function GET(req: Request) {
       reviewedBy: c.User_Complaint_reviewedByIdToUser?.role,
     }));
 
-    return NextResponse.json(formattedComplaints);
+    return NextResponse.json({
+      data: formattedComplaints,
+      pagination: {
+        total,
+        page,
+        totalPages: Math.ceil(total / size),
+        size,
+      },
+    });
   } catch (error) {
     console.error('[COMPLAINTS_GET]', error);
     return new NextResponse('Internal Server Error', { status: 500 });

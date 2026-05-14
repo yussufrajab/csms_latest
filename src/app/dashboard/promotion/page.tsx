@@ -97,9 +97,10 @@ export default function PromotionPage() {
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50;
+  const itemsPerPage = 50; // Server-side pagination
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const [employeeDetails, setEmployeeDetails] = useState<Employee | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -284,6 +285,11 @@ export default function PromotionPage() {
           size: itemsPerPage.toString(),
         });
 
+        // Add status filter if not 'all'
+        if (statusFilter !== 'all') {
+          params.append('status', statusFilter);
+        }
+
         // Add cache-busting parameter for refresh
         if (isRefresh) {
           params.append('_t', Date.now().toString());
@@ -300,21 +306,21 @@ export default function PromotionPage() {
           },
         });
         if (!response.ok) throw new Error('Failed to fetch promotion requests');
-        const data = await response.json();
+        const result = await response.json();
 
         // Handle both array and paginated object responses
         let requests = [];
-        if (Array.isArray(data)) {
-          requests = data;
-          setTotalItems(data.length);
-          setTotalPages(Math.ceil(data.length / itemsPerPage));
-        } else if (data.data && Array.isArray(data.data)) {
-          requests = data.data;
-          setTotalItems(data.pagination?.total || data.data.length);
+        if (Array.isArray(result)) {
+          requests = result;
+          setTotalItems(result.length);
+          setTotalPages(Math.ceil(result.length / itemsPerPage));
+        } else if (result.data && Array.isArray(result.data)) {
+          requests = result.data;
+          setTotalItems(result.pagination?.total || result.data.length);
           setTotalPages(
-            data.pagination?.totalPages ||
+            result.pagination?.totalPages ||
               Math.ceil(
-                (data.pagination?.total || data.data.length) / itemsPerPage
+                (result.pagination?.total || result.data.length) / itemsPerPage
               )
           );
         }
@@ -341,7 +347,7 @@ export default function PromotionPage() {
         }
       }
     },
-    [user, role, currentPage, itemsPerPage]
+    [user, role, currentPage, itemsPerPage, statusFilter]
   );
 
   useEffect(() => {
@@ -353,6 +359,13 @@ export default function PromotionPage() {
       fetchRequests(false, currentPage);
     }
   }, [currentPage]);
+
+  // Re-fetch when status filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+    fetchRequests(false, 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
 
   const resetFormFields = () => {
     setPromotionRequestType('');
@@ -1424,6 +1437,26 @@ export default function PromotionPage() {
               />
               Refresh
             </Button>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3">
+            {[
+              { value: 'all', label: 'All' },
+              { value: 'pending', label: 'Pending' },
+              { value: 'approved', label: 'Approved' },
+              { value: 'rejected', label: 'Rejected' },
+            ].map((opt) => (
+              <Button
+                key={opt.value}
+                variant={statusFilter === opt.value ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setStatusFilter(opt.value);
+                  setCurrentPage(1);
+                }}
+              >
+                {opt.label}
+              </Button>
+            ))}
           </div>
         </CardHeader>
         <CardContent>

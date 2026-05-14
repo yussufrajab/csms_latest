@@ -64,6 +64,7 @@ import {
 } from '@/components/ui/select';
 import { FileUpload } from '@/components/ui/file-upload';
 import { FilePreviewModal } from '@/components/ui/file-preview-modal';
+import { Pagination } from '@/components/shared/pagination';
 import { format, parseISO } from 'date-fns';
 
 const COMPLAINT_TYPES = [
@@ -149,6 +150,11 @@ export default function ComplaintsPage() {
     useState<string>('');
 
   const [complaints, setComplaints] = useState<SubmittedComplaint[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50; // Server-side pagination
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedComplaint, setSelectedComplaint] =
     useState<SubmittedComplaint | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
@@ -215,7 +221,7 @@ export default function ComplaintsPage() {
     setIsPreviewModalOpen(true);
   };
 
-  const fetchComplaints = async (isRefresh = false) => {
+  const fetchComplaints = async (isRefresh = false, page = currentPage) => {
     if (!user || !role) return;
     if (isRefresh) {
       setIsRefreshing(true);
@@ -223,26 +229,54 @@ export default function ComplaintsPage() {
       setIsLoading(true);
     }
     try {
-      // Add cache-busting parameter and headers for refresh
-      const cacheBuster = isRefresh ? `&_t=${Date.now()}` : '';
-      const response = await fetch(
-        `/api/complaints?userId=${user.id}&userRole=${role}${cacheBuster}`,
-        {
-          method: 'GET',
-          headers: {
-            'Cache-Control': isRefresh
-              ? 'no-cache, no-store, must-revalidate'
-              : 'default',
-            Pragma: isRefresh ? 'no-cache' : 'default',
-            Expires: isRefresh ? '0' : 'default',
-          },
-        }
-      );
+      const params = new URLSearchParams({
+        userId: user.id,
+        userRole: role,
+        page: page.toString(),
+        size: itemsPerPage.toString(),
+      });
+
+      // Add status filter if not 'all'
+      if (statusFilter !== 'all') {
+        params.append('status', statusFilter);
+      }
+
+      // Add cache-busting parameter for refresh
+      if (isRefresh) {
+        params.append('_t', Date.now().toString());
+      }
+
+      const response = await fetch(`/api/complaints?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Cache-Control': isRefresh
+            ? 'no-cache, no-store, must-revalidate'
+            : 'default',
+          Pragma: isRefresh ? 'no-cache' : 'default',
+          Expires: isRefresh ? '0' : 'default',
+        },
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch complaints');
       }
-      const data = await response.json();
-      setComplaints(data);
+      const result = await response.json();
+
+      // Handle both array and paginated object responses
+      if (Array.isArray(result)) {
+        setComplaints(result);
+        setTotalItems(result.length);
+        setTotalPages(Math.ceil(result.length / itemsPerPage));
+      } else if (result.data && Array.isArray(result.data)) {
+        setComplaints(result.data);
+        setTotalItems(result.pagination?.total || result.data.length);
+        setTotalPages(
+          result.pagination?.totalPages ||
+            Math.ceil(
+              (result.pagination?.total || result.data.length) / itemsPerPage
+            )
+        );
+      }
+
       if (isRefresh) {
         toast({
           title: 'Imesasishwa',
@@ -268,6 +302,19 @@ export default function ComplaintsPage() {
   useEffect(() => {
     fetchComplaints();
   }, [user, role]);
+
+  useEffect(() => {
+    if (currentPage > 1) {
+      fetchComplaints(false, currentPage);
+    }
+  }, [currentPage]);
+
+  // Re-fetch when status filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+    fetchComplaints(false, 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
 
   const handleStandardizeComplaint = async () => {
     const complaintText = form.getValues('complaintText');
@@ -1029,6 +1076,26 @@ export default function ComplaintsPage() {
                   Sasisha
                 </Button>
               </div>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {[
+                  { value: 'all', label: 'All' },
+                  { value: 'pending', label: 'Pending' },
+                  { value: 'resolved', label: 'Resolved' },
+                  { value: 'rejected', label: 'Rejected' },
+                ].map((opt) => (
+                  <Button
+                    key={opt.value}
+                    variant={statusFilter === opt.value ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setStatusFilter(opt.value);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
@@ -1316,6 +1383,13 @@ export default function ComplaintsPage() {
                   Bado hujawasilisha malalamiko yoyote.
                 </p>
               )}
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+              />
             </CardContent>
           </Card>
 
@@ -1604,6 +1678,26 @@ export default function ComplaintsPage() {
                   />
                   Sasisha
                 </Button>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {[
+                  { value: 'all', label: 'All' },
+                  { value: 'pending', label: 'Pending' },
+                  { value: 'resolved', label: 'Resolved' },
+                  { value: 'rejected', label: 'Rejected' },
+                ].map((opt) => (
+                  <Button
+                    key={opt.value}
+                    variant={statusFilter === opt.value ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => {
+                      setStatusFilter(opt.value);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
               </div>
             </CardHeader>
             <CardContent>
@@ -1904,6 +1998,13 @@ export default function ComplaintsPage() {
                   Hakuna malalamiko yanayosubiri ukaguzi wako kwa sasa.
                 </p>
               )}
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+              />
             </CardContent>
           </Card>
 

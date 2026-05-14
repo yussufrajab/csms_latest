@@ -24,7 +24,6 @@ import {
   CalendarDays,
   CheckSquare,
   RefreshCw,
-  Clock,
   CheckCircle,
   XCircle,
   AlertTriangle,
@@ -72,7 +71,6 @@ export default function ServiceExtensionPage() {
   const [isProbationError, setIsProbationError] = useState(false);
   const [hasPendingServiceExtension, setHasPendingServiceExtension] =
     useState(false);
-  const previousRequestsRef = React.useRef<ServiceExtensionRequest[]>([]);
 
   const [currentRetirementDate, setCurrentRetirementDate] = useState('');
   const [requestedExtensionPeriod, setRequestedExtensionPeriod] = useState('');
@@ -124,16 +122,10 @@ export default function ServiceExtensionPage() {
     useState<ServiceExtensionRequest | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50;
+  const itemsPerPage = 50; // Server-side pagination
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-
-  // Auto-refresh state
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-  const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(
-    null
-  );
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const [isCorrectionModalOpen, setIsCorrectionModalOpen] = useState(false);
   const [requestToCorrect, setRequestToCorrect] =
@@ -153,11 +145,11 @@ export default function ServiceExtensionPage() {
   ] = useState<string>('');
 
   const fetchRequests = useCallback(
-    async (showLoadingState = true, isRefresh = false, page = currentPage) => {
+    async (isRefresh = false, page = currentPage) => {
       if (!user || !role) return;
       if (isRefresh) {
         setIsRefreshing(true);
-      } else if (showLoadingState) {
+      } else {
         setIsLoading(true);
       }
 
@@ -170,6 +162,11 @@ export default function ServiceExtensionPage() {
           page: page.toString(),
           size: itemsPerPage.toString(),
         });
+
+        // Add status filter if not 'all'
+        if (statusFilter !== 'all') {
+          params.append('status', statusFilter);
+        }
 
         // Add cache-busting parameter for refresh
         if (isRefresh) {
@@ -191,54 +188,26 @@ export default function ServiceExtensionPage() {
         );
         if (!response.ok)
           throw new Error('Failed to fetch service extension requests');
-        const data = await response.json();
+        const result = await response.json();
 
         // Handle both array and paginated object responses
         let requests = [];
-        if (Array.isArray(data)) {
-          requests = data;
-          setTotalItems(data.length);
-          setTotalPages(Math.ceil(data.length / itemsPerPage));
-        } else if (data.data && Array.isArray(data.data)) {
-          requests = data.data;
-          setTotalItems(data.pagination?.total || data.data.length);
+        if (Array.isArray(result)) {
+          requests = result;
+          setTotalItems(result.length);
+          setTotalPages(Math.ceil(result.length / itemsPerPage));
+        } else if (result.data && Array.isArray(result.data)) {
+          requests = result.data;
+          setTotalItems(result.pagination?.total || result.data.length);
           setTotalPages(
-            data.pagination?.totalPages ||
+            result.pagination?.totalPages ||
               Math.ceil(
-                (data.pagination?.total || data.data.length) / itemsPerPage
+                (result.pagination?.total || result.data.length) / itemsPerPage
               )
           );
         }
 
-        // Check for changes in status to show notifications
-        if (previousRequestsRef.current.length > 0) {
-          const changedRequests = requests.filter(
-            (newReq: ServiceExtensionRequest) => {
-              const oldReq = previousRequestsRef.current.find(
-                (r) => r.id === newReq.id
-              );
-              return oldReq && oldReq.status !== newReq.status;
-            }
-          );
-
-          changedRequests.forEach((req: ServiceExtensionRequest) => {
-            const oldReq = previousRequestsRef.current.find(
-              (r) => r.id === req.id
-            );
-            if (oldReq) {
-              toast({
-                title: 'Status Update',
-                description: `Request for ${req.Employee?.name || 'Unknown'} status changed from "${oldReq.status}" to "${req.status}"`,
-                duration: 5000,
-              });
-            }
-          });
-        }
-
-        // Update ref with current requests before setting state
-        previousRequestsRef.current = requests;
         setPendingRequests(requests);
-        setLastRefresh(new Date());
 
         if (isRefresh) {
           toast({
@@ -248,23 +217,21 @@ export default function ServiceExtensionPage() {
           });
         }
       } catch (error) {
-        if (showLoadingState || isRefresh) {
-          toast({
-            title: 'Error',
-            description: 'Could not load service extension requests.',
-            variant: 'destructive',
-          });
-        }
+        toast({
+          title: 'Error',
+          description: 'Could not load service extension requests.',
+          variant: 'destructive',
+        });
       } finally {
         if (isRefresh) {
           setIsRefreshing(false);
-        } else if (showLoadingState) {
+        } else {
           setIsLoading(false);
         }
       }
     },
-    [user, role, currentPage, itemsPerPage]
-  ); // Removed pendingRequests to prevent infinite loop
+    [user, role, currentPage, itemsPerPage, statusFilter]
+  );
 
   useEffect(() => {
     fetchRequests();
@@ -272,38 +239,16 @@ export default function ServiceExtensionPage() {
 
   useEffect(() => {
     if (currentPage > 1) {
-      fetchRequests(false, false, currentPage);
+      fetchRequests(false, currentPage);
     }
   }, [currentPage]);
 
-  // Auto-refresh effect
+  // Re-fetch when status filter changes
   useEffect(() => {
-    if (isAutoRefreshEnabled && user && role) {
-      const interval = setInterval(() => {
-        fetchRequests(false, true); // Silent refresh without loading state
-      }, 30000); // Refresh every 30 seconds
-
-      setRefreshInterval(interval);
-
-      return () => {
-        if (interval) clearInterval(interval);
-      };
-    } else {
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-        setRefreshInterval(null);
-      }
-    }
-  }, [isAutoRefreshEnabled, user, role]); // Removed pendingRequests from dependencies
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-      }
-    };
-  }, []);
+    setCurrentPage(1);
+    fetchRequests(false, 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
 
   const resetFormFields = () => {
     setCurrentRetirementDate('');
@@ -312,11 +257,6 @@ export default function ServiceExtensionPage() {
     setEmployeeConsentLetterFile('');
     setLetterOfRequestFile('');
     setHasPendingServiceExtension(false);
-  };
-
-  // Helper function to format refresh time
-  const formatRefreshTime = (date: Date): string => {
-    return format(date, 'HH:mm:ss');
   };
 
   const handleEmployeeFound = (employee: Employee) => {
@@ -739,10 +679,6 @@ export default function ServiceExtensionPage() {
   const paginatedRequests = pendingRequests || [];
 
   // Manual refresh function
-  const handleManualRefresh = async () => {
-    await fetchRequests(true, true);
-  };
-
   return (
     <div>
       <PageHeader
@@ -1039,24 +975,38 @@ export default function ServiceExtensionPage() {
                   submitted.
                 </CardDescription>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="flex items-center text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3 mr-1" />
-                  Last: {formatRefreshTime(lastRefresh)}
-                </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchRequests(true)}
+                disabled={isRefreshing}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+                />
+                Refresh
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {[
+                { value: 'all', label: 'All' },
+                { value: 'pending', label: 'Pending' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'rejected', label: 'Rejected' },
+              ].map((opt) => (
                 <Button
-                  variant="outline"
+                  key={opt.value}
+                  variant={statusFilter === opt.value ? 'default' : 'outline'}
                   size="sm"
-                  onClick={handleManualRefresh}
-                  disabled={isLoading}
-                  className="h-8"
+                  onClick={() => {
+                    setStatusFilter(opt.value);
+                    setCurrentPage(1);
+                  }}
                 >
-                  <RefreshCw
-                    className={`h-3 w-3 mr-1 ${isLoading ? 'animate-spin' : ''}`}
-                  />
-                  Refresh
+                  {opt.label}
                 </Button>
-              </div>
+              ))}
             </div>
           </CardHeader>
           <CardContent>
@@ -1250,24 +1200,38 @@ export default function ServiceExtensionPage() {
                   Review, approve, or reject pending service extension requests.
                 </CardDescription>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="flex items-center text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3 mr-1" />
-                  Last: {formatRefreshTime(lastRefresh)}
-                </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchRequests(true)}
+                disabled={isRefreshing}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+                />
+                Refresh
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {[
+                { value: 'all', label: 'All' },
+                { value: 'pending', label: 'Pending' },
+                { value: 'approved', label: 'Approved' },
+                { value: 'rejected', label: 'Rejected' },
+              ].map((opt) => (
                 <Button
-                  variant="outline"
+                  key={opt.value}
+                  variant={statusFilter === opt.value ? 'default' : 'outline'}
                   size="sm"
-                  onClick={handleManualRefresh}
-                  disabled={isLoading}
-                  className="h-8"
+                  onClick={() => {
+                    setStatusFilter(opt.value);
+                    setCurrentPage(1);
+                  }}
                 >
-                  <RefreshCw
-                    className={`h-3 w-3 mr-1 ${isLoading ? 'animate-spin' : ''}`}
-                  />
-                  Refresh
+                  {opt.label}
                 </Button>
-              </div>
+              ))}
             </div>
           </CardHeader>
           <CardContent>

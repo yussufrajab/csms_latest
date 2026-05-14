@@ -100,6 +100,7 @@ export default function ConfirmationPage() {
   const itemsPerPage = 50; // Server-side pagination
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   // File preview modal state
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -156,6 +157,9 @@ export default function ConfirmationPage() {
         params.append('userInstitutionId', user.institutionId || '');
         params.append('page', page.toString());
         params.append('size', itemsPerPage.toString());
+        if (statusFilter !== 'all') {
+          params.append('status', statusFilter);
+        }
 
         const url = `/api/confirmations?${params.toString()}${cacheBuster}`;
 
@@ -266,14 +270,14 @@ export default function ConfirmationPage() {
         }
       }
     },
-    [user, role, itemsPerPage]
+    [user, role, itemsPerPage, statusFilter]
   );
 
   useEffect(() => {
     if (!isAuthLoading && user && role) {
       fetchRequests();
     }
-  }, [user, role, isAuthLoading, fetchRequests]);
+  }, [user, role, isAuthLoading, fetchRequests, statusFilter]);
 
   // Fetch new data when page changes
   useEffect(() => {
@@ -982,6 +986,26 @@ export default function ConfirmationPage() {
               />
               Refresh
             </Button>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-3">
+            {[
+              { value: 'all', label: 'All' },
+              { value: 'pending', label: 'Pending' },
+              { value: 'approved', label: 'Approved' },
+              { value: 'rejected', label: 'Rejected' },
+            ].map((opt) => (
+              <Button
+                key={opt.value}
+                variant={statusFilter === opt.value ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => {
+                  setStatusFilter(opt.value);
+                  setCurrentPage(1);
+                }}
+              >
+                {opt.label}
+              </Button>
+            ))}
           </div>
         </CardHeader>
         <CardContent>
