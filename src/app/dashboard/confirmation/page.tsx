@@ -1010,6 +1010,16 @@ export default function ConfirmationPage() {
                   <p className="text-sm text-muted-foreground">
                     Department: {employeeData?.department || 'N/A'}
                   </p>
+                  {role !== ROLES.HRO && (
+                    <p className="text-sm text-muted-foreground">
+                      Institution:{' '}
+                      {(employeeData as any)?.Institution?.name ||
+                        (typeof (employeeData as any)?.institution === 'string'
+                          ? (employeeData as any)?.institution
+                          : (employeeData as any)?.institution?.name) ||
+                        'N/A'}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground">
                     Submitted: {format(parseISO(request.createdAt), 'PPP')} by{' '}
                     {request.submittedBy?.name || 'N/A'}
@@ -1338,11 +1348,12 @@ export default function ConfirmationPage() {
                         Institution:
                       </Label>
                       <p className="col-span-2 font-medium">
-                        {selectedEmployeeData?.institution
-                          ? typeof selectedEmployeeData.institution === 'string'
-                            ? selectedEmployeeData.institution
-                            : selectedEmployeeData.institution.name
-                          : 'N/A'}
+                        {(selectedEmployeeData as any)?.Institution?.name ||
+                          (typeof (selectedEmployeeData as any)?.institution ===
+                          'string'
+                            ? (selectedEmployeeData as any)?.institution
+                            : (selectedEmployeeData as any)?.institution?.name) ||
+                          'N/A'}
                       </p>
                     </div>
                   </div>

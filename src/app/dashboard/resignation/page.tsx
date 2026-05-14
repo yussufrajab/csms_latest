@@ -943,6 +943,12 @@ export default function ResignationPage() {
                       ? format(parseISO(request.effectiveDate), 'PPP')
                       : 'N/A'}
                   </p>
+                  {role !== ROLES.HRO && (
+                    <p className="text-sm text-muted-foreground">
+                      Institution:{' '}
+                      {request.Employee?.Institution?.name || 'N/A'}
+                    </p>
+                  )}
                   {request.reason && (
                     <p className="text-sm text-muted-foreground">
                       Reason: {request.reason}
@@ -1143,6 +1149,12 @@ export default function ResignationPage() {
                       ? format(parseISO(request.effectiveDate), 'PPP')
                       : 'N/A'}
                   </p>
+                  {role !== ROLES.HRO && (
+                    <p className="text-sm text-muted-foreground">
+                      Institution:{' '}
+                      {request.Employee?.Institution?.name || 'N/A'}
+                    </p>
+                  )}
                   {request.reason && (
                     <p className="text-sm text-muted-foreground">
                       Reason: {request.reason}

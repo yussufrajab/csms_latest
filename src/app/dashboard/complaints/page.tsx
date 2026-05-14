@@ -123,6 +123,7 @@ interface SubmittedComplaint {
   reviewStage: string;
   rejectionReason?: string | null;
   reviewedBy?: UserRole | null;
+  institutionName?: string | null;
 }
 
 export default function ComplaintsPage() {
@@ -1732,6 +1733,11 @@ export default function ComplaintsPage() {
                       From: {complaint.employeeName}{' '}
                       {complaint.zanId ? `(ZanID: ${complaint.zanId})` : ''}
                     </p>
+                    {role !== ROLES.EMPLOYEE && role !== ROLES.HRO && (
+                      <p className="text-sm text-muted-foreground">
+                        Institution: {complaint.institutionName || 'N/A'}
+                      </p>
+                    )}
                     <p className="text-sm text-muted-foreground">
                       Submitted:{' '}
                       {format(parseISO(complaint.submissionDate), 'PPP')}
@@ -1941,6 +1947,11 @@ export default function ComplaintsPage() {
                       From: {complaint.employeeName}{' '}
                       {complaint.zanId ? `(ZanID: ${complaint.zanId})` : ''}
                     </p>
+                    {role !== ROLES.EMPLOYEE && role !== ROLES.HRO && (
+                      <p className="text-sm text-muted-foreground">
+                        Institution: {complaint.institutionName || 'N/A'}
+                      </p>
+                    )}
                     <p className="text-sm text-muted-foreground">
                       Completed:{' '}
                       {format(parseISO(complaint.submissionDate), 'PPP')}

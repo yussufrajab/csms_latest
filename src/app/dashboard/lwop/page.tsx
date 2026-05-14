@@ -1051,6 +1051,16 @@ export default function LwopPage() {
                     <p className="text-sm text-muted-foreground">
                       Reason: {request.reason}
                     </p>
+                    {role !== ROLES.HRO && (
+                      <p className="text-sm text-muted-foreground">
+                        Institution:{' '}
+                        {(employeeData as any)?.Institution?.name ||
+                          (typeof (employeeData as any)?.institution === 'string'
+                            ? (employeeData as any)?.institution
+                            : (employeeData as any)?.institution?.name) ||
+                          'N/A'}
+                      </p>
+                    )}
                     <p className="text-sm text-muted-foreground">
                       Submitted:{' '}
                       {request.createdAt

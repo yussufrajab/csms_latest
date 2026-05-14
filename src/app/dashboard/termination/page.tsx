@@ -1197,6 +1197,12 @@ export default function TerminationAndDismissalPage() {
                   <p className="text-sm text-muted-foreground">
                     Reason: {request.reason}
                   </p>
+                  {role !== ROLES.HRO && (
+                    <p className="text-sm text-muted-foreground">
+                      Institution:{' '}
+                      {request.Employee?.Institution?.name || 'N/A'}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground">
                     Submitted:{' '}
                     {request.createdAt
@@ -1391,6 +1397,12 @@ export default function TerminationAndDismissalPage() {
                   <p className="text-sm text-muted-foreground">
                     Reason: {request.reason}
                   </p>
+                  {role !== ROLES.HRO && (
+                    <p className="text-sm text-muted-foreground">
+                      Institution:{' '}
+                      {request.Employee?.Institution?.name || 'N/A'}
+                    </p>
+                  )}
                   <div className="flex items-center space-x-2">
                     <p className="text-sm">
                       <span className="font-medium">Status:</span>

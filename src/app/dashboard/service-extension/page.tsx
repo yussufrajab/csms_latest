@@ -1113,6 +1113,12 @@ export default function ServiceExtensionPage() {
                   <p className="text-sm text-muted-foreground">
                     Extension Requested: {request.requestedExtensionPeriod}
                   </p>
+                  {role !== ROLES.HRO && (
+                    <p className="text-sm text-muted-foreground">
+                      Institution:{' '}
+                      {request.Employee?.Institution?.name || 'N/A'}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground">
                     Submitted:{' '}
                     {request.createdAt
@@ -1318,6 +1324,12 @@ export default function ServiceExtensionPage() {
                   <p className="text-sm text-muted-foreground">
                     Extension Requested: {request.requestedExtensionPeriod}
                   </p>
+                  {role !== ROLES.HRO && (
+                    <p className="text-sm text-muted-foreground">
+                      Institution:{' '}
+                      {request.Employee?.Institution?.name || 'N/A'}
+                    </p>
+                  )}
                   <p className="text-sm text-muted-foreground">
                     Submitted:{' '}
                     {request.createdAt

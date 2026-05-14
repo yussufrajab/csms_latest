@@ -3,6 +3,59 @@ import { cleanupExpiredSessions } from '@/lib/session-manager';
 import { db } from '@/lib/db';
 
 /**
+ * GET handler — returns session statistics for the admin dashboard
+ */
+export async function GET() {
+  try {
+    const now = new Date();
+
+    const [totalSessions, activeSessions, expiredSessions, suspiciousSessions] =
+      await Promise.all([
+        db.session.count(),
+        db.session.count({ where: { expiresAt: { gt: now } } }),
+        db.session.count({ where: { expiresAt: { lte: now } } }),
+        db.session.count({ where: { isSuspicious: true } }),
+      ]);
+
+    const sessionsByUser = await db.session.groupBy({
+      by: ['userId'],
+      _count: { id: true },
+    });
+
+    const userIds = [...new Set(sessionsByUser.map((s) => s.userId))];
+    const users = await db.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, username: true, name: true },
+    });
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const perUserBreakdown = sessionsByUser.map((s) => ({
+      userId: s.userId,
+      username: userMap.get(s.userId)?.username || 'Unknown',
+      name: userMap.get(s.userId)?.name || 'Unknown',
+      sessionCount: s._count.id,
+    }));
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        totalSessions,
+        activeSessions,
+        expiredSessions,
+        suspiciousSessions,
+        perUserBreakdown,
+      },
+    });
+  } catch (error) {
+    console.error('[ADMIN_CLEANUP_SESSIONS_GET]', error);
+    return NextResponse.json(
+      { success: false, message: 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * Admin endpoint to manually clean up sessions
  * Can be used to clean up all sessions or just expired ones
  */
@@ -72,8 +125,10 @@ export async function POST(req: Request) {
           deviceInfo: session.deviceInfo,
           ipAddress: session.ipAddress,
           createdAt: session.createdAt,
+          lastActivity: session.lastActivity,
           expiresAt: session.expiresAt,
           isExpired,
+          isSuspicious: session.isSuspicious,
         });
         return acc;
       }, {} as Record<string, any>);

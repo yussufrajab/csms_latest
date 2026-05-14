@@ -26,6 +26,7 @@ import {
   FileText,
   UserPlus,
   Settings,
+  Trash2,
 } from 'lucide-react';
 import type { NavItem, Role } from './types';
 import { ROLES } from './constants';
@@ -116,6 +117,13 @@ export const NAV_ITEMS: NavItem[] = [
         roles: [ROLES.ADMIN as Role],
         description:
           'Monitor security events and unauthorized access attempts.',
+      },
+      {
+        title: 'Session Cleanup',
+        href: '/dashboard/admin/session-cleanup',
+        icon: Trash2,
+        roles: [ROLES.ADMIN as Role],
+        description: 'View and cleanup expired user sessions.',
       },
     ],
   },

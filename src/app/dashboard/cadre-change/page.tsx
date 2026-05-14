@@ -941,6 +941,16 @@ export default function CadreChangePage() {
                     <p className="text-sm text-muted-foreground">
                       To Cadre: {request.newCadre}
                     </p>
+                    {role !== ROLES.HRO && (
+                      <p className="text-sm text-muted-foreground">
+                        Institution:{' '}
+                        {(employeeData as any)?.Institution?.name ||
+                          (typeof (employeeData as any)?.institution === 'string'
+                            ? (employeeData as any)?.institution
+                            : (employeeData as any)?.institution?.name) ||
+                          'N/A'}
+                      </p>
+                    )}
                     <p className="text-sm text-muted-foreground">
                       Submitted:{' '}
                       {request.createdAt
@@ -1155,6 +1165,16 @@ export default function CadreChangePage() {
                     <p className="text-sm text-muted-foreground">
                       To Cadre: {request.newCadre}
                     </p>
+                    {role !== ROLES.HRO && (
+                      <p className="text-sm text-muted-foreground">
+                        Institution:{' '}
+                        {(employeeData as any)?.Institution?.name ||
+                          (typeof (employeeData as any)?.institution === 'string'
+                            ? (employeeData as any)?.institution
+                            : (employeeData as any)?.institution?.name) ||
+                          'N/A'}
+                      </p>
+                    )}
                     <p className="text-sm text-muted-foreground">
                       Submitted:{' '}
                       {request.createdAt

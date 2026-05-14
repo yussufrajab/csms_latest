@@ -1378,6 +1378,16 @@ export default function RetirementPage() {
                 <p className="text-sm text-muted-foreground">
                   Type: {request.retirementType}
                 </p>
+                {role !== ROLES.HRO && (
+                  <p className="text-sm text-muted-foreground">
+                    Institution:{' '}
+                    {(employeeData as any)?.Institution?.name ||
+                      (typeof (employeeData as any)?.institution === 'string'
+                        ? (employeeData as any)?.institution
+                        : (employeeData as any)?.institution?.name) ||
+                      'N/A'}
+                  </p>
+                )}
                 {request.retirementType?.toLowerCase() === 'illness' &&
                   request.illnessDescription && (
                     <p className="text-sm text-muted-foreground">
@@ -1592,6 +1602,16 @@ export default function RetirementPage() {
                   <p className="text-sm text-muted-foreground">
                     Type: {request.retirementType}
                   </p>
+                  {role !== ROLES.HRO && (
+                    <p className="text-sm text-muted-foreground">
+                      Institution:{' '}
+                      {(employeeData as any)?.Institution?.name ||
+                        (typeof (employeeData as any)?.institution === 'string'
+                          ? (employeeData as any)?.institution
+                          : (employeeData as any)?.institution?.name) ||
+                        'N/A'}
+                    </p>
+                  )}
                   {request.retirementType?.toLowerCase() === 'illness' &&
                     request.illnessDescription && (
                       <p className="text-sm text-muted-foreground">

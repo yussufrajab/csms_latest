@@ -157,6 +157,7 @@ export async function GET(req: Request) {
       zanId: c.User_Complaint_complainantIdToUser.Employee?.zanId,
       department: c.User_Complaint_complainantIdToUser.Employee?.department,
       cadre: c.User_Complaint_complainantIdToUser.Employee?.cadre,
+      institutionName: c.User_Complaint_complainantIdToUser.Institution?.name,
       complaintType: c.complaintType,
       subject: c.subject,
       details: c.details,

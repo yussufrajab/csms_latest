@@ -1489,6 +1489,12 @@ export default function PromotionPage() {
                 <p className="text-sm text-muted-foreground">
                   Type: {request.promotionType}
                 </p>
+                {role !== ROLES.HRO && (
+                  <p className="text-sm text-muted-foreground">
+                    Institution:{' '}
+                    {request.Employee?.Institution?.name || 'N/A'}
+                  </p>
+                )}
                 <p className="text-sm text-muted-foreground">
                   Submitted:{' '}
                   {request.createdAt
