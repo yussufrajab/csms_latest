@@ -1,0 +1,21 @@
+[2026-01-15 17:50:57] INFO: Log file: ./scripts/logs/fetch-photos-20260115_175057.log
+[2026-01-15 17:50:57] INFO: Fetching institutions list...
+[2026-01-15 17:50:57] SUCCESS: Found 73 institutions
+[2026-01-15 17:50:57] INFO: Checking existing photo status...
+[2026-01-15 17:50:57] INFO: Fetching photo status for all institutions from database...
+[2026-01-15 17:50:58] SUCCESS: Photo status loaded
+[2026-01-15 17:50:58] INFO: CONFIGURATION:
+[2026-01-15 17:50:58] INFO:   Base URL: http://localhost:9002
+[2026-01-15 17:50:58] INFO:   Pause between institutions: 3s
+[2026-01-15 17:50:58] INFO:   Starting from: Institution #1
+[2026-01-15 17:50:58] INFO:   Min photos threshold: 60%
+[2026-01-15 17:50:58] INFO:   Force re-fetch: false
+[2026-01-15 17:50:58] INFO: SUMMARY:
+[2026-01-15 17:50:58] INFO:   Total institutions: 73
+[2026-01-15 17:50:58] SUCCESS:   Need to fetch: 42
+[2026-01-15 17:50:58] INFO:   Already fetched (>= 60% complete): 31
+[2026-01-15 17:50:58] WARNING: DRY RUN MODE - No actual fetching will occur
+[2026-01-15 17:50:58] INFO: Listing all institutions with photo status:
+[2026-01-15 17:50:59] INFO: Total: 73 institutions
+[2026-01-15 17:50:59] SUCCESS: Will fetch: 42
+[2026-01-15 17:50:59] INFO: Will skip: 31

@@ -1,0 +1,50 @@
+[2026-01-15 17:00:21] INFO: Log file: ./scripts/logs/fetch-documents-20260115_170021.log
+[2026-01-15 17:00:21] INFO: Fetching institutions list...
+[2026-01-15 17:00:21] SUCCESS: Found 73 institutions
+[2026-01-15 17:00:21] INFO: Checking existing document status...
+[2026-01-15 17:00:21] INFO: Fetching document status for all institutions from database...
+[2026-01-15 17:00:22] SUCCESS: Document status loaded
+[2026-01-15 17:00:22] INFO: CONFIGURATION:
+[2026-01-15 17:00:22] INFO:   Base URL: http://localhost:9002
+[2026-01-15 17:00:22] INFO:   Pause between institutions: 5s
+[2026-01-15 17:00:22] INFO:   Starting from: Institution #1
+[2026-01-15 17:00:22] INFO:   Min docs threshold: 80%
+[2026-01-15 17:00:22] INFO:   Force re-fetch: false
+[2026-01-15 17:00:22] INFO: DOCUMENT TYPES TO FETCH:
+[2026-01-15 17:00:22] INFO:   - Ardhil Hali (CV)
+[2026-01-15 17:00:22] INFO:   - Employment Contract
+[2026-01-15 17:00:22] INFO:   - Birth Certificate
+[2026-01-15 17:00:22] INFO:   - Confirmation Letter
+[2026-01-15 17:00:22] INFO:   - Educational Certificates
+[2026-01-15 17:00:22] INFO: SUMMARY:
+[2026-01-15 17:00:22] INFO:   Total institutions: 73
+[2026-01-15 17:00:22] SUCCESS:   Need to fetch: 46
+[2026-01-15 17:00:22] INFO:   Already fetched (>= 80% complete): 27
+[2026-01-15 17:00:22] INFO: Starting document fetch...
+[2026-01-15 17:00:22] INFO: [1/73] INSTITUTION: AFISI YA MKURUGENZI WA MASHTAKA
+[2026-01-15 17:00:22] INFO: Employees: 146 total | 2 with all docs | 0 with some | 143 with none
+[2026-01-15 17:00:22] INFO: Document coverage: 1%
+[2026-01-15 17:00:22] INFO: Calling document fetch API...
+[2026-01-15 17:15:22] ERROR: AFISI YA MKURUGENZI WA MASHTAKA: HTTP 000
+[2026-01-15 17:15:22] INFO: [2/73] SKIPPING: AFISI YA MWANASHERIA MKUU (83% already have all documents)
+[2026-01-15 17:15:22] INFO: [3/73] SKIPPING: AFISI YA RAISI KAZI, UCHUMI NA UWEKEZAJI (85% already have all documents)
+[2026-01-15 17:15:22] INFO: [4/73] INSTITUTION: Baraza la Jiji
+[2026-01-15 17:15:22] INFO: Employees: 22 total | 14 with all docs | 0 with some | 1 with none
+[2026-01-15 17:15:22] INFO: Document coverage: 63%
+[2026-01-15 17:15:22] INFO: Calling document fetch API...
+[2026-01-15 17:16:46] SUCCESS: Baraza la Jiji: Processed 22 employees
+[2026-01-15 17:16:46] INFO:   Results: 0 successful, 0 partial, 22 failed
+[2026-01-15 17:16:46] INFO:   Duration: 1m 24s
+[2026-01-15 17:16:46] INFO: Overall Progress: 4/73 (5.5%) | SUCCESS: 1 | FAIL: 1 | SKIP: 2
+[2026-01-15 17:16:46] INFO: Pausing 5s before next institution...
+[2026-01-15 17:16:51] INFO: [5/73] SKIPPING: Baraza la Manispaa Magharibi A (81% already have all documents)
+[2026-01-15 17:16:51] INFO: [6/73] SKIPPING: Baraza la Manispaa Magharibi B (89% already have all documents)
+[2026-01-15 17:16:51] INFO: [7/73] INSTITUTION: Baraza la Manispaa Mjini Unguja
+[2026-01-15 17:16:51] INFO: Employees: 440 total | 303 with all docs | 0 with some | 9 with none
+[2026-01-15 17:16:51] INFO: Document coverage: 68%
+[2026-01-15 17:16:51] INFO: Calling document fetch API...
+[2026-01-15 17:31:51] ERROR: Baraza la Manispaa Mjini Unguja: HTTP 000
+[2026-01-15 17:31:51] INFO: [8/73] INSTITUTION: Baraza la Mitihani
+[2026-01-15 17:31:51] INFO: Employees: 70 total | 7 with all docs | 0 with some | 56 with none
+[2026-01-15 17:31:51] INFO: Document coverage: 10%
+[2026-01-15 17:31:51] INFO: Calling document fetch API...

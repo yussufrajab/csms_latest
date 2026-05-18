@@ -24,7 +24,6 @@ import { Button } from '@/components/ui/button';
 import { LogOut, Settings } from 'lucide-react';
 import { getNavItemsForRole } from '@/lib/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { Logo } from '@/components/icons/logo';
 import { APP_NAME } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -109,11 +108,18 @@ export function AppSidebar() {
 
   return (
     <ShadSidebar collapsible="icon" className="border-r" data-nav-version="2.0">
-      <SidebarHeader className="p-4 flex items-center gap-2">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <Logo className="h-8 w-8 text-primary" />
+      <SidebarHeader className="p-4 flex flex-col items-center gap-1">
+        <Link href="/dashboard" className="flex flex-col items-center gap-2 w-full">
+          <img
+            src="/zanzibar-logo.png"
+            alt="Zanzibar Logo"
+            className={cn(
+              'object-contain transition-all',
+              sidebarState === 'expanded' ? 'h-28 w-28' : 'h-10 w-10'
+            )}
+          />
           {sidebarState === 'expanded' && (
-            <h1 className="text-xl font-bold font-headline">{APP_NAME}</h1>
+            <h1 className="text-lg font-bold text-center leading-tight">{APP_NAME}</h1>
           )}
         </Link>
       </SidebarHeader>

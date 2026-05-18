@@ -32,6 +32,11 @@ import {
   Briefcase,
   Award,
   ArrowLeft,
+  SlidersHorizontal,
+  X,
+  Building2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { DocumentUpload } from '@/components/employee/document-upload';
 import { CertificateUpload } from '@/components/employee/certificate-upload';
@@ -45,6 +50,7 @@ import {
   TableCaption,
 } from '@/components/ui/table';
 import { Pagination } from '@/components/shared/pagination';
+import { Badge } from '@/components/ui/badge';
 import { useSearchParams } from 'next/navigation';
 
 // Standard certificate types to display for upload
@@ -387,12 +393,8 @@ const EmployeeDetailsCard = ({
             <div className="relative inline-block">
               <Avatar className="h-24 w-24 mb-4 shadow-md mx-auto">
                 <AvatarImage
-                  src={
-                    profileImageUrl ||
-                    `https://placehold.co/100x100.png?text=${getInitials(emp.name)}`
-                  }
+                  src={profileImageUrl || undefined}
                   alt={emp.name}
-                  data-ai-hint="employee photo"
                 />
                 <AvatarFallback>{getInitials(emp.name)}</AvatarFallback>
               </Avatar>
@@ -739,6 +741,11 @@ const EmployeeDetailsCard = ({
   );
 };
 
+interface InstitutionOption {
+  id: string;
+  name: string;
+}
+
 export default function ProfilePage() {
   const { user, role, isLoading: authLoading } = useAuth();
   const searchParams = useSearchParams();
@@ -751,10 +758,17 @@ export default function ProfilePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [genderFilter, setGenderFilter] = useState('all');
+  const [cadreFilter, setCadreFilter] = useState('');
+  const [workplaceFilter, setWorkplaceFilter] = useState('');
+  const [ministryFilter, setMinistryFilter] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [institutionFilter, setInstitutionFilter] = useState('all');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [institutions, setInstitutions] = useState<InstitutionOption[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50; // Server-side pagination
+  const itemsPerPage = 50;
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -774,13 +788,30 @@ export default function ProfilePage() {
     [role]
   );
 
+  // Load institutions list for CSC users
+  useEffect(() => {
+    if (isCommissionUser) {
+      fetch('/api/institutions')
+        .then((res) => res.json())
+        .then((result) => {
+          if (result.success && result.data) {
+            setInstitutions(result.data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isCommissionUser]);
+
   const fetchEmployees = useCallback(
-    async (query = '', status = '', gender = '', page = 1) => {
+    async (
+      query = '',
+      status = '',
+      gender = '',
+      page = 1,
+      advanced: { cadre?: string; currentWorkplace?: string; ministry?: string; department?: string; institutionId?: string } = {}
+    ) => {
       setPageLoading(true);
       try {
-        // CSC internal roles and Admin should see ALL employees from all institutions
-        // Institution-based roles should only see employees from their institution
-        // Build query parameters with server-side pagination
         const params = new URLSearchParams();
         params.append('q', query);
         params.append('page', page.toString());
@@ -789,13 +820,16 @@ export default function ProfilePage() {
 
         if (status && status !== 'all') params.append('status', status);
         if (gender && gender !== 'all') params.append('gender', gender);
+        if (advanced.cadre) params.append('cadre', advanced.cadre);
+        if (advanced.currentWorkplace) params.append('currentWorkplace', advanced.currentWorkplace);
+        if (advanced.ministry) params.append('ministry', advanced.ministry);
+        if (advanced.department) params.append('department', advanced.department);
+        if (advanced.institutionId && advanced.institutionId !== 'all') params.append('institutionId', advanced.institutionId);
 
         let url: string;
         if (isCommissionUser) {
-          // CSC roles see all employees - don't filter by institution
           url = `/api/employees?${params.toString()}`;
         } else {
-          // Institution-based roles see only their institution's employees
           params.append('userRole', role || '');
           params.append('userInstitutionId', user?.institutionId || '');
           url = `/api/employees?${params.toString()}`;
@@ -807,12 +841,10 @@ export default function ProfilePage() {
 
         setEmployees(result.data || []);
 
-        // Update pagination info from server response
         if (result.pagination) {
           setTotalItems(result.pagination.total || 0);
           setTotalPages(result.pagination.totalPages || 1);
         } else {
-          // Fallback if pagination info not provided
           setTotalItems(result.data?.length || 0);
           setTotalPages(1);
         }
@@ -837,7 +869,6 @@ export default function ProfilePage() {
     const fetchSpecificEmployee = async () => {
       setPageLoading(true);
       try {
-        // Fetch the specific employee by ID
         const params = new URLSearchParams({
           id: employeeIdParam,
           userRole: role || '',
@@ -851,7 +882,6 @@ export default function ProfilePage() {
           throw new Error('Employee not found');
         }
 
-        // The API returns the employee in an array
         setSelectedEmployee(result.data[0]);
       } catch (error) {
         toast({
@@ -869,16 +899,15 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (employeeIdParam) return; // Skip if we're loading a specific employee
+    if (employeeIdParam) return;
 
     if (role === ROLES.EMPLOYEE && user?.employeeId) {
       const fetchOwnProfile = async () => {
         setPageLoading(true);
         try {
-          // Assuming an API endpoint exists to get a profile by employee ID
           const response = await fetch(
             `/api/employees/search?zanId=${user.zanId}&userRole=${user.role}&userInstitutionId=${user.institutionId}`
-          ); // A bit of a hack, would be better to have a dedicated /api/profile
+          );
           if (!response.ok) throw new Error('Could not load your profile.');
           const result = await response.json();
 
@@ -914,11 +943,18 @@ export default function ProfilePage() {
     employeeIdParam,
   ]);
 
+  // Debounced filter effect
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       if (isInstitutionalViewer || isCommissionUser) {
-        setCurrentPage(1); // Reset to page 1 when filters change
-        fetchEmployees(searchTerm, statusFilter, genderFilter, 1);
+        setCurrentPage(1);
+        fetchEmployees(searchTerm, statusFilter, genderFilter, 1, {
+          cadre: cadreFilter,
+          currentWorkplace: workplaceFilter,
+          ministry: ministryFilter,
+          department: departmentFilter,
+          institutionId: institutionFilter,
+        });
       }
     }, 500);
 
@@ -927,6 +963,11 @@ export default function ProfilePage() {
     searchTerm,
     statusFilter,
     genderFilter,
+    cadreFilter,
+    workplaceFilter,
+    ministryFilter,
+    departmentFilter,
+    institutionFilter,
     fetchEmployees,
     isInstitutionalViewer,
     isCommissionUser,
@@ -935,17 +976,78 @@ export default function ProfilePage() {
   // Fetch new data when page changes
   useEffect(() => {
     if (currentPage > 1 && (isInstitutionalViewer || isCommissionUser)) {
-      fetchEmployees(searchTerm, statusFilter, genderFilter, currentPage);
+      fetchEmployees(searchTerm, statusFilter, genderFilter, currentPage, {
+        cadre: cadreFilter,
+        currentWorkplace: workplaceFilter,
+        ministry: ministryFilter,
+        department: departmentFilter,
+        institutionId: institutionFilter,
+      });
     }
   }, [
     currentPage,
     searchTerm,
     statusFilter,
     genderFilter,
+    cadreFilter,
+    workplaceFilter,
+    ministryFilter,
+    departmentFilter,
+    institutionFilter,
     fetchEmployees,
     isInstitutionalViewer,
     isCommissionUser,
   ]);
+
+  const hasActiveFilters = useMemo(() => {
+    return (
+      searchTerm !== '' ||
+      (statusFilter && statusFilter !== 'all') ||
+      (genderFilter && genderFilter !== 'all') ||
+      cadreFilter !== '' ||
+      workplaceFilter !== '' ||
+      ministryFilter !== '' ||
+      departmentFilter !== '' ||
+      (institutionFilter && institutionFilter !== 'all')
+    );
+  }, [searchTerm, statusFilter, genderFilter, cadreFilter, workplaceFilter, ministryFilter, departmentFilter, institutionFilter]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (searchTerm) count++;
+    if (statusFilter && statusFilter !== 'all') count++;
+    if (genderFilter && genderFilter !== 'all') count++;
+    if (cadreFilter) count++;
+    if (workplaceFilter) count++;
+    if (ministryFilter) count++;
+    if (departmentFilter) count++;
+    if (institutionFilter && institutionFilter !== 'all') count++;
+    return count;
+  }, [searchTerm, statusFilter, genderFilter, cadreFilter, workplaceFilter, ministryFilter, departmentFilter, institutionFilter]);
+
+  const clearAllFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('all');
+    setGenderFilter('all');
+    setCadreFilter('');
+    setWorkplaceFilter('');
+    setMinistryFilter('');
+    setDepartmentFilter('');
+    setInstitutionFilter('all');
+  };
+
+  const removeFilter = (filterType: string) => {
+    switch (filterType) {
+      case 'search': setSearchTerm(''); break;
+      case 'status': setStatusFilter('all'); break;
+      case 'gender': setGenderFilter('all'); break;
+      case 'cadre': setCadreFilter(''); break;
+      case 'workplace': setWorkplaceFilter(''); break;
+      case 'ministry': setMinistryFilter(''); break;
+      case 'department': setDepartmentFilter(''); break;
+      case 'institution': setInstitutionFilter('all'); break;
+    }
+  };
 
   const pageTitle = useMemo(() => {
     if (role === ROLES.EMPLOYEE) return 'My Profile';
@@ -970,7 +1072,6 @@ export default function ProfilePage() {
     return 'Search and view profiles for all employees across all institutions.';
   }, [role, isInstitutionalViewer]);
 
-  // Server-side pagination - use employees directly from API
   const paginatedEmployees = employees || [];
 
   if (authLoading || (pageLoading && !selectedEmployee)) {
@@ -990,7 +1091,6 @@ export default function ProfilePage() {
   }
 
   if (selectedEmployee) {
-    // Employee role should not see the back button
     const onBack =
       role === ROLES.EMPLOYEE ? () => {} : () => setSelectedEmployee(null);
     return (
@@ -1010,22 +1110,39 @@ export default function ProfilePage() {
       {(isCommissionUser || isInstitutionalViewer) && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Search & Filter Employees</CardTitle>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CardTitle>Search & Filter Employees</CardTitle>
+                {activeFilterCount > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {activeFilterCount} active
+                  </Badge>
+                )}
+              </div>
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-muted-foreground hover:text-foreground">
+                  Clear all
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="search">Search</Label>
+            {/* General search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 id="search"
                 placeholder="Search by name, ZAN-ID, payroll number, institution, or rank..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
               />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Basic filters row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="status-filter">Status</Label>
+                <Label htmlFor="status-filter" className="text-xs text-muted-foreground">Employment Status</Label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger id="status-filter">
                     <SelectValue placeholder="All statuses" />
@@ -1044,7 +1161,7 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <Label htmlFor="gender-filter">Gender</Label>
+                <Label htmlFor="gender-filter" className="text-xs text-muted-foreground">Gender</Label>
                 <Select value={genderFilter} onValueChange={setGenderFilter}>
                   <SelectTrigger id="gender-filter">
                     <SelectValue placeholder="All genders" />
@@ -1056,22 +1173,162 @@ export default function ProfilePage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Institution filter - only for CSC/commission users */}
+              {isCommissionUser && institutions.length > 0 && (
+                <div>
+                  <Label htmlFor="institution-filter" className="text-xs text-muted-foreground">Institution</Label>
+                  <Select value={institutionFilter} onValueChange={setInstitutionFilter}>
+                    <SelectTrigger id="institution-filter">
+                      <SelectValue placeholder="All institutions" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All institutions</SelectItem>
+                      {institutions.map((inst) => (
+                        <SelectItem key={inst.id} value={inst.id}>
+                          {inst.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
-            {(searchTerm ||
-              (statusFilter && statusFilter !== 'all') ||
-              (genderFilter && genderFilter !== 'all')) && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSearchTerm('');
-                  setStatusFilter('all');
-                  setGenderFilter('all');
-                }}
-                className="w-full md:w-auto"
-              >
-                Clear All Filters
-              </Button>
+            {/* Advanced filters toggle */}
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              Advanced Filters
+              {showAdvanced ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </button>
+
+            {/* Advanced filters section */}
+            {showAdvanced && (
+              <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="cadre-filter" className="text-xs text-muted-foreground">Cadre / Rank</Label>
+                    <Input
+                      id="cadre-filter"
+                      placeholder='e.g. "Utumishi", "Afisa"'
+                      value={cadreFilter}
+                      onChange={(e) => setCadreFilter(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="workplace-filter" className="text-xs text-muted-foreground">Current Workplace</Label>
+                    <Input
+                      id="workplace-filter"
+                      placeholder='e.g. "Kusini Pemba", "Mjini Magharibi"'
+                      value={workplaceFilter}
+                      onChange={(e) => setWorkplaceFilter(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="ministry-filter" className="text-xs text-muted-foreground">Ministry</Label>
+                    <Input
+                      id="ministry-filter"
+                      placeholder='e.g. "Elimu", "Afya"'
+                      value={ministryFilter}
+                      onChange={(e) => setMinistryFilter(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="department-filter" className="text-xs text-muted-foreground">Department</Label>
+                    <Input
+                      id="department-filter"
+                      placeholder='e.g. "Utumishi", "Fedha"'
+                      value={departmentFilter}
+                      onChange={(e) => setDepartmentFilter(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Advanced filters use partial matching (e.g. &quot;Utumishi&quot; matches &quot;Mfumo wa Utumishi&quot;). All filters are applied together.
+                </p>
+              </div>
+            )}
+
+            {/* Active filter badges */}
+            {hasActiveFilters && (
+              <div className="flex flex-wrap gap-2">
+                {searchTerm && (
+                  <Badge variant="secondary" className="gap-1 pr-1">
+                    Search: {searchTerm}
+                    <button onClick={() => removeFilter('search')} className="ml-1 rounded-full hover:bg-muted p-0.5">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                )}
+                {statusFilter && statusFilter !== 'all' && (
+                  <Badge variant="secondary" className="gap-1 pr-1">
+                    Status: {statusFilter}
+                    <button onClick={() => removeFilter('status')} className="ml-1 rounded-full hover:bg-muted p-0.5">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                )}
+                {genderFilter && genderFilter !== 'all' && (
+                  <Badge variant="secondary" className="gap-1 pr-1">
+                    Gender: {genderFilter}
+                    <button onClick={() => removeFilter('gender')} className="ml-1 rounded-full hover:bg-muted p-0.5">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                )}
+                {cadreFilter && (
+                  <Badge variant="secondary" className="gap-1 pr-1">
+                    Cadre: {cadreFilter}
+                    <button onClick={() => removeFilter('cadre')} className="ml-1 rounded-full hover:bg-muted p-0.5">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                )}
+                {workplaceFilter && (
+                  <Badge variant="secondary" className="gap-1 pr-1">
+                    Workplace: {workplaceFilter}
+                    <button onClick={() => removeFilter('workplace')} className="ml-1 rounded-full hover:bg-muted p-0.5">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                )}
+                {ministryFilter && (
+                  <Badge variant="secondary" className="gap-1 pr-1">
+                    Ministry: {ministryFilter}
+                    <button onClick={() => removeFilter('ministry')} className="ml-1 rounded-full hover:bg-muted p-0.5">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                )}
+                {departmentFilter && (
+                  <Badge variant="secondary" className="gap-1 pr-1">
+                    Dept: {departmentFilter}
+                    <button onClick={() => removeFilter('department')} className="ml-1 rounded-full hover:bg-muted p-0.5">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                )}
+                {institutionFilter && institutionFilter !== 'all' && (
+                  <Badge variant="secondary" className="gap-1 pr-1">
+                    Institution: {institutions.find(i => i.id === institutionFilter)?.name || institutionFilter}
+                    <button onClick={() => removeFilter('institution')} className="ml-1 rounded-full hover:bg-muted p-0.5">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -1083,9 +1340,7 @@ export default function ProfilePage() {
             <CardTitle>Employee List</CardTitle>
             <CardDescription>
               {totalItems || 0} employee(s) found
-              {(searchTerm ||
-                (statusFilter && statusFilter !== 'all') ||
-                (genderFilter && genderFilter !== 'all')) && (
+              {hasActiveFilters && (
                 <span className="text-muted-foreground">
                   {' '}
                   with active filters
@@ -1105,6 +1360,8 @@ export default function ProfilePage() {
                   <TableHead>Gender</TableHead>
                   <TableHead>ZAN-ID</TableHead>
                   <TableHead>Institution</TableHead>
+                  <TableHead>Cadre</TableHead>
+                  <TableHead>Workplace</TableHead>
                   <TableHead>Payroll Number</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
@@ -1120,11 +1377,13 @@ export default function ProfilePage() {
                       <TableCell className="font-medium">{emp.name}</TableCell>
                       <TableCell>{emp.gender}</TableCell>
                       <TableCell>{emp.zanId}</TableCell>
-                      <TableCell>
+                      <TableCell className="max-w-[200px] truncate">
                         {emp.institution && typeof emp.institution === 'object'
                           ? emp.institution.name
                           : emp.institution || 'N/A'}
                       </TableCell>
+                      <TableCell className="max-w-[150px] truncate">{emp.cadre || 'N/A'}</TableCell>
+                      <TableCell className="max-w-[150px] truncate">{emp.currentWorkplace || 'N/A'}</TableCell>
                       <TableCell>{emp.payrollNumber || 'N/A'}</TableCell>
                       <TableCell>
                         <span
@@ -1137,8 +1396,8 @@ export default function ProfilePage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center">
-                      No employees found.
+                    <TableCell colSpan={8} className="text-center">
+                      No employees found matching your filters.
                     </TableCell>
                   </TableRow>
                 )}

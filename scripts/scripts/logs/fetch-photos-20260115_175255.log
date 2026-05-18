@@ -1,0 +1,368 @@
+[2026-01-15 17:52:55] INFO: Log file: ./scripts/logs/fetch-photos-20260115_175255.log
+[2026-01-15 17:52:55] INFO: Fetching institutions list...
+[2026-01-15 17:52:55] SUCCESS: Found 73 institutions
+[2026-01-15 17:52:55] INFO: Checking existing photo status...
+[2026-01-15 17:52:55] INFO: Fetching photo status for all institutions from database...
+[2026-01-15 17:52:55] SUCCESS: Photo status loaded
+[2026-01-15 17:52:55] INFO: CONFIGURATION:
+[2026-01-15 17:52:55] INFO:   Base URL: http://localhost:9002
+[2026-01-15 17:52:55] INFO:   Pause between institutions: 3s
+[2026-01-15 17:52:55] INFO:   Starting from: Institution #1
+[2026-01-15 17:52:55] INFO:   Min photos threshold: 60%
+[2026-01-15 17:52:55] INFO:   Force re-fetch: false
+[2026-01-15 17:52:55] INFO: SUMMARY:
+[2026-01-15 17:52:55] INFO:   Total institutions: 73
+[2026-01-15 17:52:55] SUCCESS:   Need to fetch: 42
+[2026-01-15 17:52:55] INFO:   Already fetched (>= 60% complete): 31
+[2026-01-15 17:52:55] INFO: Starting photo fetch...
+[2026-01-15 17:52:56] INFO: [1/73] INSTITUTION: AFISI YA MKURUGENZI WA MASHTAKA
+[2026-01-15 17:52:56] INFO: Employees: 146 total | 2 with photos | 144 without
+[2026-01-15 17:52:56] INFO: Photo coverage: 1%
+[2026-01-15 17:52:56] INFO: Calling photo fetch API...
+[2026-01-15 17:53:22] SUCCESS: AFISI YA MKURUGENZI WA MASHTAKA: Processed 146 employees
+[2026-01-15 17:53:22] INFO:   Results: 20 success, 124 failed, 2 skipped
+[2026-01-15 17:53:22] INFO:   Duration: 26s
+[2026-01-15 17:53:22] INFO: Overall Progress: 1/73 (1.4%) | SUCCESS: 1 | FAIL: 0 | SKIP: 0
+[2026-01-15 17:53:22] INFO: Pausing 3s before next institution...
+[2026-01-15 17:53:25] INFO: [2/73] SKIPPING: AFISI YA MWANASHERIA MKUU (90% already have photos)
+[2026-01-15 17:53:25] INFO: [3/73] INSTITUTION: AFISI YA RAISI KAZI, UCHUMI NA UWEKEZAJI
+[2026-01-15 17:53:25] INFO: Employees: 152 total | 68 with photos | 84 without
+[2026-01-15 17:53:25] INFO: Photo coverage: 44%
+[2026-01-15 17:53:25] INFO: Calling photo fetch API...
+[2026-01-15 17:53:41] SUCCESS: AFISI YA RAISI KAZI, UCHUMI NA UWEKEZAJI: Processed 152 employees
+[2026-01-15 17:53:41] INFO:   Results: 0 success, 84 failed, 68 skipped
+[2026-01-15 17:53:41] INFO:   Duration: 16s
+[2026-01-15 17:53:41] INFO: Overall Progress: 3/73 (4.1%) | SUCCESS: 2 | FAIL: 0 | SKIP: 1
+[2026-01-15 17:53:41] INFO: Pausing 3s before next institution...
+[2026-01-15 17:53:44] INFO: [4/73] INSTITUTION: Baraza la Jiji
+[2026-01-15 17:53:44] INFO: Employees: 22 total | 3 with photos | 19 without
+[2026-01-15 17:53:44] INFO: Photo coverage: 13%
+[2026-01-15 17:53:44] INFO: Calling photo fetch API...
+[2026-01-15 17:53:47] SUCCESS: Baraza la Jiji: Processed 22 employees
+[2026-01-15 17:53:47] INFO:   Results: 0 success, 19 failed, 3 skipped
+[2026-01-15 17:53:47] INFO:   Duration: 3s
+[2026-01-15 17:53:47] INFO: Overall Progress: 4/73 (5.5%) | SUCCESS: 3 | FAIL: 0 | SKIP: 1
+[2026-01-15 17:53:47] INFO: Pausing 3s before next institution...
+[2026-01-15 17:53:50] INFO: [5/73] SKIPPING: Baraza la Manispaa Magharibi A (82% already have photos)
+[2026-01-15 17:53:50] INFO: [6/73] INSTITUTION: Baraza la Manispaa Magharibi B
+[2026-01-15 17:53:50] INFO: Employees: 157 total | 9 with photos | 148 without
+[2026-01-15 17:53:50] INFO: Photo coverage: 5%
+[2026-01-15 17:53:50] INFO: Calling photo fetch API...
+[2026-01-15 17:54:13] SUCCESS: Baraza la Manispaa Magharibi B: Processed 157 employees
+[2026-01-15 17:54:13] INFO:   Results: 0 success, 148 failed, 9 skipped
+[2026-01-15 17:54:13] INFO:   Duration: 23s
+[2026-01-15 17:54:13] INFO: Overall Progress: 6/73 (8.2%) | SUCCESS: 4 | FAIL: 0 | SKIP: 2
+[2026-01-15 17:54:13] INFO: Pausing 3s before next institution...
+[2026-01-15 17:54:16] INFO: [7/73] INSTITUTION: Baraza la Manispaa Mjini Unguja
+[2026-01-15 17:54:16] INFO: Employees: 440 total | 208 with photos | 232 without
+[2026-01-15 17:54:16] INFO: Photo coverage: 47%
+[2026-01-15 17:54:16] INFO: Calling photo fetch API...
+[2026-01-15 17:55:00] SUCCESS: Baraza la Manispaa Mjini Unguja: Processed 440 employees
+[2026-01-15 17:55:00] INFO:   Results: 0 success, 232 failed, 208 skipped
+[2026-01-15 17:55:00] INFO:   Duration: 44s
+[2026-01-15 17:55:00] INFO: Overall Progress: 7/73 (9.6%) | SUCCESS: 5 | FAIL: 0 | SKIP: 2
+[2026-01-15 17:55:00] INFO: Pausing 3s before next institution...
+[2026-01-15 17:55:03] INFO: [8/73] INSTITUTION: Baraza la Mitihani
+[2026-01-15 17:55:03] INFO: Employees: 70 total | 10 with photos | 60 without
+[2026-01-15 17:55:03] INFO: Photo coverage: 14%
+[2026-01-15 17:55:03] INFO: Calling photo fetch API...
+[2026-01-15 17:55:14] SUCCESS: Baraza la Mitihani: Processed 70 employees
+[2026-01-15 17:55:14] INFO:   Results: 4 success, 56 failed, 10 skipped
+[2026-01-15 17:55:14] INFO:   Duration: 11s
+[2026-01-15 17:55:14] INFO: Overall Progress: 8/73 (11.0%) | SUCCESS: 6 | FAIL: 0 | SKIP: 2
+[2026-01-15 17:55:14] INFO: Pausing 3s before next institution...
+[2026-01-15 17:55:17] INFO: [9/73] SKIPPING: Baraza la Mji Chake Chake (65% already have photos)
+[2026-01-15 17:55:17] INFO: [10/73] SKIPPING: Baraza la Mji Kaskazini A Unguja (94% already have photos)
+[2026-01-15 17:55:17] INFO: [11/73] SKIPPING: Baraza la Mji Kaskazini B Unguja (95% already have photos)
+[2026-01-15 17:55:17] INFO: [12/73] SKIPPING: Baraza la Mji Kati Unguja (80% already have photos)
+[2026-01-15 17:55:17] INFO: [13/73] INSTITUTION: Baraza la Mji Mkoani
+[2026-01-15 17:55:17] INFO: Employees: 97 total | 44 with photos | 53 without
+[2026-01-15 17:55:17] INFO: Photo coverage: 45%
+[2026-01-15 17:55:17] INFO: Calling photo fetch API...
+[2026-01-15 17:55:27] SUCCESS: Baraza la Mji Mkoani: Processed 97 employees
+[2026-01-15 17:55:27] INFO:   Results: 0 success, 53 failed, 44 skipped
+[2026-01-15 17:55:27] INFO:   Duration: 10s
+[2026-01-15 17:55:27] INFO: Overall Progress: 13/73 (17.8%) | SUCCESS: 7 | FAIL: 0 | SKIP: 6
+[2026-01-15 17:55:27] INFO: Pausing 3s before next institution...
+[2026-01-15 17:55:30] INFO: [14/73] SKIPPING: Baraza la Mji Wete (91% already have photos)
+[2026-01-15 17:55:30] INFO: [15/73] SKIPPING: Bodi ya Huduma za Maktaba (85% already have photos)
+[2026-01-15 17:55:30] INFO: [16/73] SKIPPING: Chuo cha Kiislamu (no employees)
+[2026-01-15 17:55:30] INFO: [17/73] SKIPPING: Halmashauri ya Wilaya ya Kusini Unguja (85% already have photos)
+[2026-01-15 17:55:30] INFO: [18/73] SKIPPING: Halmashauri ya Wilaya ya Micheweni (96% already have photos)
+[2026-01-15 17:55:30] INFO: [19/73] INSTITUTION: Hospitali ya Mnazi Mmoja
+[2026-01-15 17:55:30] INFO: Employees: 1552 total | 186 with photos | 1366 without
+[2026-01-15 17:55:30] INFO: Photo coverage: 11%
+[2026-01-15 17:55:30] INFO: Calling photo fetch API...
+[2026-01-15 17:59:14] SUCCESS: Hospitali ya Mnazi Mmoja: Processed 1552 employees
+[2026-01-15 17:59:14] INFO:   Results: 0 success, 1366 failed, 186 skipped
+[2026-01-15 17:59:14] INFO:   Duration: 3m 44s
+[2026-01-15 17:59:14] INFO: Overall Progress: 19/73 (26.0%) | SUCCESS: 8 | FAIL: 0 | SKIP: 11
+[2026-01-15 17:59:14] INFO: Pausing 3s before next institution...
+[2026-01-15 17:59:17] INFO: [20/73] SKIPPING: JKU (no employees)
+[2026-01-15 17:59:18] INFO: [21/73] SKIPPING: KAMISHENI YA ARDHI ZANZIBAR (70% already have photos)
+[2026-01-15 17:59:18] INFO: [22/73] INSTITUTION: Kamisheni ya Kazi
+[2026-01-15 17:59:18] INFO: Employees: 76 total | 40 with photos | 36 without
+[2026-01-15 17:59:18] INFO: Photo coverage: 52%
+[2026-01-15 17:59:18] INFO: Calling photo fetch API...
+[2026-01-15 17:59:25] SUCCESS: Kamisheni ya Kazi: Processed 76 employees
+[2026-01-15 17:59:25] INFO:   Results: 0 success, 36 failed, 40 skipped
+[2026-01-15 17:59:25] INFO:   Duration: 7s
+[2026-01-15 17:59:25] INFO: Overall Progress: 22/73 (30.1%) | SUCCESS: 9 | FAIL: 0 | SKIP: 13
+[2026-01-15 17:59:25] INFO: Pausing 3s before next institution...
+[2026-01-15 17:59:28] INFO: [23/73] INSTITUTION: KAMISHENI YA KUKABILIANA NA MAAFA ZANZIBAR
+[2026-01-15 17:59:28] INFO: Employees: 45 total | 7 with photos | 38 without
+[2026-01-15 17:59:28] INFO: Photo coverage: 15%
+[2026-01-15 17:59:28] INFO: Calling photo fetch API...
+[2026-01-15 17:59:35] SUCCESS: KAMISHENI YA KUKABILIANA NA MAAFA ZANZIBAR: Processed 45 employees
+[2026-01-15 17:59:35] INFO:   Results: 0 success, 38 failed, 7 skipped
+[2026-01-15 17:59:35] INFO:   Duration: 7s
+[2026-01-15 17:59:35] INFO: Overall Progress: 23/73 (31.5%) | SUCCESS: 10 | FAIL: 0 | SKIP: 13
+[2026-01-15 17:59:35] INFO: Pausing 3s before next institution...
+[2026-01-15 17:59:38] INFO: [24/73] SKIPPING: KAMISHENI YA UTALII ZANZIBAR (no employees)
+[2026-01-15 17:59:38] INFO: [25/73] INSTITUTION: KAMISHENI YA UTUMISHI WA UMMA
+[2026-01-15 17:59:38] INFO: Employees: 37 total | 4 with photos | 33 without
+[2026-01-15 17:59:38] INFO: Photo coverage: 10%
+[2026-01-15 17:59:38] INFO: Calling photo fetch API...
+[2026-01-15 17:59:44] SUCCESS: KAMISHENI YA UTUMISHI WA UMMA: Processed 37 employees
+[2026-01-15 17:59:44] INFO:   Results: 0 success, 33 failed, 4 skipped
+[2026-01-15 17:59:44] INFO:   Duration: 6s
+[2026-01-15 17:59:44] INFO: Overall Progress: 25/73 (34.2%) | SUCCESS: 11 | FAIL: 0 | SKIP: 14
+[2026-01-15 17:59:44] INFO: Pausing 3s before next institution...
+[2026-01-15 17:59:47] INFO: [26/73] SKIPPING: Magereza (no employees)
+[2026-01-15 17:59:47] INFO: [27/73] INSTITUTION: MAMLAKA YA KUDHIBITI NA KUPAMBANA NA DAWA ZA KULEVYA ZANZIBAR
+[2026-01-15 17:59:47] INFO: Employees: 59 total | 16 with photos | 43 without
+[2026-01-15 17:59:47] INFO: Photo coverage: 27%
+[2026-01-15 17:59:47] INFO: Calling photo fetch API...
+[2026-01-15 17:59:54] SUCCESS: MAMLAKA YA KUDHIBITI NA KUPAMBANA NA DAWA ZA KULEVYA ZANZIBAR: Processed 59 employees
+[2026-01-15 17:59:54] INFO:   Results: 0 success, 43 failed, 16 skipped
+[2026-01-15 17:59:54] INFO:   Duration: 7s
+[2026-01-15 17:59:54] INFO: Overall Progress: 27/73 (37.0%) | SUCCESS: 12 | FAIL: 0 | SKIP: 15
+[2026-01-15 17:59:54] INFO: Pausing 3s before next institution...
+[2026-01-15 17:59:58] INFO: [28/73] SKIPPING: MAMLAKA YA KUZUIA RUSHWA NA UHUJUMU WA UCHUMI ZANZIBAR (88% already have photos)
+[2026-01-15 17:59:58] INFO: [29/73] INSTITUTION: Mamlaka ya Serikali Mtandao (eGAZ)
+[2026-01-15 17:59:58] INFO: Employees: 81 total | 44 with photos | 37 without
+[2026-01-15 17:59:58] INFO: Photo coverage: 54%
+[2026-01-15 17:59:58] INFO: Calling photo fetch API...
+[2026-01-15 18:00:05] SUCCESS: Mamlaka ya Serikali Mtandao (eGAZ): Processed 81 employees
+[2026-01-15 18:00:05] INFO:   Results: 0 success, 37 failed, 44 skipped
+[2026-01-15 18:00:05] INFO:   Duration: 7s
+[2026-01-15 18:00:05] INFO: Overall Progress: 29/73 (39.7%) | SUCCESS: 13 | FAIL: 0 | SKIP: 16
+[2026-01-15 18:00:05] INFO: Pausing 3s before next institution...
+[2026-01-15 18:00:08] INFO: [30/73] INSTITUTION: Mamlaka ya Uwezeshaji Wananchi Kiuchumi (ZEA)
+[2026-01-15 18:00:08] INFO: Employees: 96 total | 53 with photos | 43 without
+[2026-01-15 18:00:08] INFO: Photo coverage: 55%
+[2026-01-15 18:00:08] INFO: Calling photo fetch API...
+[2026-01-15 18:00:18] SUCCESS: Mamlaka ya Uwezeshaji Wananchi Kiuchumi (ZEA): Processed 96 employees
+[2026-01-15 18:00:18] INFO:   Results: 0 success, 43 failed, 53 skipped
+[2026-01-15 18:00:18] INFO:   Duration: 9s
+[2026-01-15 18:00:18] INFO: Overall Progress: 30/73 (41.1%) | SUCCESS: 14 | FAIL: 0 | SKIP: 16
+[2026-01-15 18:00:18] INFO: Pausing 3s before next institution...
+[2026-01-15 18:00:21] INFO: [31/73] INSTITUTION: Ofisi ya Hatimiliki (COSOZA)
+[2026-01-15 18:00:21] INFO: Employees: 22 total | 5 with photos | 17 without
+[2026-01-15 18:00:21] INFO: Photo coverage: 22%
+[2026-01-15 18:00:21] INFO: Calling photo fetch API...
+[2026-01-15 18:00:24] SUCCESS: Ofisi ya Hatimiliki (COSOZA): Processed 22 employees
+[2026-01-15 18:00:24] INFO:   Results: 0 success, 17 failed, 5 skipped
+[2026-01-15 18:00:24] INFO:   Duration: 3s
+[2026-01-15 18:00:24] INFO: Overall Progress: 31/73 (42.5%) | SUCCESS: 15 | FAIL: 0 | SKIP: 16
+[2026-01-15 18:00:24] INFO: Pausing 3s before next institution...
+[2026-01-15 18:00:27] INFO: [32/73] SKIPPING: OFISI YA MAKAMO WA KWANZA WA RAISI (85% already have photos)
+[2026-01-15 18:00:27] INFO: [33/73] SKIPPING: OFISI YA MAKAMO WA PILI WA RAISI (80% already have photos)
+[2026-01-15 18:00:27] INFO: [34/73] INSTITUTION: Ofisi ya Mhasibu Mkuu wa Serikali
+[2026-01-15 18:00:27] INFO: Employees: 490 total | 20 with photos | 470 without
+[2026-01-15 18:00:27] INFO: Photo coverage: 4%
+[2026-01-15 18:00:27] INFO: Calling photo fetch API...
+[2026-01-15 18:01:47] SUCCESS: Ofisi ya Mhasibu Mkuu wa Serikali: Processed 490 employees
+[2026-01-15 18:01:47] INFO:   Results: 32 success, 438 failed, 20 skipped
+[2026-01-15 18:01:47] INFO:   Duration: 1m 20s
+[2026-01-15 18:01:47] INFO: Overall Progress: 34/73 (46.6%) | SUCCESS: 16 | FAIL: 0 | SKIP: 18
+[2026-01-15 18:01:47] INFO: Pausing 3s before next institution...
+[2026-01-15 18:01:50] INFO: [35/73] SKIPPING: OFISI YA MKAGUZI MKUU WA NDANI WA SERIKALI (80% already have photos)
+[2026-01-15 18:01:50] INFO: [36/73] INSTITUTION: Ofisi ya Mkaguzi wa Elimu
+[2026-01-15 18:01:50] INFO: Employees: 107 total | 11 with photos | 96 without
+[2026-01-15 18:01:50] INFO: Photo coverage: 10%
+[2026-01-15 18:01:50] INFO: Calling photo fetch API...
+[2026-01-15 18:02:06] SUCCESS: Ofisi ya Mkaguzi wa Elimu: Processed 107 employees
+[2026-01-15 18:02:06] INFO:   Results: 0 success, 96 failed, 11 skipped
+[2026-01-15 18:02:06] INFO:   Duration: 16s
+[2026-01-15 18:02:06] INFO: Overall Progress: 36/73 (49.3%) | SUCCESS: 17 | FAIL: 0 | SKIP: 19
+[2026-01-15 18:02:06] INFO: Pausing 3s before next institution...
+[2026-01-15 18:02:09] INFO: [37/73] SKIPPING: Ofisi ya Mkuu wa Mkoa wa Kaskazini Pemba (97% already have photos)
+[2026-01-15 18:02:09] INFO: [38/73] SKIPPING: Ofisi ya Mkuu wa Mkoa wa Kaskazini Unguja (92% already have photos)
+[2026-01-15 18:02:09] INFO: [39/73] SKIPPING: Ofisi ya Mkuu wa Mkoa wa Kusini Pemba (87% already have photos)
+[2026-01-15 18:02:09] INFO: [40/73] SKIPPING: Ofisi ya Mkuu wa Mkoa wa Kusini Unguja (93% already have photos)
+[2026-01-15 18:02:09] INFO: [41/73] SKIPPING: Ofisi ya Mkuu wa Mkoa wa Mjini Magharibi Unguja (80% already have photos)
+[2026-01-15 18:02:09] INFO: [42/73] INSTITUTION: Ofisi ya Msajili wa Hazina
+[2026-01-15 18:02:09] INFO: Employees: 44 total | 24 with photos | 20 without
+[2026-01-15 18:02:09] INFO: Photo coverage: 54%
+[2026-01-15 18:02:09] INFO: Calling photo fetch API...
+[2026-01-15 18:02:14] SUCCESS: Ofisi ya Msajili wa Hazina: Processed 44 employees
+[2026-01-15 18:02:14] INFO:   Results: 0 success, 20 failed, 24 skipped
+[2026-01-15 18:02:14] INFO:   Duration: 5s
+[2026-01-15 18:02:14] INFO: Overall Progress: 42/73 (57.5%) | SUCCESS: 18 | FAIL: 0 | SKIP: 24
+[2026-01-15 18:02:14] INFO: Pausing 3s before next institution...
+[2026-01-15 18:02:17] INFO: [43/73] SKIPPING: OFISI YA MUFTI MKUU WA ZANZIBAR (no employees)
+[2026-01-15 18:02:17] INFO: [44/73] SKIPPING: OFISI YA RAIS, FEDHA NA MIPANGO (no employees)
+[2026-01-15 18:02:17] INFO: [45/73] SKIPPING: OFISI YA RAIS - IKULU (85% already have photos)
+[2026-01-15 18:02:17] INFO: [46/73] INSTITUTION: OFISI YA RAIS - KATIBA SHERIA UTUMISHI NA UTAWALA BORA
+[2026-01-15 18:02:17] INFO: Employees: 206 total | 14 with photos | 192 without
+[2026-01-15 18:02:17] INFO: Photo coverage: 6%
+[2026-01-15 18:02:17] INFO: Calling photo fetch API...
+[2026-01-15 18:03:10] SUCCESS: OFISI YA RAIS - KATIBA SHERIA UTUMISHI NA UTAWALA BORA: Processed 206 employees
+[2026-01-15 18:03:10] INFO:   Results: 118 success, 74 failed, 14 skipped
+[2026-01-15 18:03:10] INFO:   Duration: 53s
+[2026-01-15 18:03:10] INFO: Overall Progress: 46/73 (63.0%) | SUCCESS: 19 | FAIL: 0 | SKIP: 27
+[2026-01-15 18:03:10] INFO: Pausing 3s before next institution...
+[2026-01-15 18:03:13] INFO: [47/73] SKIPPING: OFISI YA RAIS, TAWALA ZA MIKOA, SERIKALI ZA MITAA NA IDARA MAALUMU ZA SMZ (75% already have photos)
+[2026-01-15 18:03:13] INFO: [48/73] INSTITUTION: Skuli ya Sheria Zanzibar
+[2026-01-15 18:03:13] INFO: Employees: 22 total | 12 with photos | 10 without
+[2026-01-15 18:03:13] INFO: Photo coverage: 54%
+[2026-01-15 18:03:13] INFO: Calling photo fetch API...
+[2026-01-15 18:03:16] SUCCESS: Skuli ya Sheria Zanzibar: Processed 22 employees
+[2026-01-15 18:03:16] INFO:   Results: 0 success, 10 failed, 12 skipped
+[2026-01-15 18:03:16] INFO:   Duration: 3s
+[2026-01-15 18:03:16] INFO: Overall Progress: 48/73 (65.8%) | SUCCESS: 20 | FAIL: 0 | SKIP: 28
+[2026-01-15 18:03:16] INFO: Pausing 3s before next institution...
+[2026-01-15 18:03:19] INFO: [49/73] INSTITUTION: TAASISI YA ELIMU ZANZIBAR
+[2026-01-15 18:03:19] INFO: Employees: 56 total | 12 with photos | 44 without
+[2026-01-15 18:03:19] INFO: Photo coverage: 21%
+[2026-01-15 18:03:19] INFO: Calling photo fetch API...
+[2026-01-15 18:03:26] SUCCESS: TAASISI YA ELIMU ZANZIBAR: Processed 56 employees
+[2026-01-15 18:03:26] INFO:   Results: 0 success, 44 failed, 12 skipped
+[2026-01-15 18:03:26] INFO:   Duration: 7s
+[2026-01-15 18:03:26] INFO: Overall Progress: 49/73 (67.1%) | SUCCESS: 21 | FAIL: 0 | SKIP: 28
+[2026-01-15 18:03:26] INFO: Pausing 3s before next institution...
+[2026-01-15 18:03:29] INFO: [50/73] INSTITUTION: TAASISI YA NYARAKA NA KUMBUKUMBU
+[2026-01-15 18:03:29] INFO: Employees: 76 total | 1 with photos | 75 without
+[2026-01-15 18:03:29] INFO: Photo coverage: 1%
+[2026-01-15 18:03:29] INFO: Calling photo fetch API...
+[2026-01-15 18:03:49] SUCCESS: TAASISI YA NYARAKA NA KUMBUKUMBU: Processed 76 employees
+[2026-01-15 18:03:49] INFO:   Results: 60 success, 15 failed, 1 skipped
+[2026-01-15 18:03:49] INFO:   Duration: 20s
+[2026-01-15 18:03:49] INFO: Overall Progress: 50/73 (68.5%) | SUCCESS: 22 | FAIL: 0 | SKIP: 28
+[2026-01-15 18:03:49] INFO: Pausing 3s before next institution...
+[2026-01-15 18:03:52] INFO: [51/73] SKIPPING: Taasisi ya Utafiti wa Uvuvi (ZAFIRI) (87% already have photos)
+[2026-01-15 18:03:52] INFO: [52/73] SKIPPING: Tume ya kusimamia Nidhamu (no employees)
+[2026-01-15 18:03:52] INFO: [53/73] SKIPPING: TUME YA MAADILI YA VIONGOZI WA UMMA (93% already have photos)
+[2026-01-15 18:03:52] INFO: [54/73] SKIPPING: Tume ya Mipango (89% already have photos)
+[2026-01-15 18:03:52] INFO: [55/73] INSTITUTION: TUME YA UCHAGUZI YA ZANZIBAR
+[2026-01-15 18:03:52] INFO: Employees: 93 total | 36 with photos | 57 without
+[2026-01-15 18:03:52] INFO: Photo coverage: 38%
+[2026-01-15 18:03:52] INFO: Calling photo fetch API...
+[2026-01-15 18:04:03] SUCCESS: TUME YA UCHAGUZI YA ZANZIBAR: Processed 93 employees
+[2026-01-15 18:04:03] INFO:   Results: 0 success, 57 failed, 36 skipped
+[2026-01-15 18:04:03] INFO:   Duration: 11s
+[2026-01-15 18:04:03] INFO: Overall Progress: 55/73 (75.3%) | SUCCESS: 23 | FAIL: 0 | SKIP: 32
+[2026-01-15 18:04:03] INFO: Pausing 3s before next institution...
+[2026-01-15 18:04:06] INFO: [56/73] SKIPPING: Tume ya Ushindani Halali wa Biashara (83% already have photos)
+[2026-01-15 18:04:06] INFO: [57/73] SKIPPING: TUME YA UTUMISHI SERIKALINI (73% already have photos)
+[2026-01-15 18:04:06] INFO: [58/73] INSTITUTION: Wakala wa Barabara
+[2026-01-15 18:04:06] INFO: Employees: 464 total | 163 with photos | 301 without
+[2026-01-15 18:04:06] INFO: Photo coverage: 35%
+[2026-01-15 18:04:06] INFO: Calling photo fetch API...
+[2026-01-15 18:05:00] SUCCESS: Wakala wa Barabara: Processed 464 employees
+[2026-01-15 18:05:00] INFO:   Results: 0 success, 301 failed, 163 skipped
+[2026-01-15 18:05:00] INFO:   Duration: 54s
+[2026-01-15 18:05:00] INFO: Overall Progress: 58/73 (79.5%) | SUCCESS: 24 | FAIL: 0 | SKIP: 34
+[2026-01-15 18:05:00] INFO: Pausing 3s before next institution...
+[2026-01-15 18:05:03] INFO: [59/73] SKIPPING: WAKALA WA MAJENGO ZANZIBAR (63% already have photos)
+[2026-01-15 18:05:03] INFO: [60/73] INSTITUTION: Wakala wa Matrekta
+[2026-01-15 18:05:03] INFO: Employees: 102 total | 29 with photos | 73 without
+[2026-01-15 18:05:03] INFO: Photo coverage: 28%
+[2026-01-15 18:05:03] INFO: Calling photo fetch API...
+[2026-01-15 18:05:15] SUCCESS: Wakala wa Matrekta: Processed 102 employees
+[2026-01-15 18:05:15] INFO:   Results: 0 success, 73 failed, 29 skipped
+[2026-01-15 18:05:15] INFO:   Duration: 12s
+[2026-01-15 18:05:15] INFO: Overall Progress: 60/73 (82.2%) | SUCCESS: 25 | FAIL: 0 | SKIP: 35
+[2026-01-15 18:05:15] INFO: Pausing 3s before next institution...
+[2026-01-15 18:05:19] INFO: [61/73] SKIPPING: Wakala wa Vipimo Zanzibar (72% already have photos)
+[2026-01-15 18:05:19] INFO: [62/73] INSTITUTION: WIZARA YA AFYA
+[2026-01-15 18:05:19] INFO: Employees: 6127 total | 417 with photos | 5710 without
+[2026-01-15 18:05:19] INFO: Photo coverage: 6%
+[2026-01-15 18:05:19] INFO: Calling photo fetch API...
+[2026-01-15 18:15:19] ERROR: WIZARA YA AFYA: HTTP 000
+[2026-01-15 18:15:19] INFO: [63/73] SKIPPING: WIZARA YA ARDHI NA MAENDELEO YA MAKAAZI ZANZIBAR (83% already have photos)
+[2026-01-15 18:15:19] INFO: [64/73] SKIPPING: WIZARA YA BIASHARA NA MAENDELEO YA VIWANDA (75% already have photos)
+[2026-01-15 18:15:19] INFO: [65/73] INSTITUTION: WIZARA YA ELIMU NA MAFUNZO YA AMALI
+[2026-01-15 18:15:19] INFO: Employees: 18611 total | 105 with photos | 18506 without
+[2026-01-15 18:15:19] INFO: Photo coverage: 0%
+[2026-01-15 18:15:19] INFO: Calling photo fetch API...
+[2026-01-15 18:25:19] ERROR: WIZARA YA ELIMU NA MAFUNZO YA AMALI: HTTP 000
+[2026-01-15 18:25:19] INFO: [66/73] INSTITUTION: WIZARA YA HABARI, VIJANA, UTAMADUNI NA MICHEZO
+[2026-01-15 18:25:19] INFO: Employees: 414 total | 11 with photos | 403 without
+[2026-01-15 18:25:19] INFO: Photo coverage: 2%
+[2026-01-15 18:25:19] INFO: Calling photo fetch API...
+[2026-01-15 18:26:49] SUCCESS: WIZARA YA HABARI, VIJANA, UTAMADUNI NA MICHEZO: Processed 414 employees
+[2026-01-15 18:26:49] INFO:   Results: 205 success, 198 failed, 11 skipped
+[2026-01-15 18:26:49] INFO:   Duration: 1m 30s
+[2026-01-15 18:26:49] INFO: Overall Progress: 66/73 (90.4%) | SUCCESS: 26 | FAIL: 2 | SKIP: 38
+[2026-01-15 18:26:49] INFO: Pausing 3s before next institution...
+[2026-01-15 18:26:52] INFO: [67/73] INSTITUTION: WIZARA YA KILIMO UMWAGILIAJI MALIASILI NA MIFUGO
+[2026-01-15 18:26:52] INFO: Employees: 92 total | 55 with photos | 37 without
+[2026-01-15 18:26:52] INFO: Photo coverage: 59%
+[2026-01-15 18:26:52] INFO: Calling photo fetch API...
+[2026-01-15 18:27:00] SUCCESS: WIZARA YA KILIMO UMWAGILIAJI MALIASILI NA MIFUGO: Processed 92 employees
+[2026-01-15 18:27:00] INFO:   Results: 0 success, 37 failed, 55 skipped
+[2026-01-15 18:27:00] INFO:   Duration: 8s
+[2026-01-15 18:27:00] INFO: Overall Progress: 67/73 (91.8%) | SUCCESS: 27 | FAIL: 2 | SKIP: 38
+[2026-01-15 18:27:00] INFO: Pausing 3s before next institution...
+[2026-01-15 18:27:03] INFO: [68/73] INSTITUTION: WIZARA YA MAENDELEO YA JAMII,JINSIA,WAZEE NA WATOTO
+[2026-01-15 18:27:03] INFO: Employees: 304 total | 112 with photos | 192 without
+[2026-01-15 18:27:03] INFO: Photo coverage: 36%
+[2026-01-15 18:27:03] INFO: Calling photo fetch API...
+[2026-01-15 18:27:54] SUCCESS: WIZARA YA MAENDELEO YA JAMII,JINSIA,WAZEE NA WATOTO: Processed 304 employees
+[2026-01-15 18:27:54] INFO:   Results: 130 success, 62 failed, 112 skipped
+[2026-01-15 18:27:54] INFO:   Duration: 51s
+[2026-01-15 18:27:54] INFO: Overall Progress: 68/73 (93.2%) | SUCCESS: 28 | FAIL: 2 | SKIP: 38
+[2026-01-15 18:27:54] INFO: Pausing 3s before next institution...
+[2026-01-15 18:27:57] INFO: [69/73] INSTITUTION: WIZARA YA MAJI NISHATI NA MADINI
+[2026-01-15 18:27:57] INFO: Employees: 198 total | 5 with photos | 193 without
+[2026-01-15 18:27:57] INFO: Photo coverage: 2%
+[2026-01-15 18:27:57] INFO: Calling photo fetch API...
+[2026-01-15 18:28:43] SUCCESS: WIZARA YA MAJI NISHATI NA MADINI: Processed 198 employees
+[2026-01-15 18:28:43] INFO:   Results: 122 success, 71 failed, 5 skipped
+[2026-01-15 18:28:43] INFO:   Duration: 46s
+[2026-01-15 18:28:43] INFO: Overall Progress: 69/73 (94.5%) | SUCCESS: 29 | FAIL: 2 | SKIP: 38
+[2026-01-15 18:28:43] INFO: Pausing 3s before next institution...
+[2026-01-15 18:28:46] INFO: [70/73] SKIPPING: Wizara ya Mawasiliano, ICT na Ubunifu (no employees)
+[2026-01-15 18:28:46] INFO: [71/73] INSTITUTION: WIZARA YA UCHUMI WA BULUU NA UVUVI
+[2026-01-15 18:28:46] INFO: Employees: 291 total | 1 with photos | 290 without
+[2026-01-15 18:28:46] INFO: Photo coverage: 0%
+[2026-01-15 18:28:46] INFO: Calling photo fetch API...
+[2026-01-15 18:30:02] SUCCESS: WIZARA YA UCHUMI WA BULUU NA UVUVI: Processed 291 employees
+[2026-01-15 18:30:02] INFO:   Results: 234 success, 56 failed, 1 skipped
+[2026-01-15 18:30:02] INFO:   Duration: 1m 16s
+[2026-01-15 18:30:02] INFO: Overall Progress: 71/73 (97.3%) | SUCCESS: 30 | FAIL: 2 | SKIP: 39
+[2026-01-15 18:30:02] INFO: Pausing 3s before next institution...
+[2026-01-15 18:30:05] INFO: [72/73] INSTITUTION: WIZARA YA UJENZI MAWASILIANO NA UCHUKUZI
+[2026-01-15 18:30:05] INFO: Employees: 200 total | 40 with photos | 160 without
+[2026-01-15 18:30:05] INFO: Photo coverage: 20%
+[2026-01-15 18:30:05] INFO: Calling photo fetch API...
+[2026-01-15 18:30:31] SUCCESS: WIZARA YA UJENZI MAWASILIANO NA UCHUKUZI: Processed 200 employees
+[2026-01-15 18:30:31] INFO:   Results: 0 success, 159 failed, 41 skipped
+[2026-01-15 18:30:31] INFO:   Duration: 26s
+[2026-01-15 18:30:31] INFO: Overall Progress: 72/73 (98.6%) | SUCCESS: 31 | FAIL: 2 | SKIP: 39
+[2026-01-15 18:30:31] INFO: Pausing 3s before next institution...
+[2026-01-15 18:30:34] INFO: [73/73] INSTITUTION: WIZARA YA UTALII NA MAMBO YA KALE
+[2026-01-15 18:30:34] INFO: Employees: 299 total | 9 with photos | 290 without
+[2026-01-15 18:30:34] INFO: Photo coverage: 3%
+[2026-01-15 18:30:34] INFO: Calling photo fetch API...
+[2026-01-15 18:31:54] SUCCESS: WIZARA YA UTALII NA MAMBO YA KALE: Processed 299 employees
+[2026-01-15 18:31:54] INFO:   Results: 259 success, 31 failed, 9 skipped
+[2026-01-15 18:31:54] INFO:   Duration: 1m 20s
+[2026-01-15 18:31:54] INFO: Overall Progress: 73/73 (100.0%) | SUCCESS: 32 | FAIL: 2 | SKIP: 39
+[2026-01-15 18:31:54] INFO: Completed at: 2026-01-15 18:31:54
+[2026-01-15 18:31:54] INFO: Total duration: 38m 59s
+[2026-01-15 18:31:54] INFO: Total institutions: 73
+[2026-01-15 18:31:54] SUCCESS: Successfully processed: 32
+[2026-01-15 18:31:54] ERROR: Failed: 2
+[2026-01-15 18:31:54] INFO: Skipped total: 39
+[2026-01-15 18:31:54] INFO:   - Already have photos (>= 60%): 31
+[2026-01-15 18:31:54] WARNING:   - No employees: 8
+[2026-01-15 18:31:54] INFO: Total photos successfully fetched: 1184
+[2026-01-15 18:31:54] INFO: SUCCESSFUL FETCHES:
+[2026-01-15 18:31:54] INFO: FAILED FETCHES:
+[2026-01-15 18:31:54] INFO: SKIPPED (no employees):
+[2026-01-15 18:31:54] INFO: SKIPPED (already have photos - >= 60% complete):
+[2026-01-15 18:31:54] INFO: Log file: ./scripts/logs/fetch-photos-20260115_175255.log
+[2026-01-15 18:31:54] SUCCESS: Script completed!

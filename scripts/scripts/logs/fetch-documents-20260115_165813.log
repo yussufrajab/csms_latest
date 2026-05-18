@@ -1,0 +1,27 @@
+[2026-01-15 16:58:13] INFO: Log file: ./scripts/logs/fetch-documents-20260115_165813.log
+[2026-01-15 16:58:13] INFO: Fetching institutions list...
+[2026-01-15 16:58:13] SUCCESS: Found 73 institutions
+[2026-01-15 16:58:13] INFO: Checking existing document status...
+[2026-01-15 16:58:13] INFO: Fetching document status for all institutions from database...
+[2026-01-15 16:58:13] SUCCESS: Document status loaded
+[2026-01-15 16:58:13] INFO: CONFIGURATION:
+[2026-01-15 16:58:13] INFO:   Base URL: http://localhost:9002
+[2026-01-15 16:58:13] INFO:   Pause between institutions: 5s
+[2026-01-15 16:58:13] INFO:   Starting from: Institution #1
+[2026-01-15 16:58:13] INFO:   Min docs threshold: 80%
+[2026-01-15 16:58:13] INFO:   Force re-fetch: false
+[2026-01-15 16:58:13] INFO: DOCUMENT TYPES TO FETCH:
+[2026-01-15 16:58:13] INFO:   - Ardhil Hali (CV)
+[2026-01-15 16:58:13] INFO:   - Employment Contract
+[2026-01-15 16:58:13] INFO:   - Birth Certificate
+[2026-01-15 16:58:13] INFO:   - Confirmation Letter
+[2026-01-15 16:58:13] INFO:   - Educational Certificates
+[2026-01-15 16:58:13] INFO: SUMMARY:
+[2026-01-15 16:58:13] INFO:   Total institutions: 73
+[2026-01-15 16:58:13] SUCCESS:   Need to fetch: 46
+[2026-01-15 16:58:13] INFO:   Already fetched (>= 80% complete): 27
+[2026-01-15 16:58:13] WARNING: DRY RUN MODE - No actual fetching will occur
+[2026-01-15 16:58:13] INFO: Listing all institutions with document status:
+[2026-01-15 16:58:14] INFO: Total: 73 institutions
+[2026-01-15 16:58:14] SUCCESS: Will fetch: 46
+[2026-01-15 16:58:14] INFO: Will skip: 27

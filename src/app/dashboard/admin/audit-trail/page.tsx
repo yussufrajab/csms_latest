@@ -121,7 +121,6 @@ export default function AuditTrailPage() {
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
-  const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [eventTypeFilter, setEventTypeFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
@@ -154,9 +153,7 @@ export default function AuditTrailPage() {
           'endDate',
           new Date(dateRange.end + 'T23:59:59').toISOString()
         );
-      if (severityFilter && severityFilter !== 'all')
-        params.append('severity', severityFilter);
-      if (categoryFilter && categoryFilter !== 'all')
+if (categoryFilter && categoryFilter !== 'all')
         params.append('eventCategory', categoryFilter);
       if (eventTypeFilter && eventTypeFilter !== 'all')
         params.append('eventType', eventTypeFilter);
@@ -216,7 +213,7 @@ export default function AuditTrailPage() {
   useEffect(() => {
     fetchAuditLogs();
     fetchStats();
-  }, [currentPage, severityFilter, categoryFilter, eventTypeFilter, dateRange]);
+  }, [currentPage, categoryFilter, eventTypeFilter, dateRange]);
 
   const handleSearch = () => {
     setCurrentPage(1);
@@ -228,12 +225,72 @@ export default function AuditTrailPage() {
     fetchStats();
   };
 
-  const handleExport = () => {
-    // TODO: Implement CSV export
-    toast({
-      title: 'Export',
-      description: 'Export functionality coming soon',
-    });
+  const handleExport = async () => {
+    try {
+      const params = new URLSearchParams({ limit: totalLogs.toString(), offset: '0' });
+
+      if (dateRange.start)
+        params.append('startDate', new Date(dateRange.start).toISOString());
+      if (dateRange.end)
+        params.append(
+          'endDate',
+          new Date(dateRange.end + 'T23:59:59').toISOString()
+        );
+      if (categoryFilter && categoryFilter !== 'all')
+        params.append('eventCategory', categoryFilter);
+      if (eventTypeFilter && eventTypeFilter !== 'all')
+        params.append('eventType', eventTypeFilter);
+      if (searchTerm) params.append('username', searchTerm);
+
+      const response = await fetch(`/api/audit/logs?${params.toString()}`);
+      const data = await response.json();
+
+      if (!data.success) {
+        toast({ title: 'Error', description: 'Failed to export audit logs', variant: 'destructive' });
+        return;
+      }
+
+      const rows: AuditLog[] = data.data.logs;
+      const headers = ['Timestamp', 'Severity', 'Event Type', 'Category', 'Username', 'Role', 'IP Address', 'Route', 'Method', 'Blocked', 'Block Reason'];
+
+      const escape = (v: string | null | undefined) => {
+        const s = v ?? '';
+        return s.includes(',') || s.includes('"') || s.includes('\n')
+          ? `"${s.replace(/"/g, '""')}"`
+          : s;
+      };
+
+      const csvLines = [
+        headers.join(','),
+        ...rows.map((log) =>
+          [
+            escape(format(new Date(log.timestamp), 'yyyy-MM-dd HH:mm:ss')),
+            escape(log.severity),
+            escape(log.eventType),
+            escape(log.eventCategory),
+            escape(log.username || log.userId),
+            escape(log.userRole),
+            escape(log.ipAddress),
+            escape(log.attemptedRoute),
+            escape(log.requestMethod),
+            escape(log.wasBlocked ? 'Yes' : 'No'),
+            escape(log.blockReason),
+          ].join(',')
+        ),
+      ];
+
+      const blob = new Blob([csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `audit-trail-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      toast({ title: 'Export Complete', description: `Exported ${rows.length} audit log entries` });
+    } catch {
+      toast({ title: 'Error', description: 'Failed to export audit logs', variant: 'destructive' });
+    }
   };
 
   const totalPages = Math.ceil(totalLogs / logsPerPage);
@@ -321,7 +378,7 @@ export default function AuditTrailPage() {
             <CardDescription>Filter and search audit logs</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="md:col-span-2">
                 <label className="text-sm font-medium mb-1.5 block">
                   Search Username/IP
@@ -362,27 +419,6 @@ export default function AuditTrailPage() {
                       Data Modification
                     </SelectItem>
                     <SelectItem value="SYSTEM">System</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">
-                  Severity
-                </label>
-                <Select
-                  value={severityFilter}
-                  onValueChange={setSeverityFilter}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Severities</SelectItem>
-                    <SelectItem value="CRITICAL">Critical</SelectItem>
-                    <SelectItem value="ERROR">Error</SelectItem>
-                    <SelectItem value="WARNING">Warning</SelectItem>
-                    <SelectItem value="INFO">Info</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

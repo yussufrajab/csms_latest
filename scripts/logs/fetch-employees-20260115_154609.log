@@ -1,0 +1,140 @@
+[2026-01-15 15:46:09] INFO: Log file: ./logs/fetch-employees-20260115_154609.log
+[2026-01-15 15:46:09] INFO: Fetching institutions list...
+[2026-01-15 15:46:09] SUCCESS: Found 73 institutions
+[2026-01-15 15:46:09] INFO: Checking existing employee counts...
+[2026-01-15 15:46:09] INFO: Fetching employee counts from database...
+[2026-01-15 15:46:09] SUCCESS: Employee counts loaded
+[2026-01-15 15:46:09] INFO: CONFIGURATION:
+[2026-01-15 15:46:09] INFO:   Page size: 100
+[2026-01-15 15:46:09] INFO:   Pause between institutions: 15s
+[2026-01-15 15:46:09] INFO:   Identifier type: auto
+[2026-01-15 15:46:09] INFO:   Starting from: Institution #1
+[2026-01-15 15:46:09] INFO:   Min employees threshold: 1
+[2026-01-15 15:46:09] INFO:   Force re-fetch: false
+[2026-01-15 15:46:09] INFO: SUMMARY:
+[2026-01-15 15:46:09] INFO:   Total institutions: 73
+[2026-01-15 15:46:09] SUCCESS:   Need to fetch: 12
+[2026-01-15 15:46:09] INFO:   Already fetched (>= 1 employees): 61
+[2026-01-15 15:46:09] INFO: Starting employee fetch...
+[2026-01-15 15:46:09] INFO: [1/73] SKIPPING: AFISI YA MKURUGENZI WA MASHTAKA (already has 147 employees)
+[2026-01-15 15:46:09] INFO: [2/73] SKIPPING: AFISI YA MWANASHERIA MKUU (already has 119 employees)
+[2026-01-15 15:46:09] INFO: [3/73] SKIPPING: AFISI YA RAISI KAZI, UCHUMI NA UWEKEZAJI (already has 152 employees)
+[2026-01-15 15:46:09] INFO: [4/73] SKIPPING: Baraza la Jiji (already has 22 employees)
+[2026-01-15 15:46:09] INFO: [5/73] SKIPPING: Baraza la Manispaa Magharibi A (already has 135 employees)
+[2026-01-15 15:46:09] INFO: [6/73] SKIPPING: Baraza la Manispaa Magharibi B (already has 158 employees)
+[2026-01-15 15:46:09] INFO: [7/73] SKIPPING: Baraza la Manispaa Mjini Unguja (already has 441 employees)
+[2026-01-15 15:46:09] INFO: [8/73] SKIPPING: Baraza la Mitihani (already has 70 employees)
+[2026-01-15 15:46:09] INFO: [9/73] SKIPPING: Baraza la Mji Chake Chake (already has 200 employees)
+[2026-01-15 15:46:09] INFO: [10/73] SKIPPING: Baraza la Mji Kaskazini A Unguja (already has 137 employees)
+[2026-01-15 15:46:09] INFO: [11/73] SKIPPING: Baraza la Mji Kaskazini B Unguja (already has 142 employees)
+[2026-01-15 15:46:10] INFO: [12/73] SKIPPING: Baraza la Mji Kati Unguja (already has 51 employees)
+[2026-01-15 15:46:10] INFO: [13/73] SKIPPING: Baraza la Mji Mkoani (already has 97 employees)
+[2026-01-15 15:46:10] INFO: [14/73] SKIPPING: Baraza la Mji Wete (already has 138 employees)
+[2026-01-15 15:46:10] INFO: [15/73] SKIPPING: Bodi ya Huduma za Maktaba (already has 67 employees)
+[2026-01-15 15:46:10] INFO: [16/73] INSTITUTION: Chuo cha Kiislamu
+[2026-01-15 15:46:10] WARNING: Skipping: No valid identifier available
+[2026-01-15 15:46:10] INFO: [17/73] SKIPPING: Halmashauri ya Wilaya ya Kusini Unguja (already has 60 employees)
+[2026-01-15 15:46:10] INFO: [18/73] SKIPPING: Halmashauri ya Wilaya ya Micheweni (already has 59 employees)
+[2026-01-15 15:46:10] INFO: [19/73] SKIPPING: Hospitali ya Mnazi Mmoja (already has 1553 employees)
+[2026-01-15 15:46:10] INFO: [20/73] INSTITUTION: JKU
+[2026-01-15 15:46:10] WARNING: Skipping: No valid identifier available
+[2026-01-15 15:46:10] INFO: [21/73] SKIPPING: KAMISHENI YA ARDHI ZANZIBAR (already has 182 employees)
+[2026-01-15 15:46:10] INFO: [22/73] SKIPPING: Kamisheni ya Kazi (already has 76 employees)
+[2026-01-15 15:46:10] INFO: [23/73] SKIPPING: KAMISHENI YA KUKABILIANA NA MAAFA ZANZIBAR (already has 45 employees)
+[2026-01-15 15:46:10] INFO: [24/73] INSTITUTION: KAMISHENI YA UTALII ZANZIBAR
+[2026-01-15 15:46:10] WARNING: Skipping: No valid identifier available
+[2026-01-15 15:46:10] INFO: [25/73] SKIPPING: KAMISHENI YA UTUMISHI WA UMMA (already has 37 employees)
+[2026-01-15 15:46:10] INFO: [26/73] INSTITUTION: Magereza
+[2026-01-15 15:46:10] WARNING: Skipping: No valid identifier available
+[2026-01-15 15:46:10] INFO: [27/73] SKIPPING: MAMLAKA YA KUDHIBITI NA KUPAMBANA NA DAWA ZA KULEVYA ZANZIBAR (already has 59 employees)
+[2026-01-15 15:46:10] INFO: [28/73] SKIPPING: MAMLAKA YA KUZUIA RUSHWA NA UHUJUMU WA UCHUMI ZANZIBAR (already has 172 employees)
+[2026-01-15 15:46:10] INFO: [29/73] SKIPPING: Mamlaka ya Serikali Mtandao (eGAZ) (already has 81 employees)
+[2026-01-15 15:46:10] INFO: [30/73] SKIPPING: Mamlaka ya Uwezeshaji Wananchi Kiuchumi (ZEA) (already has 97 employees)
+[2026-01-15 15:46:10] INFO: [31/73] SKIPPING: Ofisi ya Hatimiliki (COSOZA) (already has 24 employees)
+[2026-01-15 15:46:10] INFO: [32/73] SKIPPING: OFISI YA MAKAMO WA KWANZA WA RAISI (already has 210 employees)
+[2026-01-15 15:46:10] INFO: [33/73] SKIPPING: OFISI YA MAKAMO WA PILI WA RAISI (already has 306 employees)
+[2026-01-15 15:46:10] INFO: [34/73] SKIPPING: Ofisi ya Mhasibu Mkuu wa Serikali (already has 495 employees)
+[2026-01-15 15:46:10] INFO: [35/73] SKIPPING: OFISI YA MKAGUZI MKUU WA NDANI WA SERIKALI (already has 150 employees)
+[2026-01-15 15:46:10] INFO: [36/73] SKIPPING: Ofisi ya Mkaguzi wa Elimu (already has 107 employees)
+[2026-01-15 15:46:10] INFO: [37/73] SKIPPING: Ofisi ya Mkuu wa Mkoa wa Kaskazini Pemba (already has 34 employees)
+[2026-01-15 15:46:10] INFO: [38/73] SKIPPING: Ofisi ya Mkuu wa Mkoa wa Kaskazini Unguja (already has 69 employees)
+[2026-01-15 15:46:10] INFO: [39/73] SKIPPING: Ofisi ya Mkuu wa Mkoa wa Kusini Pemba (already has 33 employees)
+[2026-01-15 15:46:10] INFO: [40/73] SKIPPING: Ofisi ya Mkuu wa Mkoa wa Kusini Unguja (already has 59 employees)
+[2026-01-15 15:46:10] INFO: [41/73] SKIPPING: Ofisi ya Mkuu wa Mkoa wa Mjini Magharibi Unguja (already has 52 employees)
+[2026-01-15 15:46:10] INFO: [42/73] SKIPPING: Ofisi ya Msajili wa Hazina (already has 44 employees)
+[2026-01-15 15:46:10] INFO: [43/73] INSTITUTION: OFISI YA MUFTI MKUU WA ZANZIBAR
+[2026-01-15 15:46:10] WARNING: Skipping: No valid identifier available
+[2026-01-15 15:46:10] INFO: [44/73] INSTITUTION: OFISI YA RAIS, FEDHA NA MIPANGO
+[2026-01-15 15:46:10] INFO: Using votecode: 567
+[2026-01-15 15:46:10] INFO: Page size: 100
+[2026-01-15 15:46:10] SUCCESS: OFISI YA RAIS, FEDHA NA MIPANGO: Fetched 0 employees (0 pages, 0 skipped) in 0s
+[2026-01-15 15:46:10] INFO: Progress: 44/73 (60.3%) | ✅ 1 | ❌ 0 | ⏭️ 43
+[2026-01-15 15:46:10] INFO: Pausing 15s before next institution...
+[2026-01-15 15:46:25] INFO: [45/73] SKIPPING: OFISI YA RAIS - IKULU (already has 517 employees)
+[2026-01-15 15:46:26] INFO: [46/73] SKIPPING: OFISI YA RAIS - KATIBA SHERIA UTUMISHI NA UTAWALA BORA (already has 210 employees)
+[2026-01-15 15:46:26] INFO: [47/73] SKIPPING: OFISI YA RAIS, TAWALA ZA MIKOA, SERIKALI ZA MITAA NA IDARA MAALUMU ZA SMZ (already has 148 employees)
+[2026-01-15 15:46:26] INFO: [48/73] SKIPPING: Skuli ya Sheria Zanzibar (already has 22 employees)
+[2026-01-15 15:46:26] INFO: [49/73] SKIPPING: TAASISI YA ELIMU ZANZIBAR (already has 56 employees)
+[2026-01-15 15:46:26] INFO: [50/73] SKIPPING: TAASISI YA NYARAKA NA KUMBUKUMBU (already has 76 employees)
+[2026-01-15 15:46:26] INFO: [51/73] SKIPPING: Taasisi ya Utafiti wa Uvuvi (ZAFIRI) (already has 334 employees)
+[2026-01-15 15:46:26] INFO: [52/73] INSTITUTION: Tume ya kusimamia Nidhamu
+[2026-01-15 15:46:26] WARNING: Skipping: No valid identifier available
+[2026-01-15 15:46:26] INFO: [53/73] SKIPPING: TUME YA MAADILI YA VIONGOZI WA UMMA (already has 34 employees)
+[2026-01-15 15:46:26] INFO: [54/73] SKIPPING: Tume ya Mipango (already has 106 employees)
+[2026-01-15 15:46:26] INFO: [55/73] SKIPPING: TUME YA UCHAGUZI YA ZANZIBAR (already has 94 employees)
+[2026-01-15 15:46:26] INFO: [56/73] SKIPPING: Tume ya Ushindani Halali wa Biashara (already has 57 employees)
+[2026-01-15 15:46:26] INFO: [57/73] SKIPPING: TUME YA UTUMISHI SERIKALINI (already has 34 employees)
+[2026-01-15 15:46:26] INFO: [58/73] SKIPPING: Wakala wa Barabara (already has 464 employees)
+[2026-01-15 15:46:26] INFO: [59/73] SKIPPING: WAKALA WA MAJENGO ZANZIBAR (already has 156 employees)
+[2026-01-15 15:46:26] INFO: [60/73] SKIPPING: Wakala wa Matrekta (already has 103 employees)
+[2026-01-15 15:46:26] INFO: [61/73] SKIPPING: Wakala wa Vipimo Zanzibar (already has 25 employees)
+[2026-01-15 15:46:26] INFO: [62/73] SKIPPING: WIZARA YA AFYA (already has 6133 employees)
+[2026-01-15 15:46:26] INFO: [63/73] SKIPPING: WIZARA YA ARDHI NA MAENDELEO YA MAKAAZI ZANZIBAR (already has 119 employees)
+[2026-01-15 15:46:26] INFO: [64/73] SKIPPING: WIZARA YA BIASHARA NA MAENDELEO YA VIWANDA (already has 144 employees)
+[2026-01-15 15:46:26] INFO: [65/73] SKIPPING: WIZARA YA ELIMU NA MAFUNZO YA AMALI (already has 18616 employees)
+[2026-01-15 15:46:26] INFO: [66/73] INSTITUTION: WIZARA YA HABARI, VIJANA, UTAMADUNI NA MICHEZO
+[2026-01-15 15:46:26] INFO: Using votecode: 018
+[2026-01-15 15:46:26] INFO: Page size: 100
+[2026-01-15 15:46:26] SUCCESS: WIZARA YA HABARI, VIJANA, UTAMADUNI NA MICHEZO: Fetched 0 employees (0 pages, 0 skipped) in 0s
+[2026-01-15 15:46:26] INFO: Progress: 66/73 (90.4%) | ✅ 2 | ❌ 0 | ⏭️ 64
+[2026-01-15 15:46:26] INFO: Pausing 15s before next institution...
+[2026-01-15 15:46:41] INFO: [67/73] SKIPPING: WIZARA YA KILIMO UMWAGILIAJI MALIASILI NA MIFUGO (already has 92 employees)
+[2026-01-15 15:46:41] INFO: [68/73] SKIPPING: WIZARA YA MAENDELEO YA JAMII,JINSIA,WAZEE NA WATOTO (already has 306 employees)
+[2026-01-15 15:46:41] INFO: [69/73] INSTITUTION: WIZARA YA MAJI NISHATI NA MADINI
+[2026-01-15 15:46:41] INFO: Using votecode: 015
+[2026-01-15 15:46:41] INFO: Page size: 100
+[2026-01-15 15:46:41] SUCCESS: WIZARA YA MAJI NISHATI NA MADINI: Fetched 0 employees (0 pages, 0 skipped) in 0s
+[2026-01-15 15:46:41] INFO: Progress: 69/73 (94.5%) | ✅ 3 | ❌ 0 | ⏭️ 66
+[2026-01-15 15:46:41] INFO: Pausing 15s before next institution...
+[2026-01-15 15:46:56] INFO: [70/73] INSTITUTION: Wizara ya Mawasiliano, ICT na Ubunifu
+[2026-01-15 15:46:56] INFO: Using votecode: 250
+[2026-01-15 15:46:56] INFO: Page size: 100
+[2026-01-15 15:46:56] SUCCESS: Wizara ya Mawasiliano, ICT na Ubunifu: Fetched 0 employees (0 pages, 0 skipped) in 0s
+[2026-01-15 15:46:56] INFO: Progress: 70/73 (95.9%) | ✅ 4 | ❌ 0 | ⏭️ 66
+[2026-01-15 15:46:56] INFO: Pausing 15s before next institution...
+[2026-01-15 15:47:11] INFO: [71/73] INSTITUTION: WIZARA YA UCHUMI WA BULUU NA UVUVI
+[2026-01-15 15:47:11] INFO: Using votecode: 013
+[2026-01-15 15:47:11] INFO: Page size: 100
+[2026-01-15 15:47:11] SUCCESS: WIZARA YA UCHUMI WA BULUU NA UVUVI: Fetched 0 employees (0 pages, 0 skipped) in 0s
+[2026-01-15 15:47:12] INFO: Progress: 71/73 (97.3%) | ✅ 5 | ❌ 0 | ⏭️ 66
+[2026-01-15 15:47:12] INFO: Pausing 15s before next institution...
+[2026-01-15 15:47:27] INFO: [72/73] SKIPPING: WIZARA YA UJENZI MAWASILIANO NA UCHUKUZI (already has 201 employees)
+[2026-01-15 15:47:27] INFO: [73/73] INSTITUTION: WIZARA YA UTALII NA MAMBO YA KALE
+[2026-01-15 15:47:27] INFO: Using votecode: 010
+[2026-01-15 15:47:27] INFO: Page size: 100
+[2026-01-15 15:47:27] SUCCESS: WIZARA YA UTALII NA MAMBO YA KALE: Fetched 0 employees (0 pages, 0 skipped) in 0s
+[2026-01-15 15:47:27] INFO: Progress: 73/73 (100.0%) | ✅ 6 | ❌ 0 | ⏭️ 67
+[2026-01-15 15:47:27] INFO: Completed at: 2026-01-15 15:47:27
+[2026-01-15 15:47:27] INFO: Total duration: 1m 18s
+[2026-01-15 15:47:27] INFO: Total institutions: 73
+[2026-01-15 15:47:27] SUCCESS: Successfully fetched: 6
+[2026-01-15 15:47:27] ERROR: Failed: 0
+[2026-01-15 15:47:27] INFO: Skipped total: 67
+[2026-01-15 15:47:27] INFO:   - Already fetched (>= 1 employees): 61
+[2026-01-15 15:47:27] WARNING:   - No identifier available: 6
+[2026-01-15 15:47:27] INFO: Total employees fetched: 0
+[2026-01-15 15:47:27] INFO: SUCCESSFUL FETCHES:
+[2026-01-15 15:47:27] INFO: SKIPPED (no identifier):
+[2026-01-15 15:47:27] INFO: SKIPPED (already fetched - >= 1 employees):
+[2026-01-15 15:47:27] INFO: Log file: ./logs/fetch-employees-20260115_154609.log
+[2026-01-15 15:47:27] SUCCESS: Script completed!

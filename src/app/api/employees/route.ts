@@ -14,8 +14,13 @@ export async function GET(req: Request) {
     const q = searchParams.get('q');
     const status = searchParams.get('status');
     const gender = searchParams.get('gender');
+    const cadre = searchParams.get('cadre');
+    const currentWorkplace = searchParams.get('currentWorkplace');
+    const ministry = searchParams.get('ministry');
+    const department = searchParams.get('department');
+    const institutionIdFilter = searchParams.get('institutionId');
     const page = parseInt(searchParams.get('page') || '1');
-    const size = parseInt(searchParams.get('size') || '200'); // Default to 200 for latest profiles
+    const size = parseInt(searchParams.get('size') || '200');
 
     console.log('Employees API called with params:', {
       userRole,
@@ -24,6 +29,11 @@ export async function GET(req: Request) {
       q,
       status,
       gender,
+      cadre,
+      currentWorkplace,
+      ministry,
+      department,
+      institutionIdFilter,
       page,
       size,
     });
@@ -112,10 +122,9 @@ export async function GET(req: Request) {
     }
 
     // If a specific institution ID is provided, filter by that institution
-    const institutionId = searchParams.get('institutionId');
-    if (institutionId) {
-      whereClause.institutionId = institutionId;
-      console.log('Filtering by specific institution:', institutionId);
+    if (institutionIdFilter) {
+      whereClause.institutionId = institutionIdFilter;
+      console.log('Filtering by specific institution:', institutionIdFilter);
     }
 
     // If search query provided, search by name, zanId, payrollNumber, cadre, or institution name
@@ -137,6 +146,26 @@ export async function GET(req: Request) {
     // Filter by gender if provided
     if (gender) {
       whereClause.gender = gender;
+    }
+
+    // Filter by cadre (case-insensitive contains)
+    if (cadre) {
+      whereClause.cadre = { contains: cadre, mode: 'insensitive' };
+    }
+
+    // Filter by current workplace (case-insensitive contains)
+    if (currentWorkplace) {
+      whereClause.currentWorkplace = { contains: currentWorkplace, mode: 'insensitive' };
+    }
+
+    // Filter by ministry (case-insensitive contains)
+    if (ministry) {
+      whereClause.ministry = { contains: ministry, mode: 'insensitive' };
+    }
+
+    // Filter by department (case-insensitive contains)
+    if (department) {
+      whereClause.department = { contains: department, mode: 'insensitive' };
     }
 
     // Get total count for pagination

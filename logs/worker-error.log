@@ -1,1 +1,129 @@
-2025-12-28 22:48:34 +00:00: 2025-12-28 22:49:39 +00:00: 
+2025-12-28 22:48:34 +00:00: 2025-12-28 22:49:39 +00:00: 2026-02-26 16:07:53 +00:00: ❌ Worker error: Error: connect ECONNREFUSED 127.0.0.1:6379
+2026-02-26 16:07:53 +00:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+2026-02-26 16:07:53 +00:00:   errno: -111,
+2026-02-26 16:07:53 +00:00:   code: 'ECONNREFUSED',
+2026-02-26 16:07:53 +00:00:   syscall: 'connect',
+2026-02-26 16:07:53 +00:00:   address: '127.0.0.1',
+2026-02-26 16:07:53 +00:00:   port: 6379
+2026-02-26 16:07:53 +00:00: }
+2026-02-26 16:07:53 +00:00: ❌ Worker error: Error: connect ECONNREFUSED 127.0.0.1:6379
+2026-02-26 16:07:53 +00:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+2026-02-26 16:07:53 +00:00:   errno: -111,
+2026-02-26 16:07:53 +00:00:   code: 'ECONNREFUSED',
+2026-02-26 16:07:53 +00:00:   syscall: 'connect',
+2026-02-26 16:07:53 +00:00:   address: '127.0.0.1',
+2026-02-26 16:07:53 +00:00:   port: 6379
+2026-02-26 16:07:53 +00:00: }
+2026-02-26 16:07:53 +00:00: ❌ Worker error: Error: connect ECONNREFUSED 127.0.0.1:6379
+2026-02-26 16:07:53 +00:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+2026-02-26 16:07:53 +00:00:   errno: -111,
+2026-02-26 16:07:53 +00:00:   code: 'ECONNREFUSED',
+2026-02-26 16:07:53 +00:00:   syscall: 'connect',
+2026-02-26 16:07:53 +00:00:   address: '127.0.0.1',
+2026-02-26 16:07:53 +00:00:   port: 6379
+2026-02-26 16:07:53 +00:00: }
+2026-02-26 16:07:54 +00:00: ❌ Worker error: Error: connect ECONNREFUSED 127.0.0.1:6379
+2026-02-26 16:07:54 +00:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+2026-02-26 16:07:54 +00:00:   errno: -111,
+2026-02-26 16:07:54 +00:00:   code: 'ECONNREFUSED',
+2026-02-26 16:07:54 +00:00:   syscall: 'connect',
+2026-02-26 16:07:54 +00:00:   address: '127.0.0.1',
+2026-02-26 16:07:54 +00:00:   port: 6379
+2026-02-26 16:07:54 +00:00: }
+2026-02-26 16:07:54 +00:00: ❌ Worker error: Error: connect ECONNREFUSED 127.0.0.1:6379
+2026-02-26 16:07:54 +00:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+2026-02-26 16:07:54 +00:00:   errno: -111,
+2026-02-26 16:07:54 +00:00:   code: 'ECONNREFUSED',
+2026-02-26 16:07:54 +00:00:   syscall: 'connect',
+2026-02-26 16:07:54 +00:00:   address: '127.0.0.1',
+2026-02-26 16:07:54 +00:00:   port: 6379
+2026-02-26 16:07:54 +00:00: }
+2026-02-26 16:07:54 +00:00: ❌ Worker error: Error: connect ECONNREFUSED 127.0.0.1:6379
+2026-02-26 16:07:54 +00:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+2026-02-26 16:07:54 +00:00:   errno: -111,
+2026-02-26 16:07:54 +00:00:   code: 'ECONNREFUSED',
+2026-02-26 16:07:54 +00:00:   syscall: 'connect',
+2026-02-26 16:07:54 +00:00:   address: '127.0.0.1',
+2026-02-26 16:07:54 +00:00:   port: 6379
+2026-02-26 16:07:54 +00:00: }
+2026-02-26 16:07:54 +00:00: ❌ Worker error: Error: connect ECONNREFUSED 127.0.0.1:6379
+2026-02-26 16:07:54 +00:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+2026-02-26 16:07:54 +00:00:   errno: -111,
+2026-02-26 16:07:54 +00:00:   code: 'ECONNREFUSED',
+2026-02-26 16:07:54 +00:00:   syscall: 'connect',
+2026-02-26 16:07:54 +00:00:   address: '127.0.0.1',
+2026-02-26 16:07:54 +00:00:   port: 6379
+2026-02-26 16:07:54 +00:00: }
+2026-04-15 05:11:41 +00:00: ❌ Worker error: Error: connect ECONNREFUSED 127.0.0.1:6379
+2026-04-15 05:11:41 +00:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+2026-04-15 05:11:41 +00:00:   errno: -111,
+2026-04-15 05:11:41 +00:00:   code: 'ECONNREFUSED',
+2026-04-15 05:11:41 +00:00:   syscall: 'connect',
+2026-04-15 05:11:41 +00:00:   address: '127.0.0.1',
+2026-04-15 05:11:41 +00:00:   port: 6379
+2026-04-15 05:11:41 +00:00: }
+2026-04-15 05:11:41 +00:00: ❌ Worker error: Error: connect ECONNREFUSED 127.0.0.1:6379
+2026-04-15 05:11:41 +00:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+2026-04-15 05:11:41 +00:00:   errno: -111,
+2026-04-15 05:11:41 +00:00:   code: 'ECONNREFUSED',
+2026-04-15 05:11:41 +00:00:   syscall: 'connect',
+2026-04-15 05:11:41 +00:00:   address: '127.0.0.1',
+2026-04-15 05:11:41 +00:00:   port: 6379
+2026-04-15 05:11:41 +00:00: }
+2026-04-15 05:11:41 +00:00: ❌ Worker error: Error: connect ECONNREFUSED 127.0.0.1:6379
+2026-04-15 05:11:41 +00:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+2026-04-15 05:11:41 +00:00:   errno: -111,
+2026-04-15 05:11:41 +00:00:   code: 'ECONNREFUSED',
+2026-04-15 05:11:41 +00:00:   syscall: 'connect',
+2026-04-15 05:11:41 +00:00:   address: '127.0.0.1',
+2026-04-15 05:11:41 +00:00:   port: 6379
+2026-04-15 05:11:41 +00:00: }
+2026-04-15 05:11:41 +00:00: ❌ Worker error: Error: connect ECONNREFUSED 127.0.0.1:6379
+2026-04-15 05:11:41 +00:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+2026-04-15 05:11:41 +00:00:   errno: -111,
+2026-04-15 05:11:41 +00:00:   code: 'ECONNREFUSED',
+2026-04-15 05:11:41 +00:00:   syscall: 'connect',
+2026-04-15 05:11:41 +00:00:   address: '127.0.0.1',
+2026-04-15 05:11:41 +00:00:   port: 6379
+2026-04-15 05:11:41 +00:00: }
+2026-04-15 05:11:41 +00:00: ❌ Worker error: Error: connect ECONNREFUSED 127.0.0.1:6379
+2026-04-15 05:11:41 +00:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+2026-04-15 05:11:41 +00:00:   errno: -111,
+2026-04-15 05:11:41 +00:00:   code: 'ECONNREFUSED',
+2026-04-15 05:11:41 +00:00:   syscall: 'connect',
+2026-04-15 05:11:41 +00:00:   address: '127.0.0.1',
+2026-04-15 05:11:41 +00:00:   port: 6379
+2026-04-15 05:11:41 +00:00: }
+2026-04-15 05:11:42 +00:00: ❌ Worker error: Error: connect ECONNREFUSED 127.0.0.1:6379
+2026-04-15 05:11:42 +00:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+2026-04-15 05:11:42 +00:00:   errno: -111,
+2026-04-15 05:11:42 +00:00:   code: 'ECONNREFUSED',
+2026-04-15 05:11:42 +00:00:   syscall: 'connect',
+2026-04-15 05:11:42 +00:00:   address: '127.0.0.1',
+2026-04-15 05:11:42 +00:00:   port: 6379
+2026-04-15 05:11:42 +00:00: }
+2026-04-15 05:11:42 +00:00: ❌ Worker error: Error: connect ECONNREFUSED 127.0.0.1:6379
+2026-04-15 05:11:42 +00:00:     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16) {
+2026-04-15 05:11:42 +00:00:   errno: -111,
+2026-04-15 05:11:42 +00:00:   code: 'ECONNREFUSED',
+2026-04-15 05:11:42 +00:00:   syscall: 'connect',
+2026-04-15 05:11:42 +00:00:   address: '127.0.0.1',
+2026-04-15 05:11:42 +00:00:   port: 6379
+2026-04-15 05:11:42 +00:00: }
+2026-04-22 08:55:56 +00:00: ❌ Job hrims-sync-f80d811b-1893-42b7-9eed-6d142bee9011-1776848154406 failed: No employees found for Vote Code: A02
+2026-04-22 08:56:01 +00:00: ❌ Job hrims-sync-f80d811b-1893-42b7-9eed-6d142bee9011-1776848154406 failed: No employees found for Vote Code: A02
+2026-04-22 08:56:11 +00:00: ❌ Job hrims-sync-f80d811b-1893-42b7-9eed-6d142bee9011-1776848154406 failed: No employees found for Vote Code: A02
+2026-04-22 08:57:12 +00:00: ❌ Job hrims-sync-f80d811b-1893-42b7-9eed-6d142bee9011-1776848231969 failed: No employees found for Vote Code: A02
+2026-04-22 08:57:17 +00:00: ❌ Job hrims-sync-f80d811b-1893-42b7-9eed-6d142bee9011-1776848231969 failed: No employees found for Vote Code: A02
+2026-04-22 08:57:27 +00:00: ❌ Job hrims-sync-f80d811b-1893-42b7-9eed-6d142bee9011-1776848231969 failed: No employees found for Vote Code: A02
+2026-04-22 08:59:03 +00:00: ❌ Job hrims-sync-f80d811b-1893-42b7-9eed-6d142bee9011-1776848343777 failed: No employees found for Vote Code: A02
+2026-04-22 08:59:08 +00:00: ❌ Job hrims-sync-f80d811b-1893-42b7-9eed-6d142bee9011-1776848343777 failed: No employees found for Vote Code: A02
+2026-04-22 08:59:18 +00:00: ❌ Job hrims-sync-f80d811b-1893-42b7-9eed-6d142bee9011-1776848343777 failed: No employees found for Vote Code: A02
+2026-04-22 09:09:49 +00:00: ❌ Job hrims-sync-6d09cd8f-e53c-4d2a-b16a-4eefd6669b00-1776848989028 failed: No employees found for TIN: 166-520-649
+2026-04-22 09:09:54 +00:00: ❌ Job hrims-sync-6d09cd8f-e53c-4d2a-b16a-4eefd6669b00-1776848989028 failed: No employees found for TIN: 166-520-649
+2026-04-22 09:10:04 +00:00: ❌ Job hrims-sync-6d09cd8f-e53c-4d2a-b16a-4eefd6669b00-1776848989028 failed: No employees found for TIN: 166-520-649
+2026-05-14 08:07:17 +00:00: npm notice
+2026-05-14 08:07:17 +00:00: npm notice New major version of npm available! 10.9.3 -> 11.12.1
+2026-05-14 08:07:17 +00:00: npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.12.1
+2026-05-14 08:07:17 +00:00: npm notice To update run: npm install -g npm@11.12.1
+2026-05-14 08:07:17 +00:00: npm notice
