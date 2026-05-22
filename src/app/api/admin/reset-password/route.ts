@@ -8,39 +8,24 @@ import {
   validatePasswordComplexity,
   isCommonPassword,
 } from '@/lib/password-utils';
+import { withAuth } from '@/lib/api-auth';
+import { withRateLimit } from '@/lib/rate-limiter';
 
 const resetPasswordSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
   temporaryPassword: z.string().optional(),
-  // In a real app, you'd extract adminId from session/token
-  adminId: z.string().optional(),
 });
 
-export async function POST(req: Request) {
+export const POST = withRateLimit(withAuth(async (request, { auth }) => {
   try {
-    const body = await req.json();
-    const { userId, temporaryPassword, adminId } =
+    const body = await request.json();
+    const { userId, temporaryPassword } =
       resetPasswordSchema.parse(body);
 
     console.log('Password reset request for user ID:', userId);
 
-    // Verify that the caller is an admin
-    let admin = null;
-    if (adminId) {
-      admin = await db.user.findUnique({
-        where: { id: adminId },
-      });
-
-      if (!admin || admin.role !== 'Admin') {
-        return NextResponse.json(
-          {
-            success: false,
-            message: 'Unauthorized. Only admins can reset passwords.',
-          },
-          { status: 403 }
-        );
-      }
-    }
+    // Use verified admin ID from auth context
+    const adminId = auth.userId;
 
     // Find the user to reset
     const user = await db.user.findUnique({
@@ -114,19 +99,19 @@ export async function POST(req: Request) {
       },
     });
 
-    // Log password reset in audit trail
+    // Log password reset in audit trail using verified auth context
     const { logAuditEvent, AuditEventCategory, AuditSeverity, getClientIp } =
       await import('@/lib/audit-logger');
-    const ipAddress = getClientIp(req.headers);
-    const deviceInfo = JSON.parse(req.headers.get('x-device-info') || 'null');
+    const ipAddress = getClientIp(request.headers);
+    const deviceInfo = JSON.parse(request.headers.get('x-device-info') || 'null');
 
     await logAuditEvent({
       eventType: 'ADMIN_PASSWORD_RESET',
       eventCategory: AuditEventCategory.SECURITY,
       severity: AuditSeverity.WARNING,
-      userId: adminId || null,
-      username: admin?.username || 'unknown',
-      userRole: admin?.role || null,
+      userId: adminId,
+      username: auth.username,
+      userRole: auth.role,
       ipAddress,
       deviceInfo,
       attemptedRoute: '/api/admin/reset-password',
@@ -165,4 +150,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}
+}, { allowedRoles: ['Admin'] }), 'write');

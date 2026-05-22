@@ -1,16 +1,18 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { shouldApplyInstitutionFilter } from '@/lib/role-utils';
+import { withAuth } from '@/lib/api-auth';
+import { withRateLimit } from '@/lib/rate-limiter';
 
-export async function GET(req: Request) {
+export const GET = withRateLimit(withAuth(async (request, { auth }) => {
   try {
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(request.url);
     const zanId = searchParams.get('zanId');
     const payrollNumber = searchParams.get('payrollNumber');
     const identifier = searchParams.get('identifier'); // New flexible search parameter
     const q = searchParams.get('q');
-    const userRole = searchParams.get('userRole');
-    const userInstitutionId = searchParams.get('userInstitutionId');
+    const userRole = auth.role;
+    const userInstitutionId = auth.institutionId;
 
     console.log('Employee search API called with:', {
       zanId,
@@ -27,18 +29,6 @@ export async function GET(req: Request) {
           success: false,
           message:
             'Either zanId, payrollNumber, identifier, or q parameter is required',
-        },
-        { status: 400 }
-      );
-    }
-
-    // Validate required parameters for security
-    if (!userRole || !userInstitutionId) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            'User role and institution ID are required for security validation',
         },
         { status: 400 }
       );
@@ -203,4 +193,4 @@ export async function GET(req: Request) {
       { status: 500 }
     );
   }
-}
+}, { allowedRoles: ['ADMIN', 'HRO', 'HRMO', 'HHRMD', 'DO', 'CSCS'] }), 'read');

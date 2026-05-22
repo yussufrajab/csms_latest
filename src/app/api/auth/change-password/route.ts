@@ -14,6 +14,7 @@ import {
   PASSWORD_HISTORY_LENGTH,
   MAX_PASSWORD_CHANGE_ATTEMPTS,
 } from '@/lib/password-utils';
+import { withRateLimit } from '@/lib/rate-limiter';
 
 const changePasswordSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
@@ -21,9 +22,9 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(1, 'New password is required'),
 });
 
-export async function POST(req: Request) {
+export const POST = withRateLimit(async (request) => {
   try {
-    const body = await req.json();
+    const body = await request.json();
     const { userId, currentPassword, newPassword } =
       changePasswordSchema.parse(body);
 
@@ -206,8 +207,8 @@ export async function POST(req: Request) {
       userId: user.id,
       username: user.username,
       userRole: user.role,
-      ipAddress: getClientIp(req.headers),
-      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+      ipAddress: getClientIp(request.headers),
+      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
       attemptedRoute: '/api/auth/change-password',
       requestMethod: 'POST',
       isAuthenticated: true,
@@ -241,4 +242,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}
+}, 'auth');

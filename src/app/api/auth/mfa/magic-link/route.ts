@@ -4,22 +4,23 @@ import { db } from '@/lib/db';
 import { verifyMfaToken } from '@/lib/mfa-utils';
 import { completeLogin } from '@/lib/auth-helpers';
 import { logAuditEvent, AuditEventType, AuditEventCategory, AuditSeverity, getClientIp } from '@/lib/audit-logger';
+import { withRateLimit } from '@/lib/rate-limiter';
 
 const magicLinkSchema = z.object({
   token: z.string().min(1),
 });
 
-export async function POST(req: Request) {
+export const POST = withRateLimit(async (request) => {
   try {
-    const body = await req.json();
+    const body = await request.json();
     const { token } = magicLinkSchema.parse(body);
 
     const ipAddress =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
+      request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+      request.headers.get('x-real-ip') ||
       null;
-    const userAgent = req.headers.get('user-agent') || null;
-    const deviceInfo: Record<string, any> | null = JSON.parse(req.headers.get('x-device-info') || 'null');
+    const userAgent = request.headers.get('user-agent') || null;
+    const deviceInfo: Record<string, any> | null = JSON.parse(request.headers.get('x-device-info') || 'null');
 
     const result = await verifyMfaToken(token, 'MAGIC_LINK');
 
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
         userId: result.userId ?? null,
         username: null,
         userRole: null,
-        ipAddress: getClientIp(req.headers),
+        ipAddress: getClientIp(request.headers),
         deviceInfo,
         attemptedRoute: '/api/auth/mfa/magic-link',
         requestMethod: 'POST',
@@ -73,7 +74,7 @@ export async function POST(req: Request) {
       userId: user.id,
       username: user.username,
       userRole: user.role,
-      ipAddress: getClientIp(req.headers),
+      ipAddress: getClientIp(request.headers),
       deviceInfo,
       attemptedRoute: '/api/auth/mfa/magic-link',
       requestMethod: 'POST',
@@ -102,4 +103,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}
+}, 'auth');

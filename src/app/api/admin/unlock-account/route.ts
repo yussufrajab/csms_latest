@@ -4,10 +4,11 @@ import { db } from '@/lib/db';
 import { unlockAccount } from '@/lib/account-lockout-utils';
 import { createNotification } from '@/lib/notifications';
 import { logAccountAction, getClientIp } from '@/lib/audit-logger';
+import { withAuth } from '@/lib/api-auth';
+import { withRateLimit } from '@/lib/rate-limiter';
 
 const unlockAccountSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
-  adminId: z.string().min(1, 'Admin ID is required'),
   verificationNotes: z
     .string()
     .min(10, 'Verification notes must be at least 10 characters'),
@@ -16,24 +17,14 @@ const unlockAccountSchema = z.object({
   }),
 });
 
-export async function POST(req: Request) {
+export const POST = withRateLimit(withAuth(async (request, { auth }) => {
   try {
-    const body = await req.json();
-    const { userId, adminId, verificationNotes, identityVerified } =
+    const body = await request.json();
+    const { userId, verificationNotes, identityVerified } =
       unlockAccountSchema.parse(body);
 
-    // Verify admin user exists and has admin role
-    const admin = await db.user.findUnique({
-      where: { id: adminId },
-      select: { id: true, username: true, name: true, role: true },
-    });
-
-    if (!admin || admin.role !== 'Admin') {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized. Admin access required.' },
-        { status: 403 }
-      );
-    }
+    // Use verified admin ID from auth context instead of client-sent adminId
+    const adminId = auth.userId;
 
     // Verify target user exists
     const user = await db.user.findUnique({
@@ -62,11 +53,11 @@ export async function POST(req: Request) {
       action: 'UNLOCKED',
       targetUserId: userId,
       targetUsername: user.username,
-      performedById: admin.id,
-      performedByUsername: admin.name || admin.username,
-      performedByRole: admin.role,
-      ipAddress: getClientIp(req.headers),
-      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+      performedById: adminId,
+      performedByUsername: auth.username,
+      performedByRole: auth.role,
+      ipAddress: getClientIp(request.headers),
+      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
       additionalData: { verificationNotes },
     }).catch(() => {});
 
@@ -78,7 +69,7 @@ export async function POST(req: Request) {
     });
 
     console.log(
-      `Account unlocked for user ${user.username} by admin ${admin.username}`
+      `Account unlocked for user ${user.username} by admin ${auth.username}`
     );
 
     return NextResponse.json({
@@ -87,7 +78,7 @@ export async function POST(req: Request) {
       data: {
         userId: user.id,
         username: user.username,
-        unlockedBy: admin.username,
+        unlockedBy: auth.username,
       },
     });
   } catch (error) {
@@ -103,4 +94,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}
+}, { allowedRoles: ['Admin'] }), 'write');

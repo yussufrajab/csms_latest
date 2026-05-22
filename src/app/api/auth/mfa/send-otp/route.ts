@@ -4,22 +4,23 @@ import { db } from '@/lib/db';
 import { createMfaToken, checkOtpRateLimit, maskEmail } from '@/lib/mfa-utils';
 import { sendMfaEmail } from '@/lib/email';
 import { logAuditEvent, AuditEventType, AuditEventCategory, AuditSeverity, getClientIp } from '@/lib/audit-logger';
+import { withRateLimit } from '@/lib/rate-limiter';
 
 const sendOtpSchema = z.object({
   userId: z.string().min(1),
 });
 
-export async function POST(req: Request) {
+export const POST = withRateLimit(async (request) => {
   try {
-    const body = await req.json();
+    const body = await request.json();
     const { userId } = sendOtpSchema.parse(body);
 
     const ipAddress =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
+      request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+      request.headers.get('x-real-ip') ||
       null;
-    const userAgent = req.headers.get('user-agent') || null;
-    const deviceInfo: Record<string, any> | null = JSON.parse(req.headers.get('x-device-info') || 'null');
+    const userAgent = request.headers.get('user-agent') || null;
+    const deviceInfo: Record<string, any> | null = JSON.parse(request.headers.get('x-device-info') || 'null');
 
     const user = await db.user.findUnique({
       where: { id: userId },
@@ -75,7 +76,7 @@ export async function POST(req: Request) {
       userId: user.id,
       username: user.name,
       userRole: undefined,
-      ipAddress: getClientIp(req.headers),
+      ipAddress: getClientIp(request.headers),
       deviceInfo,
       attemptedRoute: '/api/auth/mfa/send-otp',
       requestMethod: 'POST',
@@ -103,4 +104,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}
+}, 'auth');

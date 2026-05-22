@@ -12,6 +12,7 @@ import { completeLogin } from '@/lib/auth-helpers';
 import { createMfaToken, checkOtpRateLimit, maskEmail } from '@/lib/mfa-utils';
 import { sendMfaEmail } from '@/lib/email';
 import { logLoginAttempt, getClientIp } from '@/lib/audit-logger';
+import { withRateLimit } from '@/lib/rate-limiter';
 
 const employeeLoginSchema = z.object({
   zanId: z.string().min(1),
@@ -27,16 +28,16 @@ function generateUsername(name: string): string {
     .slice(0, 50); // Limit to 50 characters
 }
 
-export async function POST(req: Request) {
+export const POST = withRateLimit(async (request) => {
   try {
-    const body = await req.json();
+    const body = await request.json();
     const { zanId, zssfNumber, payrollNumber } =
       employeeLoginSchema.parse(body);
 
     // Get client info for audit logging
-    const ipAddress = getClientIp(req.headers);
-    const userAgent = req.headers.get('user-agent') || null;
-    const deviceInfo: Record<string, any> | null = JSON.parse(req.headers.get('x-device-info') || 'null');
+    const ipAddress = getClientIp(request.headers);
+    const userAgent = request.headers.get('user-agent') || null;
+    const deviceInfo: Record<string, any> | null = JSON.parse(request.headers.get('x-device-info') || 'null');
 
     // Trim whitespace and normalize input
     const normalizedZanId = zanId.trim();
@@ -329,4 +330,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}
+}, 'auth');

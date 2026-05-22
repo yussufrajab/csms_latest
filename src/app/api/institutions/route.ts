@@ -2,11 +2,13 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { logInstitutionAction, getClientIp } from '@/lib/audit-logger';
+import { withAuth } from '@/lib/api-auth';
+import { withRateLimit } from '@/lib/rate-limiter';
 
 // Cache configuration for institution data
 const CACHE_TTL = 300; // 5 minutes cache (institutions rarely change)
 
-export async function GET(req: Request) {
+export const GET = withRateLimit(withAuth(async (request) => {
   try {
     console.log('Institutions API called');
 
@@ -52,11 +54,11 @@ export async function GET(req: Request) {
       { status: 500 }
     );
   }
-}
+}), 'read');
 
-export async function POST(req: Request) {
+export const POST = withRateLimit(withAuth(async (request, { auth }) => {
   try {
-    const body = await req.json();
+    const body = await request.json();
     const {
       name,
       email,
@@ -179,32 +181,16 @@ export async function POST(req: Request) {
 
     console.log('Created new Institution:', newInstitution);
 
-    // Audit log: institution created
-    // Parse auth info from cookie for audit context
-    const authCookie = req.headers.get('cookie')?.split(';').find(c => c.trim().startsWith('auth-storage='));
-    let auditUserId: string | null = null;
-    let auditUsername: string | null = null;
-    let auditUserRole: string | null = null;
-    if (authCookie) {
-      try {
-        const cookieValue = decodeURIComponent(authCookie.split('=')[1]);
-        const authData = JSON.parse(cookieValue);
-        const state = authData.state || authData;
-        auditUserId = state.user?.id || null;
-        auditUsername = state.user?.name || state.user?.username || null;
-        auditUserRole = state.user?.role || state.role || null;
-      } catch {}
-    }
-
+    // Audit log: institution created using verified auth context
     await logInstitutionAction({
       action: 'CREATED',
       institutionId: newInstitution.id,
       institutionName: newInstitution.name,
-      performedById: auditUserId || 'system',
-      performedByUsername: auditUsername || 'system',
-      performedByRole: auditUserRole || 'ADMIN',
-      ipAddress: getClientIp(req.headers),
-      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+      performedById: auth.userId || 'system',
+      performedByUsername: auth.username || 'system',
+      performedByRole: auth.role,
+      ipAddress: getClientIp(request.headers),
+      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
     }).catch(() => {});
 
     return NextResponse.json(
@@ -268,4 +254,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}
+}, { allowedRoles: ['ADMIN'] }), 'write');

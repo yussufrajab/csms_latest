@@ -3,50 +3,10 @@ import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { logEmployeeAction, getClientIp } from '@/lib/audit-logger';
 import { validateFileUpload } from '@/lib/file-validation';
+import { withAuth, AuthContext } from '@/lib/api-auth';
+import { withRateLimit } from '@/lib/rate-limiter';
 
 const prisma = new PrismaClient();
-
-// Parse auth storage from cookie
-function parseAuthStorage(cookieValue: string | undefined): {
-  role: string | null;
-  isAuthenticated: boolean;
-  userId: string | null;
-  institutionId: string | null;
-  username: string | null;
-} {
-  if (!cookieValue) {
-    return {
-      role: null,
-      isAuthenticated: false,
-      userId: null,
-      institutionId: null,
-      username: null,
-    };
-  }
-
-  try {
-    const decoded = decodeURIComponent(cookieValue);
-    const authData = JSON.parse(decoded);
-    const state = authData.state || authData;
-
-    return {
-      role: state.role || state.user?.role || null,
-      isAuthenticated: state.isAuthenticated || false,
-      userId: state.user?.id || null,
-      institutionId: state.user?.institutionId || null,
-      username: state.user?.name || state.user?.username || null,
-    };
-  } catch (error) {
-    console.error('Failed to parse auth-storage cookie:', error);
-    return {
-      role: null,
-      isAuthenticated: false,
-      userId: null,
-      institutionId: null,
-      username: null,
-    };
-  }
-}
 
 // Validate phone number format
 function validatePhoneNumber(phoneNumber: string): boolean {
@@ -127,23 +87,28 @@ interface EmployeeRow {
   errors: string[];
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withRateLimit(withAuth(async (
+  request: NextRequest | Request,
+  { auth }: { auth: AuthContext }
+) => {
   try {
-    // Get auth from cookie
-    const authCookie = request.cookies.get('auth-storage')?.value;
-    let { role, isAuthenticated, userId, institutionId, username } =
-      parseAuthStorage(authCookie);
+    // Use verified auth context
+    const role = auth.role;
+    const userId = auth.userId;
+    const institutionId = auth.institutionId;
+    const username = auth.username;
 
-    // Security check 1: Must be authenticated HRO
-    if (!isAuthenticated || role !== 'HRO' || !userId) {
+    // Security check: Must be authenticated HRO
+    if (role !== 'HRO') {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 403 }
       );
     }
 
-    // If institutionId is missing from cookie, fetch it from database
-    if (!institutionId) {
+    // If institutionId is missing from auth, fetch it from database
+    let userInstitutionId = institutionId;
+    if (!userInstitutionId) {
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { institutionId: true },
@@ -159,12 +124,12 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      institutionId = user.institutionId;
+      userInstitutionId = user.institutionId;
     }
 
     // Security check 2: Verify institution has manual entry enabled
-    const institution = await prisma.institution.findUnique({
-      where: { id: institutionId },
+    const inst = await prisma.institution.findUnique({
+      where: { id: userInstitutionId },
       select: {
         manualEntryEnabled: true,
         manualEntryStartDate: true,
@@ -172,7 +137,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (!institution || !institution.manualEntryEnabled) {
+    if (!inst || !inst.manualEntryEnabled) {
       return NextResponse.json(
         {
           success: false,
@@ -186,14 +151,14 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     let isWithinTimeWindow = true;
 
-    if (institution.manualEntryStartDate && institution.manualEntryEndDate) {
+    if (inst.manualEntryStartDate && inst.manualEntryEndDate) {
       isWithinTimeWindow =
-        now >= institution.manualEntryStartDate &&
-        now <= institution.manualEntryEndDate;
-    } else if (institution.manualEntryStartDate) {
-      isWithinTimeWindow = now >= institution.manualEntryStartDate;
-    } else if (institution.manualEntryEndDate) {
-      isWithinTimeWindow = now <= institution.manualEntryEndDate;
+        now >= inst.manualEntryStartDate &&
+        now <= inst.manualEntryEndDate;
+    } else if (inst.manualEntryStartDate) {
+      isWithinTimeWindow = now >= inst.manualEntryStartDate;
+    } else if (inst.manualEntryEndDate) {
+      isWithinTimeWindow = now <= inst.manualEntryEndDate;
     }
 
     if (!isWithinTimeWindow) {
@@ -469,18 +434,22 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, { allowedRoles: ['HRO', 'ADMIN'] }), 'upload');
 
 // Endpoint to confirm and create employees after validation
-export async function PUT(request: NextRequest) {
+export const PUT = withRateLimit(withAuth(async (
+  request: NextRequest | Request,
+  { auth }: { auth: AuthContext }
+) => {
   try {
-    // Get auth from cookie
-    const authCookie = request.cookies.get('auth-storage')?.value;
-    let { role, isAuthenticated, userId, institutionId, username } =
-      parseAuthStorage(authCookie);
+    // Use verified auth context
+    const role = auth.role;
+    const userId = auth.userId;
+    let institutionId = auth.institutionId;
+    const username = auth.username;
 
     // Security check
-    if (!isAuthenticated || role !== 'HRO' || !userId) {
+    if (role !== 'HRO') {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 403 }
@@ -612,4 +581,4 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, { allowedRoles: ['HRO', 'ADMIN'] }), 'upload');

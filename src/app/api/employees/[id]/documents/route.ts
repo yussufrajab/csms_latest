@@ -1,7 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { uploadFile, generateObjectKey } from '@/lib/minio';
 import { db as prisma } from '@/lib/db';
 import { validateFileUpload } from '@/lib/file-validation';
+import { withAuth, AuthContext } from '@/lib/api-auth';
+import { withRateLimit } from '@/lib/rate-limiter';
 
 // Document type mapping to database fields
 const DOCUMENT_FIELD_MAPPING = {
@@ -11,23 +13,37 @@ const DOCUMENT_FIELD_MAPPING = {
   'birth-certificate': 'birthCertificateUrl',
 } as const;
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+/** Extract the [id] segment from /api/employees/[id]/documents */
+function getEmployeeIdFromUrl(url: string): string | null {
+  const match = url.match(/\/api\/employees\/([^/]+)\/documents/);
+  return match ? match[1] : null;
+}
+
+export const POST = withRateLimit(withAuth(async (
+  request: Request | import('next/server').NextRequest,
+  { auth }: { auth: AuthContext }
+) => {
   try {
-    const { id: employeeId } = await params;
+    const employeeId = getEmployeeIdFromUrl(request.url);
+    if (!employeeId) {
+      return NextResponse.json(
+        { success: false, message: 'Employee ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Use verified auth context instead of client-sent values
+    const userRole = auth.role;
+    const userInstitutionId = auth.institutionId;
 
     // Get form data
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const documentType = formData.get('documentType') as string;
-    const userRole = formData.get('userRole') as string;
-    const userInstitutionId = formData.get('userInstitutionId') as string;
 
     // Check if user has permission to upload documents (HRO or CSC roles)
     const allowedRoles = ['HRO', 'HHRMD', 'HRMO', 'DO', 'CSCS', 'PO', 'ADMIN'];
-    if (!userRole || !allowedRoles.includes(userRole)) {
+    if (!allowedRoles.includes(userRole)) {
       return NextResponse.json(
         { success: false, message: 'Insufficient permissions' },
         { status: 403 }
@@ -127,19 +143,24 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+}, { allowedRoles: ['HRO', 'ADMIN'] }), 'write');
 
 // GET endpoint to retrieve document URLs for an employee
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withRateLimit(withAuth(async (
+  request: Request | import('next/server').NextRequest,
+  { auth }: { auth: AuthContext }
+) => {
   try {
-    const { searchParams } = new URL(request.url);
-    const userRole = searchParams.get('userRole');
-    const userInstitutionId = searchParams.get('userInstitutionId');
+    const employeeId = getEmployeeIdFromUrl(request.url);
+    if (!employeeId) {
+      return NextResponse.json(
+        { success: false, message: 'Employee ID is required' },
+        { status: 400 }
+      );
+    }
 
-    const { id: employeeId } = await params;
+    const userRole = auth.role;
+    const userInstitutionId = auth.institutionId;
 
     // Fetch employee with document URLs
     const employee = await prisma.employee.findUnique({
@@ -194,4 +215,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+}), 'read');

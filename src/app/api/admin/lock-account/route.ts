@@ -4,31 +4,22 @@ import { db } from '@/lib/db';
 import { lockAccountManually } from '@/lib/account-lockout-utils';
 import { createNotification } from '@/lib/notifications';
 import { logAccountAction, getClientIp } from '@/lib/audit-logger';
+import { withAuth } from '@/lib/api-auth';
+import { withRateLimit } from '@/lib/rate-limiter';
 
 const lockAccountSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
-  adminId: z.string().min(1, 'Admin ID is required'),
   reason: z.string().min(10, 'Reason must be at least 10 characters'),
   notes: z.string().optional(),
 });
 
-export async function POST(req: Request) {
+export const POST = withRateLimit(withAuth(async (request, { auth }) => {
   try {
-    const body = await req.json();
-    const { userId, adminId, reason, notes } = lockAccountSchema.parse(body);
+    const body = await request.json();
+    const { userId, reason, notes } = lockAccountSchema.parse(body);
 
-    // Verify admin user exists and has admin role
-    const admin = await db.user.findUnique({
-      where: { id: adminId },
-      select: { id: true, username: true, name: true, role: true },
-    });
-
-    if (!admin || admin.role !== 'Admin') {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized. Admin access required.' },
-        { status: 403 }
-      );
-    }
+    // Use verified admin ID from auth context instead of client-sent adminId
+    const adminId = auth.userId;
 
     // Verify target user exists
     const user = await db.user.findUnique({
@@ -75,12 +66,12 @@ export async function POST(req: Request) {
       action: 'LOCKED',
       targetUserId: userId,
       targetUsername: user.username,
-      performedById: admin.id,
-      performedByUsername: admin.name || admin.username,
-      performedByRole: admin.role,
+      performedById: adminId,
+      performedByUsername: auth.username,
+      performedByRole: auth.role,
       reason,
-      ipAddress: getClientIp(req.headers),
-      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+      ipAddress: getClientIp(request.headers),
+      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
     }).catch(() => {});
 
     // Send notification to user
@@ -91,7 +82,7 @@ export async function POST(req: Request) {
     });
 
     console.log(
-      `Account locked for user ${user.username} by admin ${admin.username}`
+      `Account locked for user ${user.username} by admin ${auth.username}`
     );
 
     return NextResponse.json({
@@ -100,7 +91,7 @@ export async function POST(req: Request) {
       data: {
         userId: user.id,
         username: user.username,
-        lockedBy: admin.username,
+        lockedBy: auth.username,
         reason,
       },
     });
@@ -117,4 +108,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}
+}, { allowedRoles: ['Admin'] }), 'write');
