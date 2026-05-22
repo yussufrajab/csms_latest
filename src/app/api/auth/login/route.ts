@@ -7,23 +7,24 @@ import { logLoginAttempt, getClientIp } from '@/lib/audit-logger';
 import { completeLogin } from '@/lib/auth-helpers';
 import { createMfaToken, checkOtpRateLimit, maskEmail } from '@/lib/mfa-utils';
 import { sendMfaEmail } from '@/lib/email';
+import { withRateLimit } from '@/lib/rate-limiter';
 
 const loginSchema = z.object({
   username: z.string().min(1, 'Username or email is required.'),
   password: z.string().min(1, 'Password is required.'),
 });
 
-export async function POST(req: Request) {
+export const POST = withRateLimit(async (request) => {
   try {
-    const body = await req.json();
+    const body = await request.json();
     const { username, password } = loginSchema.parse(body);
 
     console.log('Login attempt for username/email:', username);
 
     // Get client info for audit logging
-    const ipAddress = getClientIp(req.headers);
-    const userAgent = req.headers.get('user-agent');
-    const deviceInfo: Record<string, any> | null = JSON.parse(req.headers.get('x-device-info') || 'null');
+    const ipAddress = getClientIp(request.headers);
+    const userAgent = request.headers.get('user-agent');
+    const deviceInfo: Record<string, any> | null = JSON.parse(request.headers.get('x-device-info') || 'null');
 
     // Check if the input is an email (contains @) or username
     const isEmail = username.includes('@');
@@ -346,4 +347,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}
+}, 'auth');

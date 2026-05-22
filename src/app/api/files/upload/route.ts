@@ -1,9 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { uploadFile, generateObjectKey } from '@/lib/minio';
 import { logFileAction, getClientIp } from '@/lib/audit-logger';
 import { validateFileUpload } from '@/lib/file-validation';
+import { withAuth } from '@/lib/api-auth';
+import { withRateLimit } from '@/lib/rate-limiter';
 
-export async function POST(request: NextRequest) {
+export const POST = withRateLimit(withAuth(async (request, { auth }) => {
   try {
     // Get the multipart form data
     const formData = await request.formData();
@@ -42,21 +44,10 @@ export async function POST(request: NextRequest) {
     );
 
     // Audit log: file uploaded
-    // Parse auth info from cookie for audit context
-    const authCookie = request.headers.get('cookie')?.split(';').find(c => c.trim().startsWith('auth-storage='));
-    let auditUserId: string | null = null;
-    let auditUsername: string | null = null;
-    let auditUserRole: string | null = null;
-    if (authCookie) {
-      try {
-        const cookieValue = decodeURIComponent(authCookie.split('=')[1]);
-        const authData = JSON.parse(cookieValue);
-        const state = authData.state || authData;
-        auditUserId = state.user?.id || null;
-        auditUsername = state.user?.name || state.user?.username || null;
-        auditUserRole = state.user?.role || state.role || null;
-      } catch {}
-    }
+    // Auth context from verified session
+    const auditUserId = auth.userId;
+    const auditUsername = auth.username;
+    const auditUserRole = auth.role;
 
     await logFileAction({
       action: 'UPLOADED',
@@ -88,4 +79,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+}), 'upload');

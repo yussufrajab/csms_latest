@@ -1,15 +1,21 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { db } from '@/lib/db';
+import { withAuth } from '@/lib/api-auth';
+import { withRateLimit } from '@/lib/rate-limiter';
+import { validateRequest, notificationQuerySchema } from '@/lib/api-schemas';
 
-export async function GET(req: Request) {
+export const GET = withRateLimit(withAuth(async (request, { auth }) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get('userId');
+    const validation = await validateRequest(request as NextRequest, notificationQuerySchema, 'query');
+    if (!validation.success) return validation.response;
 
-    if (!userId) {
+    const { userId } = validation.data;
+
+    // Verify auth.userId matches userId or admin role
+    if (userId !== auth.userId && auth.role !== 'Admin') {
       return NextResponse.json(
-        { success: false, message: 'User ID is required' },
-        { status: 400 }
+        { success: false, message: 'Forbidden' },
+        { status: 403 }
       );
     }
 
@@ -30,11 +36,11 @@ export async function GET(req: Request) {
       { status: 500 }
     );
   }
-}
+}), 'read');
 
-export async function POST(req: Request) {
+export const POST = withRateLimit(withAuth(async (request, { auth: _auth }) => {
   try {
-    const body = await req.json();
+    const body = await request.json();
     const { notificationIds } = body;
 
     if (!notificationIds || !Array.isArray(notificationIds)) {
@@ -60,4 +66,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}
+}), 'write');

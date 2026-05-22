@@ -8,6 +8,9 @@ import {
   calculateTemporaryPasswordExpiry,
 } from '@/lib/password-utils';
 import { logUserAction, getClientIp } from '@/lib/audit-logger';
+import { withAuth } from '@/lib/api-auth';
+import { withRateLimit } from '@/lib/rate-limiter';
+import { sanitizeUser, sanitizeUsers } from '@/lib/sanitize-response';
 
 const userSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -25,7 +28,7 @@ const userSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters.'),
 });
 
-export async function GET() {
+export const GET = withRateLimit(withAuth(async (request, { auth }) => {
   try {
     const users = await db.user.findMany({
       orderBy: { name: 'asc' },
@@ -66,11 +69,11 @@ export async function GET() {
 
     // Flatten the institution object and add mock data where missing
     const formattedUsers = users.map((user) => {
-      const { password, ...userWithoutPassword } = user;
+      const userWithoutSensitive = sanitizeUser(user);
       const isMockPhone = !user.phoneNumber;
       const isMockEmail = !user.email;
       return {
-        ...userWithoutPassword,
+        ...userWithoutSensitive,
         email: user.email || generateMockEmail(user.id, user.username),
         phoneNumber: user.phoneNumber || generateMockPhoneNumber(user.id),
         isMockPhoneNumber: isMockPhone,
@@ -84,11 +87,11 @@ export async function GET() {
     console.error('[USERS_GET]', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
-}
+}, { allowedRoles: ['ADMIN', 'HHRMD', 'HRO'] }), 'read');
 
-export async function POST(req: Request) {
+export const POST = withRateLimit(withAuth(async (request, { auth }) => {
   try {
-    const body = await req.json();
+    const body = await request.json();
     const {
       name,
       username,
@@ -188,21 +191,10 @@ export async function POST(req: Request) {
     };
 
     // Audit log: user created
-    // Parse auth info from cookie for audit context (admin who created the user)
-    const authCookie = req.headers.get('cookie')?.split(';').find(c => c.trim().startsWith('auth-storage='));
-    let adminUserId: string | null = null;
-    let adminUsername: string | null = null;
-    let adminRole: string | null = null;
-    if (authCookie) {
-      try {
-        const cookieValue = decodeURIComponent(authCookie.split('=')[1]);
-        const authData = JSON.parse(cookieValue);
-        const state = authData.state || authData;
-        adminUserId = state.user?.id || null;
-        adminUsername = state.user?.name || state.user?.username || null;
-        adminRole = state.user?.role || state.role || null;
-      } catch {}
-    }
+    // Auth context from verified session
+    const adminUserId = auth.userId;
+    const adminUsername = auth.username;
+    const adminRole = auth.role;
 
     await logUserAction({
       action: 'CREATED',
@@ -211,11 +203,11 @@ export async function POST(req: Request) {
       performedById: adminUserId || 'system',
       performedByUsername: adminUsername || 'system',
       performedByRole: adminRole || 'ADMIN',
-      ipAddress: getClientIp(req.headers),
-      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+      ipAddress: getClientIp(request.headers),
+      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
     }).catch(() => {});
 
-    return NextResponse.json(response, { status: 201 });
+    return NextResponse.json(sanitizeUser(response), { status: 201 });
   } catch (error) {
     console.error('[USERS_POST]', error);
 
@@ -282,4 +274,4 @@ export async function POST(req: Request) {
       { status: 500 }
     );
   }
-}
+}, { allowedRoles: ['ADMIN'] }), 'write');

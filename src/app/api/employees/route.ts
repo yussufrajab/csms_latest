@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { shouldApplyInstitutionFilter, isCSCRole } from '@/lib/role-utils';
+import { withAuth } from '@/lib/api-auth';
+import { withRateLimit } from '@/lib/rate-limiter';
 
 // Cache configuration for employee data
 const CACHE_TTL = 60; // 60 seconds cache (employee data changes infrequently)
 
-export async function GET(req: Request) {
+export const GET = withRateLimit(withAuth(async (request, { auth }) => {
   try {
-    const { searchParams } = new URL(req.url);
-    const userRole = searchParams.get('userRole');
-    const userInstitutionId = searchParams.get('userInstitutionId');
+    const { searchParams } = new URL(request.url);
+    const userRole = auth.role;
+    const userInstitutionId = auth.institutionId;
     const employeeId = searchParams.get('id');
     const q = searchParams.get('q');
     const status = searchParams.get('status');
@@ -244,4 +246,4 @@ export async function GET(req: Request) {
       { status: 500 }
     );
   }
-}
+}), 'read');

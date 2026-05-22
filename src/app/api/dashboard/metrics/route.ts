@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { ROLES } from '@/lib/constants';
 import { shouldApplyInstitutionFilter, isCSCRole } from '@/lib/role-utils';
+import { withAuth } from '@/lib/api-auth';
+import { withRateLimit } from '@/lib/rate-limiter';
 
 const getRequestHref = (type: string, id: string) => {
   switch (type) {
@@ -32,15 +34,15 @@ const getRequestHref = (type: string, id: string) => {
 // Cache configuration
 const CACHE_TTL = 60; // 60 seconds cache
 
-export async function GET(req: Request) {
+export const GET = withRateLimit(withAuth(async (request, { auth }) => {
   try {
     console.log('=== Dashboard metrics API called ===');
     const startTime = Date.now();
 
-    // Get user role and institution for filtering
-    const { searchParams } = new URL(req.url);
-    const userRole = searchParams.get('userRole');
-    const userInstitutionId = searchParams.get('userInstitutionId');
+    // Get role and institution from verified auth context
+    const { searchParams } = new URL(request.url);
+    const userRole = auth.role;
+    const userInstitutionId = auth.institutionId;
 
     // Get pagination parameters
     const page = parseInt(searchParams.get('page') || '1');
@@ -741,4 +743,4 @@ export async function GET(req: Request) {
       { status: 500 }
     );
   }
-}
+}), 'read');
