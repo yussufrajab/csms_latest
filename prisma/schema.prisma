@@ -368,6 +368,7 @@ model User {
   ServiceExtensionRequest_ServiceExtensionRequest_reviewedByIdToUser  ServiceExtensionRequest[] @relation("ServiceExtensionRequest_reviewedByIdToUser")
   ServiceExtensionRequest_ServiceExtensionRequest_submittedByIdToUser ServiceExtensionRequest[] @relation("ServiceExtensionRequest_submittedByIdToUser")
   Session                                                             Session[]
+  MfaToken                                                            MfaToken[]
   Employee                                                            Employee?                 @relation(fields: [employeeId], references: [id])
   Institution                                                         Institution               @relation(fields: [institutionId], references: [id])
 }
@@ -381,11 +382,11 @@ model AuditLog {
   username        String?
   userRole        String?
   ipAddress       String?
-  userAgent       String?
+  deviceInfo      Json?
   attemptedRoute  String
   requestMethod   String?
   isAuthenticated Boolean  @default(false)
-  wasBlocked      Boolean  @default(true)
+  wasBlocked      Boolean  @default(false)
   blockReason     String?
   timestamp       DateTime @default(now())
   additionalData  Json?
@@ -426,4 +427,23 @@ model SystemSettings {
   updatedAt DateTime
 
   @@index([key])
+}
+
+model MfaToken {
+  id           String    @id @default(cuid())
+  userId       String
+  token        String    @unique
+  tokenType    String    // "OTP" or "MAGIC_LINK"
+  email        String    // email address the token was sent to (audit trail)
+  attempts     Int       @default(0)
+  expiresAt    DateTime
+  usedAt       DateTime?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime  @default(now())
+  User         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
 }

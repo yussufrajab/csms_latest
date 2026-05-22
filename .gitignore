@@ -54,6 +54,7 @@ minio.log
 
 # SQL backup files
 *.sql
+!prisma/migrations/**/*.sql
 beky5/*.sql
 
 # Response data files (test data)
