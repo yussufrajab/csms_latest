@@ -29,6 +29,10 @@ process.env.MINIO_SECRET_KEY = 'test-secret-key';
 process.env.MINIO_BUCKET = 'test-bucket';
 process.env.REDIS_HOST = 'localhost';
 process.env.REDIS_PORT = '6379';
+process.env.CLAMAV_HOST = 'localhost';
+process.env.CLAMAV_PORT = '3310';
+process.env.CLAMAV_ENABLED = 'false'; // Disable ClamAV in tests
+process.env.CLAMAV_TIMEOUT = '5000';
 
 // =============================================================================
 // Global Mocks
