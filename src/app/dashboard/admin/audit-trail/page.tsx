@@ -66,6 +66,8 @@ interface AuditLog {
   wasBlocked: boolean;
   blockReason?: string | null;
   timestamp: string;
+  entityType?: string | null;
+  entityId?: string | null;
   additionalData?: {
     requestType?: string;
     requestId?: string;
