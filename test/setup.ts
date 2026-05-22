@@ -33,6 +33,11 @@ process.env.CLAMAV_HOST = 'localhost';
 process.env.CLAMAV_PORT = '3310';
 process.env.CLAMAV_ENABLED = 'false'; // Disable ClamAV in tests
 process.env.CLAMAV_TIMEOUT = '5000';
+process.env.HRIMS_HOST = '10.0.217.11';
+process.env.HRIMS_PORT = '8135';
+process.env.HRIMS_API_KEY = 'test-hrims-api-key';
+process.env.HRIMS_TOKEN = 'test-hrims-token';
+process.env.ALLOWED_ORIGINS = 'http://localhost:9002';
 
 // =============================================================================
 // Global Mocks
