@@ -8,6 +8,10 @@ import {
   hashPassword,
   calculateTemporaryPasswordExpiry,
 } from '@/lib/password-utils';
+import { completeLogin } from '@/lib/auth-helpers';
+import { createMfaToken, checkOtpRateLimit, maskEmail } from '@/lib/mfa-utils';
+import { sendMfaEmail } from '@/lib/email';
+import { logLoginAttempt, getClientIp } from '@/lib/audit-logger';
 
 const employeeLoginSchema = z.object({
   zanId: z.string().min(1),
@@ -28,6 +32,11 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { zanId, zssfNumber, payrollNumber } =
       employeeLoginSchema.parse(body);
+
+    // Get client info for audit logging
+    const ipAddress = getClientIp(req.headers);
+    const userAgent = req.headers.get('user-agent') || null;
+    const deviceInfo: Record<string, any> | null = JSON.parse(req.headers.get('x-device-info') || 'null');
 
     // Trim whitespace and normalize input
     const normalizedZanId = zanId.trim();
@@ -60,6 +69,7 @@ export async function POST(req: Request) {
             username: true,
             role: true,
             active: true,
+            email: true,
           },
         },
       },
@@ -69,6 +79,16 @@ export async function POST(req: Request) {
       console.log(
         '[EMPLOYEE_LOGIN] No employee found with provided credentials'
       );
+
+      // Log failed login attempt
+      await logLoginAttempt({
+        success: false,
+        username: normalizedZanId,
+        ipAddress,
+        deviceInfo,
+        failureReason: 'Employee not found with provided credentials',
+      });
+
       return NextResponse.json(
         {
           success: false,
@@ -133,6 +153,7 @@ export async function POST(req: Request) {
             username: true,
             role: true,
             active: true,
+            email: true,
           },
         });
 
@@ -148,6 +169,16 @@ export async function POST(req: Request) {
           '[EMPLOYEE_LOGIN] Error auto-provisioning user account:',
           provisionError
         );
+
+        // Log failed login attempt
+        await logLoginAttempt({
+          success: false,
+          username: normalizedZanId,
+          ipAddress,
+          deviceInfo,
+          failureReason: 'Failed to auto-provision user account',
+        });
+
         return NextResponse.json(
           {
             success: false,
@@ -159,8 +190,26 @@ export async function POST(req: Request) {
       }
     }
 
+    if (!user) {
+      return NextResponse.json(
+        { success: false, message: 'Failed to create user account.' },
+        { status: 500 }
+      );
+    }
+
     // Check if user account is active
     if (!user.active) {
+      // Log failed login attempt
+      await logLoginAttempt({
+        success: false,
+        username: user.username,
+        userId: user.id,
+        userRole: user.role,
+        ipAddress,
+        deviceInfo,
+        failureReason: 'Employee account is inactive',
+      });
+
       return NextResponse.json(
         {
           success: false,
@@ -173,6 +222,17 @@ export async function POST(req: Request) {
 
     // Check if user role is EMPLOYEE
     if (user.role !== ROLES.EMPLOYEE) {
+      // Log failed login attempt
+      await logLoginAttempt({
+        success: false,
+        username: user.username,
+        userId: user.id,
+        userRole: user.role,
+        ipAddress,
+        deviceInfo,
+        failureReason: 'Non-employee role attempted employee login',
+      });
+
       return NextResponse.json(
         {
           success: false,
@@ -183,96 +243,70 @@ export async function POST(req: Request) {
       );
     }
 
-    // Set initial activity timestamp for session timeout tracking
-    await db.user.update({
-      where: { id: user.id },
-      data: { lastActivity: new Date() },
-    });
+    // --- MFA Gate ---
+    // If user has an email address, require MFA verification before creating a session
+    if (user.email) {
+      const rateLimitCheck = await checkOtpRateLimit(user.id);
+      if (!rateLimitCheck.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `Too many verification requests. Please try again in ${rateLimitCheck.retryAfterSeconds} seconds.`,
+          },
+          { status: 429 }
+        );
+      }
 
-    // Get client info for session creation
-    const ipAddress =
-      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-      req.headers.get('x-real-ip') ||
-      null;
-    const userAgent = req.headers.get('user-agent') || null;
+      const mfaTokenExpiryMinutes = Number(process.env.MFA_TOKEN_EXPIRY_MINUTES) || 10;
+      const { token: otpToken } = await createMfaToken(user.id, 'OTP', user.email, ipAddress, userAgent);
+      const { token: magicLinkToken } = await createMfaToken(user.id, 'MAGIC_LINK', user.email, ipAddress, userAgent);
 
-    // Detect suspicious login and create session
-    const { detectSuspiciousLogin, getLoginSummary } =
-      await import('@/lib/suspicious-login-detector');
-    const { createSession } = await import('@/lib/session-manager');
-    const { createNotification } = await import('@/lib/notifications');
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
+      const magicLinkUrl = `${appUrl}/mfa/magic-link-confirm?token=${magicLinkToken}`;
 
-    const suspiciousCheck = await detectSuspiciousLogin({
-      userId: user.id,
-      ipAddress,
-      userAgent,
-    });
+      const emailResult = await sendMfaEmail(user.email, otpToken, magicLinkUrl, user.name, mfaTokenExpiryMinutes);
 
-    // Create session with suspicious flag
-    const session = await createSession(
-      user.id,
-      ipAddress,
-      userAgent,
-      suspiciousCheck.isSuspicious
-    );
+      if (!emailResult.success) {
+        console.error('[EMPLOYEE_LOGIN] Failed to send MFA email:', emailResult.error);
+        return NextResponse.json(
+          { success: false, message: 'Failed to send verification email. Please try again.' },
+          { status: 500 }
+        );
+      }
 
-    // Notify user if login is suspicious
-    if (suspiciousCheck.shouldNotify) {
-      const loginInfo = getLoginSummary({
-        userId: user.id,
-        ipAddress,
-        userAgent,
-      });
-      await createNotification({
-        userId: user.id,
-        message: `New login detected from ${loginInfo.device} at ${loginInfo.location} on ${loginInfo.time}. If this wasn't you, please contact HR immediately.`,
-        link: '/dashboard/profile',
+      return NextResponse.json({
+        success: true,
+        code: 'MFA_REQUIRED',
+        data: {
+          userId: user.id,
+          email: maskEmail(user.email),
+        },
+        message: 'MFA verification required',
       });
     }
 
-    // Successful authentication - return user data
-    const userData = {
-      id: user.id,
-      name: user.name,
-      username: user.username,
-      role: user.role,
-      employeeId: employee.id,
-      institutionId: employee.institutionId,
-      department: employee.department,
-      cadre: employee.cadre,
-      institution: employee.Institution ? { name: employee.Institution.name } : null,
-      zanId: employee.zanId,
-      zssfNumber: employee.zssfNumber,
-      payrollNumber: employee.payrollNumber,
-    };
+    // No email on file — skip MFA and complete login directly
+    console.log('[EMPLOYEE_LOGIN] No email on file, skipping MFA for user:', user.username);
 
-    // Generate and set CSRF token for protection against CSRF attacks
-    const {
-      generateCSRFToken,
-      signCSRFToken,
-      getCSRFCookieOptions,
-      CSRF_COOKIE_NAME,
-    } = await import('@/lib/csrf-utils');
-
-    const csrfToken = generateCSRFToken();
-    const signedCSRFToken = signCSRFToken(csrfToken);
-    const csrfCookieOptions = getCSRFCookieOptions();
-
-    console.log('[EMPLOYEE_LOGIN] Generated CSRF token for user:', user.username);
-
-    // Create response with CSRF token cookie
-    const response = NextResponse.json({
-      success: true,
-      message: 'Login successful',
-      user: userData,
-      sessionToken: session.sessionToken, // Include session token
-      csrfToken: signedCSRFToken, // Include CSRF token in response for client-side storage
+    // Get full user data for completeLogin
+    const fullUser = await db.user.findUnique({
+      where: { id: user.id },
+      include: { Institution: true, Employee: true },
     });
 
-    // Set CSRF token cookie (readable by JavaScript, but protected by SameSite)
-    response.cookies.set(CSRF_COOKIE_NAME, signedCSRFToken, csrfCookieOptions);
+    if (!fullUser) {
+      return NextResponse.json(
+        { success: false, message: 'User not found' },
+        { status: 401 }
+      );
+    }
 
-    return response;
+    return completeLogin({
+      user: fullUser,
+      ipAddress,
+      userAgent,
+      deviceInfo,
+    });
   } catch (error) {
     console.error('[EMPLOYEE_LOGIN]', error);
 

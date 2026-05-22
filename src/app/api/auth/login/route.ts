@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import bcrypt from 'bcryptjs';
-import { createNotification, NotificationTemplates } from '@/lib/notifications';
 import { comparePassword } from '@/lib/password-utils';
 import { logLoginAttempt, getClientIp } from '@/lib/audit-logger';
+import { completeLogin } from '@/lib/auth-helpers';
+import { createMfaToken, checkOtpRateLimit, maskEmail } from '@/lib/mfa-utils';
+import { sendMfaEmail } from '@/lib/email';
 
 const loginSchema = z.object({
   username: z.string().min(1, 'Username or email is required.'),
@@ -21,6 +23,7 @@ export async function POST(req: Request) {
     // Get client info for audit logging
     const ipAddress = getClientIp(req.headers);
     const userAgent = req.headers.get('user-agent');
+    const deviceInfo: Record<string, any> | null = JSON.parse(req.headers.get('x-device-info') || 'null');
 
     // Check if the input is an email (contains @) or username
     const isEmail = username.includes('@');
@@ -42,7 +45,7 @@ export async function POST(req: Request) {
         success: false,
         username,
         ipAddress,
-        userAgent,
+        deviceInfo,
         failureReason: 'User not found',
       });
 
@@ -111,7 +114,8 @@ export async function POST(req: Request) {
       const lockoutResult = await incrementFailedLoginAttempts(
         currentUser.id,
         ipAddress,
-        userAgent
+        userAgent,
+        deviceInfo
       );
 
       await logLoginAttempt({
@@ -120,7 +124,7 @@ export async function POST(req: Request) {
         userId: user.id,
         userRole: user.role,
         ipAddress,
-        userAgent,
+        deviceInfo,
         failureReason: `Account locked (${lockoutStatus.lockoutReason})`,
       });
 
@@ -144,7 +148,7 @@ export async function POST(req: Request) {
         userId: user.id,
         userRole: user.role,
         ipAddress,
-        userAgent,
+        deviceInfo,
         failureReason: 'Account is inactive',
       });
 
@@ -167,7 +171,8 @@ export async function POST(req: Request) {
       const lockoutResult = await incrementFailedLoginAttempts(
         currentUser.id,
         ipAddress,
-        userAgent
+        userAgent,
+        deviceInfo
       );
 
       // Log failed login attempt
@@ -177,7 +182,7 @@ export async function POST(req: Request) {
         userId: user.id,
         userRole: user.role,
         ipAddress,
-        userAgent,
+        deviceInfo,
         failureReason: 'Invalid password',
       });
 
@@ -203,12 +208,6 @@ export async function POST(req: Request) {
     // Reset failed login attempts on successful login
     await resetFailedLoginAttempts(currentUser.id);
 
-    // Set initial activity timestamp for session timeout tracking
-    await db.user.update({
-      where: { id: currentUser.id },
-      data: { lastActivity: new Date() },
-    });
-
     // Check password status
     const now = new Date();
     const isTemporaryPasswordExpired =
@@ -232,8 +231,6 @@ export async function POST(req: Request) {
     // Check password expiration (non-temporary passwords only)
     if (!currentUser.isTemporaryPassword) {
       const {
-        isPasswordExpired,
-        isInGracePeriod,
         getPasswordExpirationStatus,
       } = await import('@/lib/password-expiration-utils');
 
@@ -254,7 +251,7 @@ export async function POST(req: Request) {
           userId: user.id,
           userRole: user.role,
           ipAddress,
-          userAgent,
+          deviceInfo,
           failureReason: 'Password expired beyond grace period',
         });
 
@@ -270,185 +267,72 @@ export async function POST(req: Request) {
 
       // If in grace period, allow login but set mustChangePassword
       if (expirationStatus.isInGracePeriod) {
-        console.log(
-          `User ${username} logging in with expired password (grace period: ${expirationStatus.gracePeriodDaysRemaining} days remaining)`
-        );
-
-        // Update user to require password change
         await db.user.update({
           where: { id: currentUser.id },
-          data: {
-            mustChangePassword: true,
-          },
+          data: { mustChangePassword: true },
         });
+        currentUser.mustChangePassword = true;
       }
     }
 
     console.log('Login successful for user:', username);
 
-    // For simplicity, we'll skip JWT tokens and use session-based auth
-    // But we need to match the frontend's expected response structure
-    const authData = {
-      token: null, // We're not using JWT tokens for now
-      refreshToken: null,
-      tokenType: 'Bearer',
-      expiresIn: null,
+    // --- MFA Gate ---
+    // If user has an email address, require MFA verification before creating a session
+    if (user.email) {
+      const rateLimitCheck = await checkOtpRateLimit(currentUser.id);
+      if (!rateLimitCheck.allowed) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `Too many verification requests. Please try again in ${rateLimitCheck.retryAfterSeconds} seconds.`,
+          },
+          { status: 429 }
+        );
+      }
+
+      const mfaTokenExpiryMinutes = Number(process.env.MFA_TOKEN_EXPIRY_MINUTES) || 10;
+      const { token: otpToken } = await createMfaToken(currentUser.id, 'OTP', user.email, ipAddress, userAgent);
+      const { token: magicLinkToken } = await createMfaToken(currentUser.id, 'MAGIC_LINK', user.email, ipAddress, userAgent);
+
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
+      const magicLinkUrl = `${appUrl}/mfa/magic-link-confirm?token=${magicLinkToken}`;
+
+      const emailResult = await sendMfaEmail(user.email, otpToken, magicLinkUrl, user.name, mfaTokenExpiryMinutes);
+
+      if (!emailResult.success) {
+        console.error('[LOGIN] Failed to send MFA email:', emailResult.error);
+        return NextResponse.json(
+          { success: false, message: 'Failed to send verification email. Please try again.' },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        code: 'MFA_REQUIRED',
+        data: {
+          userId: currentUser.id,
+          email: maskEmail(user.email),
+        },
+        message: 'MFA verification required',
+      });
+    }
+
+    // No email on file — skip MFA and complete login directly
+    console.log('[LOGIN] No email on file, skipping MFA for user:', username);
+
+    return completeLogin({
       user: {
-        id: currentUser.id,
-        fullName: user.name, // Frontend expects fullName (from original user with includes)
+        ...currentUser,
         name: user.name,
-        username: currentUser.username,
-        role: currentUser.role,
-        institutionId: currentUser.institutionId,
-        institutionName: user.Institution?.name || '',
         Institution: user.Institution,
         Employee: user.Employee,
-        isEnabled: currentUser.active, // Frontend expects isEnabled
-        active: currentUser.active,
-        employeeId: currentUser.employeeId,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-        lastLoginDate: new Date(),
-        // Add password status flags
-        mustChangePassword: currentUser.mustChangePassword || false,
-        isTemporaryPassword: currentUser.isTemporaryPassword || false,
-        temporaryPasswordExpiry: currentUser.temporaryPasswordExpiry,
       },
-    };
-
-    // Password status for frontend to handle redirects
-    const passwordStatus = {
-      mustChange: currentUser.mustChangePassword || false,
-      isTemporary: currentUser.isTemporaryPassword || false,
-      expiresAt: currentUser.temporaryPasswordExpiry,
-      isExpired: false, // Already checked above, would have returned error
-    };
-
-    // Check if this is a first-time login (check if user has any existing notifications)
-    const existingNotifications = await db.notification.findMany({
-      where: { userId: currentUser.id },
-      take: 1,
-    });
-
-    // If no existing notifications, create a welcome notification
-    if (existingNotifications.length === 0) {
-      const welcomeNotification = NotificationTemplates.welcomeMessage();
-      await createNotification({
-        userId: currentUser.id,
-        message: welcomeNotification.message,
-        link: welcomeNotification.link,
-      });
-    }
-
-    // Log successful login attempt
-    await logLoginAttempt({
-      success: true,
-      username: currentUser.username,
-      userId: currentUser.id,
-      userRole: currentUser.role,
       ipAddress,
       userAgent,
+      deviceInfo,
     });
-
-    // Detect suspicious login and create session
-    const { detectSuspiciousLogin, getLoginSummary } =
-      await import('@/lib/suspicious-login-detector');
-    const { createSession, checkSessionLimit, cleanupExpiredSessions } = await import('@/lib/session-manager');
-    const { createNotification: createSuspiciousNotification } =
-      await import('@/lib/notifications');
-
-    // Clean up expired sessions before checking limit
-    await cleanupExpiredSessions();
-
-    const suspiciousCheck = await detectSuspiciousLogin({
-      userId: currentUser.id,
-      ipAddress,
-      userAgent,
-    });
-
-    // Check if user has reached session limit
-    const sessionLimitCheck = await checkSessionLimit(currentUser.id);
-
-    if (sessionLimitCheck.isAtLimit) {
-      console.log(
-        `[LOGIN] Session limit reached for user: ${username} (${currentUser.id})`
-      );
-
-      // Return error with active sessions list
-      return NextResponse.json(
-        {
-          success: false,
-          code: 'SESSION_LIMIT_REACHED',
-          message: 'You are already signed in on 3 devices',
-          data: {
-            activeSessions: sessionLimitCheck.activeSessions.map((session) => ({
-              id: session.id,
-              deviceInfo: session.deviceInfo,
-              lastActivity: session.lastActivity,
-              ipAddress: session.ipAddress,
-              createdAt: session.createdAt,
-              isSuspicious: session.isSuspicious,
-            })),
-            userId: currentUser.id,
-          },
-        },
-        { status: 403 }
-      );
-    }
-
-    // Create session with suspicious flag
-    const session = await createSession(
-      currentUser.id,
-      ipAddress,
-      userAgent,
-      suspiciousCheck.isSuspicious
-    );
-
-    // Notify user if login is suspicious
-    if (suspiciousCheck.shouldNotify) {
-      const loginInfo = getLoginSummary({
-        userId: currentUser.id,
-        ipAddress,
-        userAgent,
-      });
-      await createSuspiciousNotification({
-        userId: currentUser.id,
-        message: `New login detected from ${loginInfo.device} at ${loginInfo.location} on ${loginInfo.time}. If this wasn't you, please change your password immediately.`,
-        link: '/dashboard/profile',
-      });
-    }
-
-    // Generate and set CSRF token for protection against CSRF attacks
-    const {
-      generateCSRFToken,
-      signCSRFToken,
-      getCSRFCookieOptions,
-      CSRF_COOKIE_NAME,
-    } = await import('@/lib/csrf-utils');
-
-    const csrfToken = generateCSRFToken();
-    const signedCSRFToken = signCSRFToken(csrfToken);
-    const csrfCookieOptions = getCSRFCookieOptions();
-
-    console.log('[LOGIN] Generated CSRF token for user:', currentUser.username);
-
-    // Create response with CSRF token cookie
-    const response = NextResponse.json({
-      success: true,
-      data: {
-        ...authData,
-        sessionToken: session.sessionToken, // Include session token in data
-      },
-      passwordStatus,
-      sessionToken: session.sessionToken, // ALSO include at top level for backward compatibility
-      csrfToken: signedCSRFToken, // Include CSRF token in response for client-side storage
-      message: 'Login successful',
-    });
-
-    // Set CSRF token cookie (readable by JavaScript, but protected by SameSite)
-    response.cookies.set(CSRF_COOKIE_NAME, signedCSRFToken, csrfCookieOptions);
-
-    return response;
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

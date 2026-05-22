@@ -91,7 +91,8 @@ export function determineLockoutType(failedAttempts: number): LockoutType {
 export async function incrementFailedLoginAttempts(
   userId: string,
   ipAddress: string | null,
-  userAgent: string | null
+  userAgent: string | null,
+  deviceInfo?: Record<string, any> | null
 ): Promise<{
   locked: boolean;
   lockoutType: LockoutType | null;
@@ -155,7 +156,7 @@ export async function incrementFailedLoginAttempts(
       username: user.username,
       userRole: null,
       ipAddress,
-      userAgent,
+      deviceInfo: deviceInfo || null,
       attemptedRoute: '/api/auth/login',
       requestMethod: 'POST',
       isAuthenticated: false,

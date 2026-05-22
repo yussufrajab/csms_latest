@@ -4,6 +4,13 @@ import {
   terminateSession,
   terminateAllUserSessions,
 } from '@/lib/session-manager';
+import {
+  logAuditEvent,
+  AuditEventType,
+  AuditEventCategory,
+  AuditSeverity,
+  getClientIp,
+} from '@/lib/audit-logger';
 
 export async function POST(req: Request) {
   try {
@@ -53,6 +60,26 @@ export async function POST(req: Request) {
     if (userId) {
       await clearUserActivity(userId);
       console.log('[LOGOUT] Cleared activity for user:', userId);
+    }
+
+    // Log logout event
+    if (userId) {
+      await logAuditEvent({
+        eventType: AuditEventType.LOGOUT,
+        eventCategory: AuditEventCategory.AUTHENTICATION,
+        severity: AuditSeverity.INFO,
+        userId: userId,
+        username: null,
+        userRole: null,
+        ipAddress: getClientIp(req.headers),
+        deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+        attemptedRoute: '/api/auth/logout',
+        requestMethod: 'POST',
+        isAuthenticated: true,
+        wasBlocked: false,
+        blockReason: null,
+        additionalData: { logoutAll: logoutAll },
+      }).catch(() => {});
     }
 
     return NextResponse.json({
