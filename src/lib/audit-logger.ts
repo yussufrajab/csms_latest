@@ -3,14 +3,17 @@
  *
  * Logs security events, unauthorized access attempts, and system activities
  * for compliance, monitoring, and security analysis.
+ *
+ * Uses the raw SQL layer from audit-db.ts for all database operations
+ * instead of Prisma, targeting the partitioned audit.audit_log table.
  */
 
-import { PrismaClient } from '@prisma/client';
-
-// Use global prisma instance to avoid creating multiple connections
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
-const prisma = globalForPrisma.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+import {
+  writeAuditLog,
+  queryAuditLogs,
+  queryAuditStats,
+  ensurePartitions,
+} from './audit-db';
 
 export enum AuditEventType {
   // Access Control Events
@@ -96,25 +99,21 @@ export interface AuditLogData {
  */
 export async function logAuditEvent(data: AuditLogData): Promise<void> {
   try {
-    await prisma.auditLog.create({
-      data: {
-        eventType: data.eventType,
-        eventCategory: data.eventCategory,
-        severity: data.severity,
-        userId: data.userId,
-        username: data.username,
-        userRole: data.userRole,
-        ipAddress: data.ipAddress,
-        deviceInfo: data.deviceInfo ? JSON.parse(JSON.stringify(data.deviceInfo)) : null,
-        attemptedRoute: data.attemptedRoute,
-        requestMethod: data.requestMethod,
-        isAuthenticated: data.isAuthenticated ?? false,
-        wasBlocked: data.wasBlocked ?? false,
-        blockReason: data.blockReason,
-        additionalData: data.additionalData
-          ? JSON.parse(JSON.stringify(data.additionalData))
-          : null,
-      },
+    await writeAuditLog({
+      eventType: data.eventType,
+      eventCategory: data.eventCategory,
+      severity: data.severity,
+      userId: data.userId,
+      username: data.username,
+      userRole: data.userRole,
+      ipAddress: data.ipAddress,
+      deviceInfo: data.deviceInfo,
+      attemptedRoute: data.attemptedRoute,
+      requestMethod: data.requestMethod,
+      isAuthenticated: data.isAuthenticated ?? false,
+      wasBlocked: data.wasBlocked ?? false,
+      blockReason: data.blockReason,
+      additionalData: data.additionalData,
     });
 
     // Also log to console for real-time monitoring
@@ -126,57 +125,10 @@ export async function logAuditEvent(data: AuditLogData): Promise<void> {
       reason: data.blockReason,
     });
   } catch (error: any) {
-    // Handle foreign key constraint errors - retry without userId
-    // Check for P2003 error code (foreign key constraint violation)
-    if (error?.code === 'P2003') {
-      console.warn(
-        '[AUDIT] Foreign key constraint error detected - retrying without userId'
-      );
-      console.warn('[AUDIT] Original userId:', data.userId);
-      console.warn('[AUDIT] Error details:', JSON.stringify(error?.meta || {}));
-      try {
-        await prisma.auditLog.create({
-          data: {
-            eventType: data.eventType,
-            eventCategory: data.eventCategory,
-            severity: data.severity,
-            userId: null,
-            username: data.username,
-            userRole: data.userRole,
-            ipAddress: data.ipAddress,
-            deviceInfo: data.deviceInfo ? JSON.parse(JSON.stringify(data.deviceInfo)) : null,
-            attemptedRoute: data.attemptedRoute,
-            requestMethod: data.requestMethod,
-            isAuthenticated: data.isAuthenticated ?? false,
-            wasBlocked: data.wasBlocked ?? false,
-            blockReason: data.blockReason,
-            additionalData: data.additionalData
-              ? JSON.parse(JSON.stringify(data.additionalData))
-              : null,
-          },
-        });
-        console.log(
-          `[AUDIT] ✅ ${data.severity} - ${data.eventType} (logged without userId):`,
-          {
-            user: data.username || 'anonymous',
-            role: data.userRole || 'none',
-            route: data.attemptedRoute,
-            blocked: data.wasBlocked,
-          }
-        );
-      } catch (retryError) {
-        console.error(
-          '[AUDIT] ❌ Failed to log audit event even without userId:',
-          retryError
-        );
-        console.error('[AUDIT] Event data:', data);
-      }
-    } else {
-      // If audit logging fails, log to console but don't throw
-      // We don't want audit logging failures to break the app
-      console.error('[AUDIT] ❌ Failed to log audit event:', error);
-      console.error('[AUDIT] Event data:', data);
-    }
+    // If audit logging fails, log to console but don't throw
+    // We don't want audit logging failures to break the app
+    console.error('[AUDIT] Failed to log audit event:', error);
+    console.error('[AUDIT] Event data:', data);
   }
 }
 
@@ -325,53 +277,24 @@ export async function getAuditLogs(filters?: {
   limit?: number;
   offset?: number;
 }) {
-  const where: any = {};
-
-  if (filters?.startDate || filters?.endDate) {
-    where.timestamp = {};
-    if (filters.startDate) where.timestamp.gte = filters.startDate;
-    if (filters.endDate) where.timestamp.lte = filters.endDate;
-  }
-
-  if (filters?.eventType) where.eventType = filters.eventType;
-  if (filters?.eventCategory) where.eventCategory = filters.eventCategory;
-  if (filters?.severity) where.severity = filters.severity;
-  if (filters?.userId) where.userId = filters.userId;
-  if (filters?.username)
-    where.username = { contains: filters.username, mode: 'insensitive' };
-  if (filters?.attemptedRoute)
-    where.attemptedRoute = {
-      contains: filters.attemptedRoute,
-      mode: 'insensitive',
-    };
-
-  const [logs, total] = await Promise.all([
-    prisma.auditLog.findMany({
-      where,
-      include: {
-        User: {
-          select: {
-            id: true,
-            username: true,
-            name: true,
-            role: true,
-          },
-        },
-      },
-      orderBy: {
-        timestamp: 'desc',
-      },
-      take: filters?.limit || 100,
-      skip: filters?.offset || 0,
-    }),
-    prisma.auditLog.count({ where }),
-  ]);
+  const result = await queryAuditLogs({
+    startDate: filters?.startDate,
+    endDate: filters?.endDate,
+    eventType: filters?.eventType,
+    eventCategory: filters?.eventCategory,
+    severity: filters?.severity,
+    userId: filters?.userId,
+    username: filters?.username,
+    attemptedRoute: filters?.attemptedRoute,
+    limit: filters?.limit,
+    offset: filters?.offset,
+  });
 
   return {
-    logs,
-    total,
-    limit: filters?.limit || 100,
-    offset: filters?.offset || 0,
+    logs: result.logs,
+    total: result.total,
+    limit: result.limit,
+    offset: result.offset,
   };
 }
 
@@ -382,50 +305,17 @@ export async function getAuditStatistics(filters?: {
   startDate?: Date;
   endDate?: Date;
 }) {
-  const where: any = {};
-
-  if (filters?.startDate || filters?.endDate) {
-    where.timestamp = {};
-    if (filters.startDate) where.timestamp.gte = filters.startDate;
-    if (filters.endDate) where.timestamp.lte = filters.endDate;
-  }
-
-  const [
-    totalEvents,
-    blockedAttempts,
-    criticalEvents,
-    eventsByType,
-    eventsBySeverity,
-  ] = await Promise.all([
-    prisma.auditLog.count({ where }),
-    prisma.auditLog.count({ where: { ...where, wasBlocked: true } }),
-    prisma.auditLog.count({
-      where: { ...where, severity: AuditSeverity.CRITICAL },
-    }),
-    prisma.auditLog.groupBy({
-      by: ['eventType'],
-      where,
-      _count: true,
-      orderBy: {
-        _count: {
-          eventType: 'desc',
-        },
-      },
-      take: 10,
-    }),
-    prisma.auditLog.groupBy({
-      by: ['severity'],
-      where,
-      _count: true,
-    }),
-  ]);
+  const result = await queryAuditStats({
+    startDate: filters?.startDate,
+    endDate: filters?.endDate,
+  });
 
   return {
-    totalEvents,
-    blockedAttempts,
-    criticalEvents,
-    eventsByType,
-    eventsBySeverity,
+    totalEvents: result.totalEvents,
+    blockedAttempts: result.blockedAttempts,
+    criticalEvents: result.criticalEvents,
+    eventsByType: result.eventsByType,
+    eventsBySeverity: result.eventsBySeverity,
   };
 }
 
@@ -878,4 +768,5 @@ export default {
   getClientIp,
   getAuditLogs,
   getAuditStatistics,
+  ensurePartitions,
 };
