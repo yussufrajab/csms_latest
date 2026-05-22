@@ -42,7 +42,7 @@ const MB = 1024 * 1024;
 export const UPLOAD_CONFIGS: Record<UploadContext, UploadConfig> = {
   documents: {
     allowedMimes: ['application/pdf'],
-    maxSize: 5 * MB,
+    maxSize: 1 * MB,
   },
   certificates: {
     allowedMimes: ['application/pdf'],
@@ -57,11 +57,11 @@ export const UPLOAD_CONFIGS: Record<UploadContext, UploadConfig> = {
   },
   bulkUpload: {
     allowedMimes: ['text/csv', 'application/vnd.ms-excel', 'text/plain'],
-    maxSize: 5 * MB,
+    maxSize: 1 * MB,
   },
   photos: {
     allowedMimes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-    maxSize: 2 * MB,
+    maxSize: 1 * MB,
   },
   generic: {
     allowedMimes: ['application/pdf'],

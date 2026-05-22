@@ -118,11 +118,11 @@ describe('file-validation', () => {
 
     it('should have correct size limits', () => {
       const MB = 1024 * 1024;
-      expect(UPLOAD_CONFIGS.documents.maxSize).toBe(5 * MB);
+      expect(UPLOAD_CONFIGS.documents.maxSize).toBe(1 * MB);
       expect(UPLOAD_CONFIGS.certificates.maxSize).toBe(1 * MB);
       expect(UPLOAD_CONFIGS.templates.maxSize).toBe(1 * MB);
-      expect(UPLOAD_CONFIGS.bulkUpload.maxSize).toBe(5 * MB);
-      expect(UPLOAD_CONFIGS.photos.maxSize).toBe(2 * MB);
+      expect(UPLOAD_CONFIGS.bulkUpload.maxSize).toBe(1 * MB);
+      expect(UPLOAD_CONFIGS.photos.maxSize).toBe(1 * MB);
       expect(UPLOAD_CONFIGS.generic.maxSize).toBe(1 * MB);
     });
   });
@@ -464,9 +464,9 @@ describe('file-validation', () => {
     // --- Rejects oversized files (FILE-02) ---
 
     it('should reject oversized files with FILE_TOO_LARGE (413)', async () => {
-      // documents context allows 5 MB; create a buffer larger than that
+      // documents context allows 1 MB; create a buffer larger than that
       const MB = 1024 * 1024;
-      const oversizedBuffer = Buffer.alloc(6 * MB);
+      const oversizedBuffer = Buffer.alloc(2 * MB);
       const result = await validateFileUpload(
         oversizedBuffer,
         'big.pdf',
