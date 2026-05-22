@@ -32,6 +32,18 @@ interface UploadedFile {
   contentType: string;
 }
 
+function getErrorMessage(errorCode: string, defaultMessage: string): string {
+  const messages: Record<string, string> = {
+    BLOCKED_FILE_TYPE: 'This file type is not allowed for security reasons.',
+    INVALID_FILE_TYPE: 'This file type is not supported. Please upload a different format.',
+    FILE_TOO_LARGE: defaultMessage || 'The file is too large to upload.',
+    FILE_CONTENT_MISMATCH: 'The file content does not match its type. The file may be corrupted or mislabeled.',
+    MALWARE_DETECTED: 'The file failed a security scan and cannot be uploaded.',
+    SCAN_SERVICE_UNAVAILABLE: 'Security scanning is temporarily unavailable. Please try again later.',
+  };
+  return messages[errorCode] || defaultMessage || 'Upload failed';
+}
+
 export function FileUpload({
   label,
   description,
@@ -155,7 +167,9 @@ export function FileUpload({
                     } else {
                       resolve({
                         success: false,
-                        error: result.message || 'Upload failed',
+                        error: result.errorCode
+                          ? getErrorMessage(result.errorCode, result.message)
+                          : result.message || 'Upload failed',
                         fileName: file.name,
                       });
                     }
@@ -171,7 +185,9 @@ export function FileUpload({
                     const errorData = JSON.parse(xhr.responseText);
                     resolve({
                       success: false,
-                      error: errorData.message || 'Upload failed',
+                      error: errorData.errorCode
+                        ? getErrorMessage(errorData.errorCode, errorData.message)
+                        : errorData.message || 'Upload failed',
                       fileName: file.name,
                     });
                   } catch {
