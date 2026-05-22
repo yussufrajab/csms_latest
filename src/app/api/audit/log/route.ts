@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     // Get IP address from request or use provided one
     const ipAddress = body.ipAddress || getClientIp(request.headers);
-    const userAgent = body.userAgent || request.headers.get('user-agent');
+    const deviceInfo = body.deviceInfo || JSON.parse(request.headers.get('x-device-info') || 'null');
 
     // Log the unauthorized access attempt
     await logUnauthorizedAccess({
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       attemptedRoute,
       blockReason,
       ipAddress,
-      userAgent,
+      deviceInfo,
       isAuthenticated: isAuthenticated ?? false,
       requestMethod: requestMethod || 'GET',
     });
