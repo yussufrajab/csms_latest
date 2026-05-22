@@ -11,6 +11,8 @@ import {
   AuditEventCategory,
   AuditSeverity,
 } from '@/lib/audit-logger';
+import { cleanupExpiredMfaTokens } from '@/lib/mfa-utils';
+import { ensurePartitions } from '@/lib/audit-db';
 
 let cronJobRunning = false;
 
@@ -305,7 +307,28 @@ export function startPasswordExpirationCron(): void {
     await checkPasswordExpirations();
   });
 
+  // Schedule MFA token cleanup: every hour
+  cron.schedule('0 * * * *', async () => {
+    console.log('[CRON] Triggered MFA token cleanup (scheduled)');
+    const count = await cleanupExpiredMfaTokens();
+    if (count > 0) {
+      console.log(`[CRON] Cleaned up ${count} expired MFA token(s)`);
+    }
+  });
+
   console.log(`[CRON] Password expiration check scheduled: Daily at 6:00 AM`);
+  console.log(`[CRON] MFA token cleanup scheduled: Every hour`);
+
+  // Schedule audit partition creation: 1st of every month at 00:01
+  cron.schedule('1 0 1 * *', async () => {
+    console.log('[CRON] Creating future audit log partitions');
+    try {
+      await ensurePartitions(3);
+    } catch (error) {
+      console.error('[CRON] Error creating audit partitions:', error);
+    }
+  });
+  console.log('[CRON] Audit partition creation scheduled: Monthly on the 1st');
 
   // Run once on startup (optional - can be removed if not desired)
   // Useful for development/testing
@@ -317,4 +340,11 @@ export function startPasswordExpirationCron(): void {
       checkPasswordExpirations();
     }, 5000); // Wait 5 seconds after startup
   }
+
+  // Ensure audit partitions exist on startup
+  ensurePartitions(3).then(() => {
+    console.log('[CRON] Audit partitions verified');
+  }).catch((error) => {
+    console.error('[CRON] Error creating audit partitions on startup:', error);
+  });
 }
