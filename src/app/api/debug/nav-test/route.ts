@@ -4,6 +4,9 @@ import { getNavItemsForRole } from '@/lib/navigation';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ success: false, message: 'Not found' }, { status: 404 });
+  }
   const hroItems = getNavItemsForRole('HRO');
 
   return NextResponse.json({

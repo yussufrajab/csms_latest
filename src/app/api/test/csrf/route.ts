@@ -9,6 +9,10 @@ import { withCSRFProtection } from '@/lib/api-csrf-middleware';
 
 // GET endpoint (should work without CSRF token - safe method)
 export async function GET(req: NextRequest) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ success: false, message: 'Not found' }, { status: 404 });
+  }
+
   return NextResponse.json({
     success: true,
     message: 'GET request successful - no CSRF token required for safe methods',
@@ -22,6 +26,9 @@ export async function GET(req: NextRequest) {
 
 // POST endpoint (requires CSRF token)
 export async function POST(req: Request) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ success: false, message: 'Not found' }, { status: 404 });
+  }
   // Validate CSRF token
   const csrfCheck = await withCSRFProtection(req);
   if (!csrfCheck.valid) {
@@ -44,6 +51,9 @@ export async function POST(req: Request) {
 
 // PUT endpoint (requires CSRF token)
 export async function PUT(req: Request) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ success: false, message: 'Not found' }, { status: 404 });
+  }
   // Validate CSRF token
   const csrfCheck = await withCSRFProtection(req);
   if (!csrfCheck.valid) {
@@ -66,6 +76,9 @@ export async function PUT(req: Request) {
 
 // DELETE endpoint (requires CSRF token)
 export async function DELETE(req: Request) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ success: false, message: 'Not found' }, { status: 404 });
+  }
   // Validate CSRF token
   const csrfCheck = await withCSRFProtection(req);
   if (!csrfCheck.valid) {

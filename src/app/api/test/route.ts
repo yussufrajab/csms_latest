@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
 export async function GET() {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ success: false, message: 'Not found' }, { status: 404 });
+  }
   console.log('=== TEST API CALLED ===');
   try {
     // Test database connection

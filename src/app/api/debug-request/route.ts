@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 
 export async function PATCH(req: Request) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ success: false, message: 'Not found' }, { status: 404 });
+  }
   console.log('✅ PATCH request received!');
   const body = await req.json();
   console.log('Body:', body);
@@ -8,6 +11,9 @@ export async function PATCH(req: Request) {
 }
 
 export async function PUT(req: Request) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ success: false, message: 'Not found' }, { status: 404 });
+  }
   console.log('✅ PUT request received!');
   const body = await req.json();
   console.log('Body:', body);
