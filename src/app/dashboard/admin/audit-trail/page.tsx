@@ -53,6 +53,13 @@ interface AuditLog {
   username?: string | null;
   userRole?: string | null;
   ipAddress?: string | null;
+  deviceInfo?: {
+    browser?: string;
+    os?: string;
+    deviceType?: string;
+    userAgent?: string;
+    screenResolution?: string;
+  } | null;
   attemptedRoute: string;
   requestMethod?: string | null;
   isAuthenticated: boolean;
@@ -251,7 +258,7 @@ if (categoryFilter && categoryFilter !== 'all')
       }
 
       const rows: AuditLog[] = data.data.logs;
-      const headers = ['Timestamp', 'Severity', 'Event Type', 'Category', 'Username', 'Role', 'IP Address', 'Route', 'Method', 'Blocked', 'Block Reason'];
+      const headers = ['Timestamp', 'Severity', 'Event Type', 'Category', 'Username', 'Role', 'IP Address', 'Browser', 'OS', 'Device Type', 'Route', 'Method', 'Status', 'Block Reason'];
 
       const escape = (v: string | null | undefined) => {
         const s = v ?? '';
@@ -271,9 +278,12 @@ if (categoryFilter && categoryFilter !== 'all')
             escape(log.username || log.userId),
             escape(log.userRole),
             escape(log.ipAddress),
+            escape(log.deviceInfo?.browser || ''),
+            escape(log.deviceInfo?.os || ''),
+            escape(log.deviceInfo?.deviceType || ''),
             escape(log.attemptedRoute),
             escape(log.requestMethod),
-            escape(log.wasBlocked ? 'Yes' : 'No'),
+            escape(log.wasBlocked ? 'Blocked' : 'Allowed'),
             escape(log.blockReason),
           ].join(',')
         ),
@@ -305,7 +315,7 @@ if (categoryFilter && categoryFilter !== 'all')
 
         {/* Statistics Cards */}
         {stats && (
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-5">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">
@@ -365,6 +375,29 @@ if (categoryFilter && categoryFilter !== 'all')
                       ).toFixed(1)
                     : 0}
                   %
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  By Category
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1 text-sm">
+                  {Object.entries(
+                    (logs || []).reduce((acc, log) => {
+                      acc[log.eventCategory] = (acc[log.eventCategory] || 0) + 1;
+                      return acc;
+                    }, {} as Record<string, number>)
+                  ).sort((a, b) => b[1] - a[1]).map(([category, count]) => (
+                    <div key={category} className="flex justify-between">
+                      <span className="text-muted-foreground">{category.replace(/_/g, ' ')}</span>
+                      <span className="font-medium">{count}</span>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -457,6 +490,26 @@ if (categoryFilter && categoryFilter !== 'all')
                     <SelectItem value="REQUEST_UPDATED">
                       Request Updated
                     </SelectItem>
+                    <SelectItem value="LOGOUT">Logout</SelectItem>
+                    <SelectItem value="SESSION_EXPIRED">Session Expired</SelectItem>
+                    <SelectItem value="REQUEST_WITHDRAWN">Request Withdrawn</SelectItem>
+                    <SelectItem value="EMPLOYEE_CREATED">Employee Created</SelectItem>
+                    <SelectItem value="EMPLOYEE_UPDATED">Employee Updated</SelectItem>
+                    <SelectItem value="EMPLOYEE_DELETED">Employee Deleted</SelectItem>
+                    <SelectItem value="USER_CREATED">User Created</SelectItem>
+                    <SelectItem value="USER_UPDATED">User Updated</SelectItem>
+                    <SelectItem value="USER_DELETED">User Deleted</SelectItem>
+                    <SelectItem value="COMPLAINT_SUBMITTED">Complaint Submitted</SelectItem>
+                    <SelectItem value="COMPLAINT_UPDATED">Complaint Updated</SelectItem>
+                    <SelectItem value="COMPLAINT_RESOLVED">Complaint Resolved</SelectItem>
+                    <SelectItem value="PASSWORD_CHANGED">Password Changed</SelectItem>
+                    <SelectItem value="ADMIN_PASSWORD_RESET">Admin Password Reset</SelectItem>
+                    <SelectItem value="ACCOUNT_LOCKED">Account Locked</SelectItem>
+                    <SelectItem value="ACCOUNT_UNLOCKED">Account Unlocked</SelectItem>
+                    <SelectItem value="FILE_UPLOADED">File Uploaded</SelectItem>
+                    <SelectItem value="FILE_DELETED">File Deleted</SelectItem>
+                    <SelectItem value="INSTITUTION_CREATED">Institution Created</SelectItem>
+                    <SelectItem value="INSTITUTION_UPDATED">Institution Updated</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -540,14 +593,25 @@ if (categoryFilter && categoryFilter !== 'all')
                         <TableHead>Role</TableHead>
                         <TableHead>Details</TableHead>
                         <TableHead>IP Address</TableHead>
+                        <TableHead>Device</TableHead>
                         <TableHead>Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {logs.map((log) => {
-                        const isRequestEvent =
-                          log.eventType === 'REQUEST_APPROVED' ||
-                          log.eventType === 'REQUEST_REJECTED';
+                        const hasRichDetails =
+                          log.additionalData &&
+                          [
+                            'REQUEST_APPROVED', 'REQUEST_REJECTED', 'REQUEST_SUBMITTED',
+                            'REQUEST_UPDATED', 'REQUEST_WITHDRAWN',
+                            'COMPLAINT_SUBMITTED', 'COMPLAINT_UPDATED', 'COMPLAINT_RESOLVED',
+                            'EMPLOYEE_CREATED', 'EMPLOYEE_UPDATED', 'EMPLOYEE_DELETED',
+                            'USER_CREATED', 'USER_UPDATED', 'USER_DELETED',
+                            'INSTITUTION_CREATED', 'INSTITUTION_UPDATED',
+                            'FILE_UPLOADED', 'FILE_DELETED',
+                            'ACCOUNT_LOCKED', 'ACCOUNT_UNLOCKED',
+                            'PASSWORD_CHANGED', 'ADMIN_PASSWORD_RESET',
+                          ].includes(log.eventType);
 
                         return (
                           <TableRow key={log.id}>
@@ -576,12 +640,14 @@ if (categoryFilter && categoryFilter !== 'all')
                               )}
                             </TableCell>
                             <TableCell className="max-w-md">
-                              {isRequestEvent && log.additionalData ? (
+                              {hasRichDetails ? (
                                 <div className="text-xs space-y-1">
                                   <div className="font-medium">
-                                    {log.additionalData.requestType} Request
+                                    {log.additionalData?.requestType
+                                      ? `${log.additionalData.requestType} Request`
+                                      : log.additionalData?.action || log.eventType}
                                   </div>
-                                  {log.additionalData.employeeName && (
+                                  {log.additionalData?.employeeName && (
                                     <div className="text-muted-foreground">
                                       Employee:{' '}
                                       {log.additionalData.employeeName}
@@ -589,7 +655,7 @@ if (categoryFilter && categoryFilter !== 'all')
                                         ` (${log.additionalData.employeeZanId})`}
                                     </div>
                                   )}
-                                  {log.additionalData.reviewStage && (
+                                  {log.additionalData?.reviewStage && (
                                     <div className="text-muted-foreground">
                                       Stage: {log.additionalData.reviewStage}
                                     </div>
@@ -617,15 +683,19 @@ if (categoryFilter && categoryFilter !== 'all')
                             <TableCell className="font-mono text-xs">
                               {log.ipAddress || '-'}
                             </TableCell>
+                            <TableCell className="text-xs">
+                              {log.deviceInfo ? (
+                                <span title={`OS: ${log.deviceInfo.os || 'Unknown'}\nBrowser: ${log.deviceInfo.browser || 'Unknown'}\nResolution: ${log.deviceInfo.screenResolution || 'Unknown'}\nUA: ${log.deviceInfo.userAgent || 'Unknown'}`}>
+                                  {log.deviceInfo.browser || 'Unknown'} / {log.deviceInfo.os || 'Unknown'}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
                             <TableCell>
-                              {log.eventType === 'REQUEST_APPROVED' ? (
-                                <Badge
-                                  variant="default"
-                                  className="bg-green-600"
-                                >
-                                  Approved
-                                </Badge>
-                              ) : log.eventType === 'REQUEST_REJECTED' ? (
+                              {['REQUEST_APPROVED', 'COMPLAINT_RESOLVED', 'INSTITUTION_CREATED', 'INSTITUTION_UPDATED', 'EMPLOYEE_CREATED', 'USER_CREATED', 'FILE_UPLOADED', 'ACCOUNT_UNLOCKED', 'LOGOUT', 'PASSWORD_CHANGED', 'LOGIN_SUCCESS'].includes(log.eventType) ? (
+                                <Badge variant="default" className="bg-green-600">Success</Badge>
+                              ) : ['REQUEST_REJECTED', 'ACCOUNT_LOCKED', 'EMPLOYEE_DELETED', 'USER_DELETED', 'LOGIN_FAILED'].includes(log.eventType) ? (
                                 <Badge variant="destructive">Rejected</Badge>
                               ) : log.wasBlocked ? (
                                 <Badge variant="destructive">Blocked</Badge>
