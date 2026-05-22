@@ -38,6 +38,24 @@ export enum AuditEventType {
   REQUEST_REJECTED = 'REQUEST_REJECTED',
   REQUEST_SUBMITTED = 'REQUEST_SUBMITTED',
   REQUEST_UPDATED = 'REQUEST_UPDATED',
+  REQUEST_WITHDRAWN = 'REQUEST_WITHDRAWN',
+  EMPLOYEE_CREATED = 'EMPLOYEE_CREATED',
+  EMPLOYEE_UPDATED = 'EMPLOYEE_UPDATED',
+  EMPLOYEE_DELETED = 'EMPLOYEE_DELETED',
+  USER_CREATED = 'USER_CREATED',
+  USER_UPDATED = 'USER_UPDATED',
+  USER_DELETED = 'USER_DELETED',
+  COMPLAINT_SUBMITTED = 'COMPLAINT_SUBMITTED',
+  COMPLAINT_UPDATED = 'COMPLAINT_UPDATED',
+  COMPLAINT_RESOLVED = 'COMPLAINT_RESOLVED',
+  ACCOUNT_LOCKED = 'ACCOUNT_LOCKED',
+  ACCOUNT_UNLOCKED = 'ACCOUNT_UNLOCKED',
+  PASSWORD_CHANGED = 'PASSWORD_CHANGED',
+  ADMIN_PASSWORD_RESET = 'ADMIN_PASSWORD_RESET',
+  FILE_UPLOADED = 'FILE_UPLOADED',
+  FILE_DELETED = 'FILE_DELETED',
+  INSTITUTION_CREATED = 'INSTITUTION_CREATED',
+  INSTITUTION_UPDATED = 'INSTITUTION_UPDATED',
 }
 
 export enum AuditEventCategory {
@@ -64,7 +82,7 @@ export interface AuditLogData {
   username?: string | null;
   userRole?: string | null;
   ipAddress?: string | null;
-  userAgent?: string | null;
+  deviceInfo?: Record<string, any> | null;
   attemptedRoute: string;
   requestMethod?: string | null;
   isAuthenticated?: boolean;
@@ -87,11 +105,11 @@ export async function logAuditEvent(data: AuditLogData): Promise<void> {
         username: data.username,
         userRole: data.userRole,
         ipAddress: data.ipAddress,
-        userAgent: data.userAgent,
+        deviceInfo: data.deviceInfo ? JSON.parse(JSON.stringify(data.deviceInfo)) : null,
         attemptedRoute: data.attemptedRoute,
         requestMethod: data.requestMethod,
         isAuthenticated: data.isAuthenticated ?? false,
-        wasBlocked: data.wasBlocked ?? true,
+        wasBlocked: data.wasBlocked ?? false,
         blockReason: data.blockReason,
         additionalData: data.additionalData
           ? JSON.parse(JSON.stringify(data.additionalData))
@@ -126,11 +144,11 @@ export async function logAuditEvent(data: AuditLogData): Promise<void> {
             username: data.username,
             userRole: data.userRole,
             ipAddress: data.ipAddress,
-            userAgent: data.userAgent,
+            deviceInfo: data.deviceInfo ? JSON.parse(JSON.stringify(data.deviceInfo)) : null,
             attemptedRoute: data.attemptedRoute,
             requestMethod: data.requestMethod,
             isAuthenticated: data.isAuthenticated ?? false,
-            wasBlocked: data.wasBlocked ?? true,
+            wasBlocked: data.wasBlocked ?? false,
             blockReason: data.blockReason,
             additionalData: data.additionalData
               ? JSON.parse(JSON.stringify(data.additionalData))
@@ -172,7 +190,7 @@ export async function logUnauthorizedAccess(data: {
   attemptedRoute: string;
   blockReason: string;
   ipAddress?: string | null;
-  userAgent?: string | null;
+  deviceInfo?: Record<string, any> | null;
   isAuthenticated?: boolean;
   requestMethod?: string;
   severity?: string;
@@ -197,7 +215,7 @@ export async function logAccessDenied(data: {
   attemptedRoute: string;
   blockReason: string;
   ipAddress?: string | null;
-  userAgent?: string | null;
+  deviceInfo?: Record<string, any> | null;
   requestMethod?: string;
   additionalData?: Record<string, any>;
 }): Promise<void> {
@@ -220,7 +238,7 @@ export async function logForbiddenRoute(data: {
   userRole?: string | null;
   attemptedRoute: string;
   ipAddress?: string | null;
-  userAgent?: string | null;
+  deviceInfo?: Record<string, any> | null;
   requestMethod?: string;
   additionalData?: Record<string, any>;
 }): Promise<void> {
@@ -244,7 +262,7 @@ export async function logLoginAttempt(data: {
   userId?: string | null;
   userRole?: string | null;
   ipAddress?: string | null;
-  userAgent?: string | null;
+  deviceInfo?: Record<string, any> | null;
   failureReason?: string;
   additionalData?: Record<string, any>;
 }): Promise<void> {
@@ -258,7 +276,7 @@ export async function logLoginAttempt(data: {
     username: data.username,
     userRole: data.userRole,
     ipAddress: data.ipAddress,
-    userAgent: data.userAgent,
+    deviceInfo: data.deviceInfo,
     attemptedRoute: '/login',
     requestMethod: 'POST',
     isAuthenticated: data.success,
@@ -425,7 +443,7 @@ export async function logRequestApproval(data: {
   approvedByRole: string;
   reviewStage?: string;
   ipAddress?: string | null;
-  userAgent?: string | null;
+  deviceInfo?: Record<string, any> | null;
   additionalData?: Record<string, any>;
 }): Promise<void> {
   await logAuditEvent({
@@ -436,7 +454,7 @@ export async function logRequestApproval(data: {
     username: data.approvedByUsername,
     userRole: data.approvedByRole,
     ipAddress: data.ipAddress,
-    userAgent: data.userAgent,
+    deviceInfo: data.deviceInfo,
     attemptedRoute: `/api/${data.requestType.toLowerCase()}/${data.requestId}`,
     requestMethod: 'PUT',
     isAuthenticated: true,
@@ -470,7 +488,7 @@ export async function logRequestRejection(data: {
   rejectionReason?: string;
   reviewStage?: string;
   ipAddress?: string | null;
-  userAgent?: string | null;
+  deviceInfo?: Record<string, any> | null;
   additionalData?: Record<string, any>;
 }): Promise<void> {
   await logAuditEvent({
@@ -481,7 +499,7 @@ export async function logRequestRejection(data: {
     username: data.rejectedByUsername,
     userRole: data.rejectedByRole,
     ipAddress: data.ipAddress,
-    userAgent: data.userAgent,
+    deviceInfo: data.deviceInfo,
     attemptedRoute: `/api/${data.requestType.toLowerCase()}/${data.requestId}`,
     requestMethod: 'PUT',
     isAuthenticated: true,
@@ -501,6 +519,346 @@ export async function logRequestRejection(data: {
   });
 }
 
+/**
+ * Log request submission
+ */
+export async function logRequestSubmission(data: {
+  requestType: string;
+  requestId: string;
+  employeeId?: string;
+  employeeName?: string;
+  employeeZanId?: string;
+  submittedById: string;
+  submittedByUsername: string;
+  submittedByRole: string;
+  ipAddress?: string | null;
+  deviceInfo?: Record<string, any> | null;
+  additionalData?: Record<string, any>;
+}): Promise<void> {
+  await logAuditEvent({
+    eventType: AuditEventType.REQUEST_SUBMITTED,
+    eventCategory: AuditEventCategory.DATA_MODIFICATION,
+    severity: AuditSeverity.INFO,
+    userId: data.submittedById,
+    username: data.submittedByUsername,
+    userRole: data.submittedByRole,
+    ipAddress: data.ipAddress,
+    deviceInfo: data.deviceInfo,
+    attemptedRoute: `/api/${data.requestType.toLowerCase()}`,
+    requestMethod: 'POST',
+    isAuthenticated: true,
+    wasBlocked: false,
+    blockReason: null,
+    additionalData: {
+      requestType: data.requestType,
+      requestId: data.requestId,
+      employeeId: data.employeeId,
+      employeeName: data.employeeName,
+      employeeZanId: data.employeeZanId,
+      action: 'SUBMITTED',
+      ...data.additionalData,
+    },
+  });
+}
+
+/**
+ * Log request update (non-approval/rejection)
+ */
+export async function logRequestUpdate(data: {
+  requestType: string;
+  requestId: string;
+  employeeId?: string;
+  employeeName?: string;
+  updatedById: string;
+  updatedByUsername: string;
+  updatedByRole: string;
+  updateDetails?: string;
+  ipAddress?: string | null;
+  deviceInfo?: Record<string, any> | null;
+  additionalData?: Record<string, any>;
+}): Promise<void> {
+  await logAuditEvent({
+    eventType: AuditEventType.REQUEST_UPDATED,
+    eventCategory: AuditEventCategory.DATA_MODIFICATION,
+    severity: AuditSeverity.INFO,
+    userId: data.updatedById,
+    username: data.updatedByUsername,
+    userRole: data.updatedByRole,
+    ipAddress: data.ipAddress,
+    deviceInfo: data.deviceInfo,
+    attemptedRoute: `/api/${data.requestType.toLowerCase()}/${data.requestId}`,
+    requestMethod: 'PATCH',
+    isAuthenticated: true,
+    wasBlocked: false,
+    blockReason: null,
+    additionalData: {
+      requestType: data.requestType,
+      requestId: data.requestId,
+      employeeId: data.employeeId,
+      employeeName: data.employeeName,
+      updateDetails: data.updateDetails,
+      action: 'UPDATED',
+      ...data.additionalData,
+    },
+  });
+}
+
+/**
+ * Log employee creation or update
+ */
+export async function logEmployeeAction(data: {
+  action: 'CREATED' | 'UPDATED' | 'DELETED';
+  employeeId: string;
+  employeeName?: string;
+  employeeZanId?: string;
+  performedById: string;
+  performedByUsername: string;
+  performedByRole: string;
+  ipAddress?: string | null;
+  deviceInfo?: Record<string, any> | null;
+  additionalData?: Record<string, any>;
+}): Promise<void> {
+  const eventTypeMap = {
+    CREATED: AuditEventType.EMPLOYEE_CREATED,
+    UPDATED: AuditEventType.EMPLOYEE_UPDATED,
+    DELETED: AuditEventType.EMPLOYEE_DELETED,
+  };
+  await logAuditEvent({
+    eventType: eventTypeMap[data.action],
+    eventCategory: AuditEventCategory.DATA_MODIFICATION,
+    severity: data.action === 'DELETED' ? AuditSeverity.CRITICAL : AuditSeverity.INFO,
+    userId: data.performedById,
+    username: data.performedByUsername,
+    userRole: data.performedByRole,
+    ipAddress: data.ipAddress,
+    deviceInfo: data.deviceInfo,
+    attemptedRoute: `/api/employees${data.action === 'CREATED' ? '' : `/${data.employeeId}`}`,
+    requestMethod: data.action === 'CREATED' ? 'POST' : data.action === 'UPDATED' ? 'PATCH' : 'DELETE',
+    isAuthenticated: true,
+    wasBlocked: false,
+    blockReason: null,
+    additionalData: {
+      employeeId: data.employeeId,
+      employeeName: data.employeeName,
+      employeeZanId: data.employeeZanId,
+      action: data.action,
+      ...data.additionalData,
+    },
+  });
+}
+
+/**
+ * Log user management action
+ */
+export async function logUserAction(data: {
+  action: 'CREATED' | 'UPDATED' | 'DELETED';
+  targetUserId: string;
+  targetUsername?: string;
+  performedById: string;
+  performedByUsername: string;
+  performedByRole: string;
+  ipAddress?: string | null;
+  deviceInfo?: Record<string, any> | null;
+  additionalData?: Record<string, any>;
+}): Promise<void> {
+  const eventTypeMap = {
+    CREATED: AuditEventType.USER_CREATED,
+    UPDATED: AuditEventType.USER_UPDATED,
+    DELETED: AuditEventType.USER_DELETED,
+  };
+  await logAuditEvent({
+    eventType: eventTypeMap[data.action],
+    eventCategory: AuditEventCategory.DATA_MODIFICATION,
+    severity: data.action === 'DELETED' ? AuditSeverity.CRITICAL : AuditSeverity.INFO,
+    userId: data.performedById,
+    username: data.performedByUsername,
+    userRole: data.performedByRole,
+    ipAddress: data.ipAddress,
+    deviceInfo: data.deviceInfo,
+    attemptedRoute: `/api/users${data.action === 'CREATED' ? '' : `/${data.targetUserId}`}`,
+    requestMethod: data.action === 'CREATED' ? 'POST' : data.action === 'UPDATED' ? 'PATCH' : 'DELETE',
+    isAuthenticated: true,
+    wasBlocked: false,
+    blockReason: null,
+    additionalData: {
+      targetUserId: data.targetUserId,
+      targetUsername: data.targetUsername,
+      action: data.action,
+      ...data.additionalData,
+    },
+  });
+}
+
+/**
+ * Log complaint lifecycle event
+ */
+export async function logComplaintAction(data: {
+  action: 'SUBMITTED' | 'UPDATED' | 'RESOLVED';
+  complaintId: string;
+  complainantId?: string;
+  subject?: string;
+  performedById: string;
+  performedByUsername: string;
+  performedByRole: string;
+  ipAddress?: string | null;
+  deviceInfo?: Record<string, any> | null;
+  additionalData?: Record<string, any>;
+}): Promise<void> {
+  const eventTypeMap = {
+    SUBMITTED: AuditEventType.COMPLAINT_SUBMITTED,
+    UPDATED: AuditEventType.COMPLAINT_UPDATED,
+    RESOLVED: AuditEventType.COMPLAINT_RESOLVED,
+  };
+  const severityMap = {
+    SUBMITTED: AuditSeverity.INFO,
+    UPDATED: AuditSeverity.INFO,
+    RESOLVED: AuditSeverity.INFO,
+  };
+  await logAuditEvent({
+    eventType: eventTypeMap[data.action],
+    eventCategory: AuditEventCategory.DATA_MODIFICATION,
+    severity: severityMap[data.action],
+    userId: data.performedById,
+    username: data.performedByUsername,
+    userRole: data.performedByRole,
+    ipAddress: data.ipAddress,
+    deviceInfo: data.deviceInfo,
+    attemptedRoute: `/api/complaints${data.action === 'SUBMITTED' ? '' : `/${data.complaintId}`}`,
+    requestMethod: data.action === 'SUBMITTED' ? 'POST' : 'PUT',
+    isAuthenticated: true,
+    wasBlocked: false,
+    blockReason: null,
+    additionalData: {
+      complaintId: data.complaintId,
+      complainantId: data.complainantId,
+      subject: data.subject,
+      action: data.action,
+      ...data.additionalData,
+    },
+  });
+}
+
+/**
+ * Log file operation
+ */
+export async function logFileAction(data: {
+  action: 'UPLOADED' | 'DELETED';
+  fileName?: string;
+  objectKey?: string;
+  performedById: string;
+  performedByUsername: string;
+  performedByRole: string;
+  ipAddress?: string | null;
+  deviceInfo?: Record<string, any> | null;
+  additionalData?: Record<string, any>;
+}): Promise<void> {
+  const eventTypeMap = {
+    UPLOADED: AuditEventType.FILE_UPLOADED,
+    DELETED: AuditEventType.FILE_DELETED,
+  };
+  await logAuditEvent({
+    eventType: eventTypeMap[data.action],
+    eventCategory: AuditEventCategory.DATA_MODIFICATION,
+    severity: AuditSeverity.INFO,
+    userId: data.performedById,
+    username: data.performedByUsername,
+    userRole: data.performedByRole,
+    ipAddress: data.ipAddress,
+    deviceInfo: data.deviceInfo,
+    attemptedRoute: `/api/files/${data.action === 'UPLOADED' ? 'upload' : 'delete'}`,
+    requestMethod: data.action === 'UPLOADED' ? 'POST' : 'DELETE',
+    isAuthenticated: true,
+    wasBlocked: false,
+    blockReason: null,
+    additionalData: {
+      fileName: data.fileName,
+      objectKey: data.objectKey,
+      action: data.action,
+      ...data.additionalData,
+    },
+  });
+}
+
+/**
+ * Log institution management action
+ */
+export async function logInstitutionAction(data: {
+  action: 'CREATED' | 'UPDATED';
+  institutionId: string;
+  institutionName?: string;
+  performedById: string;
+  performedByUsername: string;
+  performedByRole: string;
+  ipAddress?: string | null;
+  deviceInfo?: Record<string, any> | null;
+  additionalData?: Record<string, any>;
+}): Promise<void> {
+  const eventTypeMap = {
+    CREATED: AuditEventType.INSTITUTION_CREATED,
+    UPDATED: AuditEventType.INSTITUTION_UPDATED,
+  };
+  await logAuditEvent({
+    eventType: eventTypeMap[data.action],
+    eventCategory: AuditEventCategory.DATA_MODIFICATION,
+    severity: AuditSeverity.INFO,
+    userId: data.performedById,
+    username: data.performedByUsername,
+    userRole: data.performedByRole,
+    ipAddress: data.ipAddress,
+    deviceInfo: data.deviceInfo,
+    attemptedRoute: `/api/institutions${data.action === 'CREATED' ? '' : `/${data.institutionId}`}`,
+    requestMethod: data.action === 'CREATED' ? 'POST' : 'PATCH',
+    isAuthenticated: true,
+    wasBlocked: false,
+    blockReason: null,
+    additionalData: {
+      institutionId: data.institutionId,
+      institutionName: data.institutionName,
+      action: data.action,
+      ...data.additionalData,
+    },
+  });
+}
+
+/**
+ * Log account lock/unlock event
+ */
+export async function logAccountAction(data: {
+  action: 'LOCKED' | 'UNLOCKED';
+  targetUserId: string;
+  targetUsername?: string;
+  performedById: string;
+  performedByUsername: string;
+  performedByRole: string;
+  reason?: string;
+  ipAddress?: string | null;
+  deviceInfo?: Record<string, any> | null;
+  additionalData?: Record<string, any>;
+}): Promise<void> {
+  await logAuditEvent({
+    eventType: data.action === 'LOCKED' ? AuditEventType.ACCOUNT_LOCKED : AuditEventType.ACCOUNT_UNLOCKED,
+    eventCategory: AuditEventCategory.SECURITY,
+    severity: data.action === 'LOCKED' ? AuditSeverity.WARNING : AuditSeverity.INFO,
+    userId: data.performedById,
+    username: data.performedByUsername,
+    userRole: data.performedByRole,
+    ipAddress: data.ipAddress,
+    deviceInfo: data.deviceInfo,
+    attemptedRoute: `/api/admin/${data.action === 'LOCKED' ? 'lock-account' : 'unlock-account'}`,
+    requestMethod: 'POST',
+    isAuthenticated: true,
+    wasBlocked: false,
+    blockReason: data.reason || null,
+    additionalData: {
+      targetUserId: data.targetUserId,
+      targetUsername: data.targetUsername,
+      action: data.action,
+      reason: data.reason,
+      ...data.additionalData,
+    },
+  });
+}
+
 export default {
   logAuditEvent,
   logUnauthorizedAccess,
@@ -509,6 +867,14 @@ export default {
   logLoginAttempt,
   logRequestApproval,
   logRequestRejection,
+  logRequestSubmission,
+  logRequestUpdate,
+  logEmployeeAction,
+  logUserAction,
+  logComplaintAction,
+  logFileAction,
+  logInstitutionAction,
+  logAccountAction,
   getClientIp,
   getAuditLogs,
   getAuditStatistics,
