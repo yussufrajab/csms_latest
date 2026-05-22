@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadFile, generateObjectKey } from '@/lib/minio';
 import { logFileAction, getClientIp } from '@/lib/audit-logger';
+import { validateFileUpload } from '@/lib/file-validation';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,29 +19,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file type - only PDF files allowed
-    if (file.type !== 'application/pdf') {
-      return NextResponse.json(
-        { success: false, message: 'Only PDF files are allowed' },
-        { status: 400 }
-      );
-    }
+    // Convert file to buffer first for validation
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-    // Validate file size (max 1MB)
-    const maxSize = 1 * 1024 * 1024; // 1MB
-    if (file.size > maxSize) {
+    const validation = await validateFileUpload(buffer, file.name, file.type, 'generic');
+    if (!validation.success) {
       return NextResponse.json(
-        { success: false, message: 'File size exceeds 1MB limit' },
-        { status: 400 }
+        { success: false, message: validation.error, errorCode: validation.errorCode },
+        { status: validation.status! }
       );
     }
 
     // Generate unique object key
     const objectKey = generateObjectKey(folder, file.name);
-
-    // Convert file to buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
 
     // Upload to MinIO
     const uploadResult = await uploadFile(

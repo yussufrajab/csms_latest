@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as prisma } from '@/lib/db';
 import { uploadFile } from '@/lib/minio';
+import { validateFileUpload } from '@/lib/file-validation';
 
 // HRIMS API Configuration
 const HRIMS_CONFIG = {
@@ -187,6 +188,16 @@ export async function POST(
       'image/webp': 'webp',
     };
     const extension = extensionMap[mimeType.toLowerCase()] || 'jpg';
+
+    // Validate photo buffer before uploading
+    const photoValidation = await validateFileUpload(photoBuffer, `photo.${extension}`, mimeType, 'photos');
+    if (!photoValidation.success) {
+      console.error(`Photo validation failed for employee ${employee.name}: ${photoValidation.error}`);
+      return NextResponse.json(
+        { success: false, message: `Photo validation failed: ${photoValidation.error}`, errorCode: photoValidation.errorCode },
+        { status: photoValidation.status! }
+      );
+    }
 
     // Upload to MinIO
     const fileName = `${employee.id}.${extension}`;

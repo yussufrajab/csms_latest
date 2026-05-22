@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadFile } from '@/lib/minio';
+import { validateFileUpload } from '@/lib/file-validation';
 
 const TEMPLATE_OBJECT_KEY = 'templates/promotion-form-template.docx';
-const MAX_FILE_SIZE = 1 * 1024 * 1024; // 1MB
-
-// Accepted Word document MIME types
-const ACCEPTED_WORD_TYPES = [
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
-  'application/msword', // .doc
-];
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,31 +31,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file type - only Word documents allowed
-    if (!ACCEPTED_WORD_TYPES.includes(file.type)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Only Microsoft Word files (.doc or .docx) are allowed',
-        },
-        { status: 400 }
-      );
-    }
-
-    // Validate file size (max 1MB)
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'File size exceeds 1MB limit',
-        },
-        { status: 400 }
-      );
-    }
-
-    // Convert file to buffer
+    // Convert file to buffer first for validation
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+
+    const validation = await validateFileUpload(buffer, file.name, file.type, 'templates');
+    if (!validation.success) {
+      return NextResponse.json(
+        { success: false, message: validation.error, errorCode: validation.errorCode },
+        { status: validation.status! }
+      );
+    }
 
     // Upload to MinIO (replaces existing template)
     const uploadResult = await uploadFile(
