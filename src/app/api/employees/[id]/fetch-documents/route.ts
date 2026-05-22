@@ -2,14 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db as prisma } from '@/lib/db';
 import { uploadFile } from '@/lib/minio';
 import { validateFileUpload } from '@/lib/file-validation';
-
-// HRIMS API Configuration
-const HRIMS_CONFIG = {
-  BASE_URL: 'http://10.0.217.11:8135/api',
-  API_KEY: '0ea1e3f5-ea57-410b-a199-246fa288b851',
-  TOKEN:
-    'CfDJ8M6SKjORsSdBliudb_vdU_DEea8FKIcQckiBxdvt4EJgtcP0ba_3REOpGvWYeOF46fvqw8heVnqFnXTwOmD5Wg5Qg3yNJlwyGDHVhqbgyKxB31Bjh2pI6C2qAYnLMovU4XLlQFVu7cTpIqtgItNZpM4',
-};
+import { getHrimsApiConfig } from '@/lib/hrims-config';
 
 // Valid educational certificate types (excluding primary education)
 const VALID_CERTIFICATE_TYPES = [
@@ -294,13 +287,14 @@ export async function POST(
       };
 
       try {
+        const hrimsConfig = await getHrimsApiConfig();
         const hrimsResponse = await fetch(
-          `${HRIMS_CONFIG.BASE_URL}/Employees`,
+          `${hrimsConfig.BASE_URL}/Employees`,
           {
             method: 'POST',
             headers: {
-              ApiKey: HRIMS_CONFIG.API_KEY,
-              Token: HRIMS_CONFIG.TOKEN,
+              ApiKey: hrimsConfig.API_KEY,
+              Token: hrimsConfig.TOKEN,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify(documentsPayload),

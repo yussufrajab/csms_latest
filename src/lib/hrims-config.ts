@@ -1,12 +1,11 @@
 import { db } from '@/lib/db';
 
-// Default HRIMS configuration
+// Default HRIMS configuration (secrets from env vars only)
 const DEFAULT_HRIMS_CONFIG = {
-  host: '10.0.217.11',
-  port: '8135',
-  apiKey: '0ea1e3f5-ea57-410b-a199-246fa288b851',
-  token:
-    'CfDJ8M6SKjORsSdBliudb_vdU_DEea8FKIcQckiBxdvt4EJgtcP0ba_3REOpGvWYeOF46fvqw8heVnqFnXTwOmD5Wg5Qg3yNJlwyGDHVhqbgyKxB31Bjh2pI6C2qAYnLMovU4XLlQFVu7cTpIqtgItNZpM4',
+  host: process.env.HRIMS_HOST || '10.0.217.11',
+  port: process.env.HRIMS_PORT || '8135',
+  apiKey: process.env.HRIMS_API_KEY || '',
+  token: process.env.HRIMS_TOKEN || '',
 };
 
 export interface HrimsConfig {

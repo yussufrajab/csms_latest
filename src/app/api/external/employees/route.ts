@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getHrimsApiConfig } from '@/lib/hrims-config';
+
+function getCorsOrigin(request: NextRequest | Request): string {
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
+  const origin = request.headers.get('origin') || '';
+  return allowedOrigins.includes(origin) ? origin : (allowedOrigins[0] || '');
+}
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // External API details
-    const externalUrl = 'http://10.0.217.11:8135/api/Employees';
-    const apiKey = '0ea1e3f5-ea57-410b-a199-246fa288b851';
-    const token =
-      'CfDJ8M6SKjORsSdBliudb_vdU_DEea8FKIcQckiBxdvt4EJgtcP0ba_3REOpGvWYeOF46fvqw8heVnqFnXTwOmD5Wg5Qg3yNJlwyGDHVhqbgyKxB31Bjh2pI6C2qAYnLMovU4XLlQFVu7cTpIqtgItNZpM4';
+    // Get HRIMS config from environment/database (no hardcoded credentials)
+    const hrimsConfig = await getHrimsApiConfig();
+
+    const externalUrl = `${hrimsConfig.BASE_URL}/Employees`;
 
     console.log('Proxying request to HRIMS:', {
       url: externalUrl,
@@ -20,8 +26,8 @@ export async function POST(req: NextRequest) {
     const response = await fetch(externalUrl, {
       method: 'POST',
       headers: {
-        ApiKey: apiKey,
-        Token: token,
+        ApiKey: hrimsConfig.API_KEY,
+        Token: hrimsConfig.TOKEN,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
@@ -35,10 +41,11 @@ export async function POST(req: NextRequest) {
     const data = await response.json();
     console.log('HRIMS API response received successfully');
 
+    const corsOrigin = getCorsOrigin(req);
     return NextResponse.json(data, {
       status: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': corsOrigin,
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
       },
@@ -46,6 +53,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('Error proxying to external API:', error);
 
+    const corsOrigin = getCorsOrigin(req);
     return NextResponse.json(
       {
         error: 'Failed to fetch external employee data',
@@ -54,7 +62,7 @@ export async function POST(req: NextRequest) {
       {
         status: 500,
         headers: {
-          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Origin': corsOrigin,
           'Access-Control-Allow-Methods': 'POST, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type',
         },
@@ -63,11 +71,12 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function OPTIONS() {
+export async function OPTIONS(req: NextRequest) {
+  const corsOrigin = getCorsOrigin(req);
   return new NextResponse(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': corsOrigin,
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     },
