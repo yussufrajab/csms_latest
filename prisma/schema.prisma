@@ -347,7 +347,6 @@ model User {
   loginLockoutReason                                                  String?
   loginLockoutType                                                    String?
   lastActivity                                                        DateTime?
-  AuditLog                                                            AuditLog[]
   CadreChangeRequest_CadreChangeRequest_reviewedByIdToUser            CadreChangeRequest[]      @relation("CadreChangeRequest_reviewedByIdToUser")
   CadreChangeRequest_CadreChangeRequest_submittedByIdToUser           CadreChangeRequest[]      @relation("CadreChangeRequest_submittedByIdToUser")
   Complaint_Complaint_complainantIdToUser                             Complaint[]               @relation("Complaint_complainantIdToUser")
@@ -371,33 +370,6 @@ model User {
   MfaToken                                                            MfaToken[]
   Employee                                                            Employee?                 @relation(fields: [employeeId], references: [id])
   Institution                                                         Institution               @relation(fields: [institutionId], references: [id])
-}
-
-model AuditLog {
-  id              String   @id @default(cuid())
-  eventType       String
-  eventCategory   String
-  severity        String
-  userId          String?
-  username        String?
-  userRole        String?
-  ipAddress       String?
-  deviceInfo      Json?
-  attemptedRoute  String
-  requestMethod   String?
-  isAuthenticated Boolean  @default(false)
-  wasBlocked      Boolean  @default(false)
-  blockReason     String?
-  timestamp       DateTime @default(now())
-  additionalData  Json?
-  User            User?    @relation(fields: [userId], references: [id])
-
-  @@index([userId])
-  @@index([timestamp])
-  @@index([eventType])
-  @@index([eventCategory])
-  @@index([severity])
-  @@index([attemptedRoute])
 }
 
 model Session {
