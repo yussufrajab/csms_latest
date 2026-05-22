@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { logEmployeeAction, getClientIp } from '@/lib/audit-logger';
+import { validateFileUpload } from '@/lib/file-validation';
 
 const prisma = new PrismaClient();
 
@@ -213,8 +214,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Read file content
-    const fileContent = await file.text();
+    // Convert file to buffer for validation
+    const fileArrayBuffer = await file.arrayBuffer();
+    const fileBuffer = Buffer.from(fileArrayBuffer);
+
+    const validation = await validateFileUpload(fileBuffer, file.name, file.type || 'text/csv', 'bulkUpload');
+    if (!validation.success) {
+      return NextResponse.json(
+        { success: false, error: validation.error, errorCode: validation.errorCode },
+        { status: validation.status! }
+      );
+    }
+
+    // Read file content from buffer
+    const fileContent = fileBuffer.toString('utf-8');
     const lines = fileContent.split('\n').filter((line) => line.trim());
 
     if (lines.length < 2) {

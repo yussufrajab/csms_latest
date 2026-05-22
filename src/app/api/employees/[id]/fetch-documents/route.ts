@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as prisma } from '@/lib/db';
 import { uploadFile } from '@/lib/minio';
+import { validateFileUpload } from '@/lib/file-validation';
 
 // HRIMS API Configuration
 const HRIMS_CONFIG = {
@@ -169,15 +170,26 @@ async function storeDocumentInMinIO(
   try {
     // Remove data URI prefix if present
     let cleanBase64 = base64Data;
+    let mimeType = 'application/pdf'; // default for documents
     if (base64Data.startsWith('data:')) {
-      const matches = base64Data.match(/^data:[^;]+;base64,(.+)$/);
+      const matches = base64Data.match(/^data:([^;]+);base64,(.+)$/);
       if (matches) {
-        cleanBase64 = matches[1];
+        mimeType = matches[1];
+        cleanBase64 = matches[2];
       }
     }
 
     // Convert base64 to buffer
     const buffer = Buffer.from(cleanBase64, 'base64');
+
+    // Validate file before uploading
+    const validation = await validateFileUpload(buffer, `${documentType}.pdf`, mimeType, 'documents');
+    if (!validation.success) {
+      return {
+        success: false,
+        error: `Document validation failed: ${validation.error}`,
+      };
+    }
 
     // Generate file path
     const fileName = `${employeeId}_${documentType}.pdf`;
