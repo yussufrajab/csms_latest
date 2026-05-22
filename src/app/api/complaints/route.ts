@@ -7,6 +7,8 @@ import {
   NotificationTemplates,
 } from '@/lib/notifications';
 import { v4 as uuidv4 } from 'uuid';
+import { sendRequestSubmissionEmails } from '@/lib/email';
+import { logComplaintAction, getClientIp } from '@/lib/audit-logger';
 
 const complaintSchema = z.object({
   complaintType: z.string().min(1),
@@ -75,7 +77,35 @@ export async function POST(req: Request) {
         notification.message,
         notification.link
       );
+      const hrmoRole = ROLES.HRMO || 'HRMO';
+      await createNotificationForRole(
+        hrmoRole,
+        notification.message,
+        notification.link
+      );
+
+      // Send email notifications to CSC reviewers
+      await sendRequestSubmissionEmails({
+        requestType: 'Complaint',
+        employeeName: complainant.name,
+        requestId: newComplaint.id,
+        submittedByName: complainant.name,
+        dashboardPath: '/dashboard/complaints',
+      });
     }
+
+    // Audit log: complaint submitted
+    await logComplaintAction({
+      action: 'SUBMITTED',
+      complaintId: newComplaint.id,
+      complainantId: body.complainantId,
+      subject: body.subject,
+      performedById: body.complainantId,
+      performedByUsername: complainant?.name || 'unknown',
+      performedByRole: 'EMPLOYEE',
+      ipAddress: getClientIp(req.headers),
+      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+    }).catch(() => {});
 
     return NextResponse.json(newComplaint, { status: 201 });
   } catch (error) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
+import { logEmployeeAction, getClientIp } from '@/lib/audit-logger';
 
 const prisma = new PrismaClient();
 
@@ -10,9 +11,10 @@ function parseAuthStorage(cookieValue: string | undefined): {
   isAuthenticated: boolean;
   userId: string | null;
   institutionId: string | null;
+  username: string | null;
 } {
   if (!cookieValue) {
-    return { role: null, isAuthenticated: false, userId: null, institutionId: null };
+    return { role: null, isAuthenticated: false, userId: null, institutionId: null, username: null };
   }
 
   try {
@@ -25,10 +27,11 @@ function parseAuthStorage(cookieValue: string | undefined): {
       isAuthenticated: state.isAuthenticated || false,
       userId: state.user?.id || null,
       institutionId: state.user?.institutionId || null,
+      username: state.user?.name || state.user?.username || null,
     };
   } catch (error) {
     console.error('Failed to parse auth-storage cookie:', error);
-    return { role: null, isAuthenticated: false, userId: null, institutionId: null };
+    return { role: null, isAuthenticated: false, userId: null, institutionId: null, username: null };
   }
 }
 
@@ -36,7 +39,7 @@ export async function POST(request: NextRequest) {
   try {
     // Get auth from cookie
     const authCookie = request.cookies.get('auth-storage')?.value;
-    let { role, isAuthenticated, userId, institutionId } = parseAuthStorage(authCookie);
+    let { role, isAuthenticated, userId, institutionId, username } = parseAuthStorage(authCookie);
 
     // Security check 1: Must be authenticated HRO
     if (!isAuthenticated || role !== 'HRO' || !userId) {
@@ -226,6 +229,20 @@ export async function POST(request: NextRequest) {
       institutionId: employee.institutionId,
       createdBy: userId,
     });
+
+    // Audit log: employee created via manual entry
+    await logEmployeeAction({
+      action: 'CREATED',
+      employeeId: employee.id,
+      employeeName: employee.name,
+      employeeZanId: employee.zanId,
+      performedById: userId,
+      performedByUsername: username || 'HRO',
+      performedByRole: role,
+      ipAddress: getClientIp(request.headers),
+      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+      additionalData: { dataSource: 'MANUAL_ENTRY', institutionId },
+    }).catch(() => {});
 
     return NextResponse.json(
       {

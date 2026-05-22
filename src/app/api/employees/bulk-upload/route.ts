@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
+import { logEmployeeAction, getClientIp } from '@/lib/audit-logger';
 
 const prisma = new PrismaClient();
 
@@ -10,6 +11,7 @@ function parseAuthStorage(cookieValue: string | undefined): {
   isAuthenticated: boolean;
   userId: string | null;
   institutionId: string | null;
+  username: string | null;
 } {
   if (!cookieValue) {
     return {
@@ -17,6 +19,7 @@ function parseAuthStorage(cookieValue: string | undefined): {
       isAuthenticated: false,
       userId: null,
       institutionId: null,
+      username: null,
     };
   }
 
@@ -30,6 +33,7 @@ function parseAuthStorage(cookieValue: string | undefined): {
       isAuthenticated: state.isAuthenticated || false,
       userId: state.user?.id || null,
       institutionId: state.user?.institutionId || null,
+      username: state.user?.name || state.user?.username || null,
     };
   } catch (error) {
     console.error('Failed to parse auth-storage cookie:', error);
@@ -38,6 +42,7 @@ function parseAuthStorage(cookieValue: string | undefined): {
       isAuthenticated: false,
       userId: null,
       institutionId: null,
+      username: null,
     };
   }
 }
@@ -125,7 +130,7 @@ export async function POST(request: NextRequest) {
   try {
     // Get auth from cookie
     const authCookie = request.cookies.get('auth-storage')?.value;
-    let { role, isAuthenticated, userId, institutionId } =
+    let { role, isAuthenticated, userId, institutionId, username } =
       parseAuthStorage(authCookie);
 
     // Security check 1: Must be authenticated HRO
@@ -458,7 +463,7 @@ export async function PUT(request: NextRequest) {
   try {
     // Get auth from cookie
     const authCookie = request.cookies.get('auth-storage')?.value;
-    let { role, isAuthenticated, userId, institutionId } =
+    let { role, isAuthenticated, userId, institutionId, username } =
       parseAuthStorage(authCookie);
 
     // Security check
@@ -556,6 +561,21 @@ export async function PUT(request: NextRequest) {
           error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
+    }
+
+    // Audit log: bulk employee creation
+    for (const emp of createdEmployees) {
+      await logEmployeeAction({
+        action: 'CREATED',
+        employeeId: emp.id,
+        employeeName: emp.name,
+        performedById: userId,
+        performedByUsername: username || 'HRO',
+        performedByRole: role,
+        ipAddress: getClientIp(request.headers),
+        deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+        additionalData: { dataSource: 'BULK_UPLOAD', institutionId, batchRow: emp.rowNumber },
+      }).catch(() => {});
     }
 
     return NextResponse.json({

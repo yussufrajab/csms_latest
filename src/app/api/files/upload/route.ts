@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadFile, generateObjectKey } from '@/lib/minio';
+import { logFileAction, getClientIp } from '@/lib/audit-logger';
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,6 +48,34 @@ export async function POST(request: NextRequest) {
       objectKey,
       file.type || 'application/octet-stream'
     );
+
+    // Audit log: file uploaded
+    // Parse auth info from cookie for audit context
+    const authCookie = request.headers.get('cookie')?.split(';').find(c => c.trim().startsWith('auth-storage='));
+    let auditUserId: string | null = null;
+    let auditUsername: string | null = null;
+    let auditUserRole: string | null = null;
+    if (authCookie) {
+      try {
+        const cookieValue = decodeURIComponent(authCookie.split('=')[1]);
+        const authData = JSON.parse(cookieValue);
+        const state = authData.state || authData;
+        auditUserId = state.user?.id || null;
+        auditUsername = state.user?.name || state.user?.username || null;
+        auditUserRole = state.user?.role || state.role || null;
+      } catch {}
+    }
+
+    await logFileAction({
+      action: 'UPLOADED',
+      fileName: file.name,
+      objectKey: uploadResult.objectKey,
+      performedById: auditUserId || 'unknown',
+      performedByUsername: auditUsername || 'unknown',
+      performedByRole: auditUserRole || 'unknown',
+      ipAddress: getClientIp(request.headers),
+      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

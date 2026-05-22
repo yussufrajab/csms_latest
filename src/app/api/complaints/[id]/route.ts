@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { z } from 'zod';
 import { createNotification, NotificationTemplates } from '@/lib/notifications';
+import { sendRequestStatusUpdateEmail } from '@/lib/email';
+import { logComplaintAction, getClientIp } from '@/lib/audit-logger';
 
 const updateComplaintSchema = z.object({
   status: z.string().optional(),
@@ -91,6 +93,22 @@ export async function PUT(
           link: notification.link,
         });
       }
+
+      // Send email notification to the complainant on status changes
+      const complaintStatusLower = validatedData.status.toLowerCase();
+      const complaintIsApproval = complaintStatusLower.includes('resolved') || complaintStatusLower.includes('approved');
+      const complaintIsRejection = complaintStatusLower.includes('rejected');
+      if (complaintIsApproval || complaintIsRejection) {
+        await sendRequestStatusUpdateEmail({
+          requestType: 'Complaint',
+          employeeName: updatedComplaint.User_Complaint_complainantIdToUser.name || 'Unknown',
+          requestId: id,
+          submittedById: updatedComplaint.complainantId,
+          status: validatedData.status,
+          rejectionReason: validatedData.rejectionReason ?? undefined,
+          dashboardPath: '/dashboard/complaints',
+        });
+      }
     }
 
     // If the complainant has an employeeId, fetch employee details separately
@@ -116,6 +134,20 @@ export async function PUT(
         Employee: employeeDetails,
       },
     };
+
+    // Audit log: complaint updated or resolved
+    const reviewedByUser = updatedComplaint.User_Complaint_reviewedByIdToUser;
+    await logComplaintAction({
+      action: updatedComplaint.status === 'Resolved' ? 'RESOLVED' : 'UPDATED',
+      complaintId: updatedComplaint.id,
+      subject: updatedComplaint.subject,
+      performedById: validatedData.reviewedById || updatedComplaint.complainantId,
+      performedByUsername: reviewedByUser?.name || 'unknown',
+      performedByRole: reviewedByUser?.role || 'unknown',
+      ipAddress: getClientIp(req.headers),
+      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+      additionalData: { newStatus: updatedComplaint.status },
+    }).catch(() => {});
 
     return NextResponse.json(formattedResponse);
   } catch (error) {

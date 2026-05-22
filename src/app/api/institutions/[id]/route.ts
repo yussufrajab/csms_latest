@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { z } from 'zod';
+import { logInstitutionAction, getClientIp } from '@/lib/audit-logger';
 
 const institutionSchema = z.object({
   name: z.string().min(3, {
@@ -110,6 +111,33 @@ export async function PUT(
           : null,
       },
     });
+
+    // Audit log: institution updated
+    const authCookie = req.headers.get('cookie')?.split(';').find(c => c.trim().startsWith('auth-storage='));
+    let auditUserId: string | null = null;
+    let auditUsername: string | null = null;
+    let auditUserRole: string | null = null;
+    if (authCookie) {
+      try {
+        const cookieValue = decodeURIComponent(authCookie.split('=')[1]);
+        const authData = JSON.parse(cookieValue);
+        const state = authData.state || authData;
+        auditUserId = state.user?.id || null;
+        auditUsername = state.user?.name || state.user?.username || null;
+        auditUserRole = state.user?.role || state.role || null;
+      } catch {}
+    }
+
+    await logInstitutionAction({
+      action: 'UPDATED',
+      institutionId: updatedInstitution.id,
+      institutionName: updatedInstitution.name,
+      performedById: auditUserId || 'system',
+      performedByUsername: auditUsername || 'system',
+      performedByRole: auditUserRole || 'ADMIN',
+      ipAddress: getClientIp(req.headers),
+      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+    }).catch(() => {});
 
     return NextResponse.json(updatedInstitution);
   } catch (error) {

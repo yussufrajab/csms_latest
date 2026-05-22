@@ -7,6 +7,7 @@ import {
   hashPassword,
   calculateTemporaryPasswordExpiry,
 } from '@/lib/password-utils';
+import { logUserAction, getClientIp } from '@/lib/audit-logger';
 
 const userSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -185,6 +186,34 @@ export async function POST(req: Request) {
       ...newUser,
       Institution: newUser.Institution.name,
     };
+
+    // Audit log: user created
+    // Parse auth info from cookie for audit context (admin who created the user)
+    const authCookie = req.headers.get('cookie')?.split(';').find(c => c.trim().startsWith('auth-storage='));
+    let adminUserId: string | null = null;
+    let adminUsername: string | null = null;
+    let adminRole: string | null = null;
+    if (authCookie) {
+      try {
+        const cookieValue = decodeURIComponent(authCookie.split('=')[1]);
+        const authData = JSON.parse(cookieValue);
+        const state = authData.state || authData;
+        adminUserId = state.user?.id || null;
+        adminUsername = state.user?.name || state.user?.username || null;
+        adminRole = state.user?.role || state.role || null;
+      } catch {}
+    }
+
+    await logUserAction({
+      action: 'CREATED',
+      targetUserId: newUser.id,
+      targetUsername: newUser.username,
+      performedById: adminUserId || 'system',
+      performedByUsername: adminUsername || 'system',
+      performedByRole: adminRole || 'ADMIN',
+      ipAddress: getClientIp(req.headers),
+      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+    }).catch(() => {});
 
     return NextResponse.json(response, { status: 201 });
   } catch (error) {
