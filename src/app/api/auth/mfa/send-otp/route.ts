@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { createMfaToken, checkOtpRateLimit, maskEmail } from '@/lib/mfa-utils';
 import { sendMfaEmail } from '@/lib/email';
+import { logAuditEvent, AuditEventType, AuditEventCategory, AuditSeverity, getClientIp } from '@/lib/audit-logger';
 
 const sendOtpSchema = z.object({
   userId: z.string().min(1),
@@ -66,6 +67,23 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
+
+    await logAuditEvent({
+      eventType: AuditEventType.LOGIN_SUCCESS,
+      eventCategory: AuditEventCategory.AUTHENTICATION,
+      severity: AuditSeverity.INFO,
+      userId: user.id,
+      username: user.name,
+      userRole: undefined,
+      ipAddress: getClientIp(req.headers),
+      deviceInfo,
+      attemptedRoute: '/api/auth/mfa/send-otp',
+      requestMethod: 'POST',
+      isAuthenticated: true,
+      wasBlocked: false,
+      blockReason: null,
+      additionalData: { mfaMethod: 'otp', action: 'OTP_SENT' },
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

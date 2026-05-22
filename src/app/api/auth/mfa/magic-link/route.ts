@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { verifyMfaToken } from '@/lib/mfa-utils';
 import { completeLogin } from '@/lib/auth-helpers';
+import { logAuditEvent, AuditEventType, AuditEventCategory, AuditSeverity, getClientIp } from '@/lib/audit-logger';
 
 const magicLinkSchema = z.object({
   token: z.string().min(1),
@@ -23,6 +24,23 @@ export async function POST(req: Request) {
     const result = await verifyMfaToken(token, 'MAGIC_LINK');
 
     if (!result.valid) {
+      await logAuditEvent({
+        eventType: AuditEventType.LOGIN_FAILED,
+        eventCategory: AuditEventCategory.AUTHENTICATION,
+        severity: AuditSeverity.WARNING,
+        userId: result.userId ?? null,
+        username: null,
+        userRole: null,
+        ipAddress: getClientIp(req.headers),
+        deviceInfo,
+        attemptedRoute: '/api/auth/mfa/magic-link',
+        requestMethod: 'POST',
+        isAuthenticated: false,
+        wasBlocked: true,
+        blockReason: 'Invalid or expired magic link',
+        additionalData: { mfaMethod: 'magic-link', action: 'MAGIC_LINK_FAILED' },
+      }).catch(() => {});
+
       return NextResponse.json(
         { success: false, message: 'This link is invalid or has expired. Please request a new one.' },
         { status: 400 }
@@ -47,6 +65,23 @@ export async function POST(req: Request) {
         { status: 401 }
       );
     }
+
+    await logAuditEvent({
+      eventType: AuditEventType.LOGIN_SUCCESS,
+      eventCategory: AuditEventCategory.AUTHENTICATION,
+      severity: AuditSeverity.INFO,
+      userId: user.id,
+      username: user.username,
+      userRole: user.role,
+      ipAddress: getClientIp(req.headers),
+      deviceInfo,
+      attemptedRoute: '/api/auth/mfa/magic-link',
+      requestMethod: 'POST',
+      isAuthenticated: true,
+      wasBlocked: false,
+      blockReason: null,
+      additionalData: { mfaMethod: 'magic-link', action: 'MAGIC_LINK_VERIFIED' },
+    }).catch(() => {});
 
     return completeLogin({
       user,

@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import crypto from 'crypto';
 import { completeLogin } from '@/lib/auth-helpers';
 import { incrementOtpVerifyAttempts, verifyMfaToken } from '@/lib/mfa-utils';
+import { logAuditEvent, AuditEventType, AuditEventCategory, AuditSeverity, getClientIp } from '@/lib/audit-logger';
 
 const verifyOtpSchema = z.object({
   userId: z.string().min(1),
@@ -53,6 +54,28 @@ export async function POST(req: Request) {
     const tokenBuffer = Buffer.from(mfaToken.token, 'utf8');
     const inputBuffer = Buffer.from(otpCode, 'utf8');
     if (tokenBuffer.length !== inputBuffer.length || !crypto.timingSafeEqual(tokenBuffer, inputBuffer)) {
+      // Fetch user for audit logging
+      const failedUser = await db.user.findUnique({
+        where: { id: userId },
+        select: { id: true, username: true, role: true },
+      });
+      await logAuditEvent({
+        eventType: AuditEventType.LOGIN_FAILED,
+        eventCategory: AuditEventCategory.AUTHENTICATION,
+        severity: AuditSeverity.WARNING,
+        userId: failedUser?.id ?? userId,
+        username: failedUser?.username ?? null,
+        userRole: failedUser?.role ?? null,
+        ipAddress: getClientIp(req.headers),
+        deviceInfo,
+        attemptedRoute: '/api/auth/mfa/verify-otp',
+        requestMethod: 'POST',
+        isAuthenticated: true,
+        wasBlocked: true,
+        blockReason: 'Invalid OTP code',
+        additionalData: { mfaMethod: 'otp', action: 'OTP_FAILED' },
+      }).catch(() => {});
+
       return NextResponse.json(
         {
           success: false,
@@ -87,6 +110,23 @@ export async function POST(req: Request) {
         { status: 401 }
       );
     }
+
+    await logAuditEvent({
+      eventType: AuditEventType.LOGIN_SUCCESS,
+      eventCategory: AuditEventCategory.AUTHENTICATION,
+      severity: AuditSeverity.INFO,
+      userId: user.id,
+      username: user.username,
+      userRole: user.role,
+      ipAddress: getClientIp(req.headers),
+      deviceInfo,
+      attemptedRoute: '/api/auth/mfa/verify-otp',
+      requestMethod: 'POST',
+      isAuthenticated: true,
+      wasBlocked: false,
+      blockReason: null,
+      additionalData: { mfaMethod: 'otp', action: 'OTP_VERIFIED' },
+    }).catch(() => {});
 
     return completeLogin({
       user,
