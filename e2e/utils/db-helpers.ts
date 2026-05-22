@@ -22,7 +22,9 @@ export async function cleanupTestData() {
   await db.promotionRequest.deleteMany();
   await db.notification.deleteMany();
   await db.session.deleteMany();
-  await db.auditLog.deleteMany();
+  // AuditLog table has been migrated to audit.audit_log (separate schema)
+  // Use raw SQL to clean up audit data if needed:
+  // await db.$executeRaw`DELETE FROM audit.audit_log WHERE created_at > NOW() - INTERVAL '1 day'`;
 
   console.log('✅ Test data cleaned up');
 }
