@@ -39,7 +39,7 @@ export interface WithAuthOptions {
 const UNAUTHENTICATED: AuthResult = {
   authenticated: false,
   response: NextResponse.json(
-    { error: 'Authentication required' },
+    { success: false, error: 'Authentication required', errorCode: 'UNAUTHENTICATED' },
     { status: 401 }
   ),
 };
@@ -47,18 +47,18 @@ const UNAUTHENTICATED: AuthResult = {
 const INVALID_SESSION: AuthResult = {
   authenticated: false,
   response: NextResponse.json(
-    { error: 'Invalid or expired session' },
+    { success: false, error: 'Invalid or expired session', errorCode: 'INVALID_SESSION' },
     { status: 401 }
   ),
 };
 
-const FORBIDDEN = (allowedRoles: string[]): AuthResult => ({
+const FORBIDDEN: AuthResult = {
   authenticated: false,
   response: NextResponse.json(
-    { error: 'Insufficient permissions', allowedRoles },
+    { success: false, error: 'Insufficient permissions', errorCode: 'FORBIDDEN' },
     { status: 403 }
   ),
-});
+};
 
 // ---------------------------------------------------------------------------
 // verifyAuth
@@ -115,10 +115,11 @@ export async function verifyAuth(
   }
 
   // 4. Verify user exists and is active in database --------------------------
+  let user: { id: string; active: boolean; role: string } | null;
   try {
-    const user = await db.user.findUnique({
+    user = await db.user.findUnique({
       where: { id: userId },
-      select: { id: true, active: true },
+      select: { id: true, active: true, role: true },
     });
 
     if (!user || !user.active) {
@@ -134,7 +135,7 @@ export async function verifyAuth(
     authenticated: true,
     context: {
       userId,
-      role,
+      role: user.role,
       institutionId,
       username: username || '',
     },
@@ -184,7 +185,7 @@ export function withAuth(
     // Role check
     if (options?.allowedRoles?.length) {
       if (!options.allowedRoles.includes(authResult.context!.role)) {
-        return FORBIDDEN(options.allowedRoles).response!;
+        return FORBIDDEN.response!;
       }
     }
 
