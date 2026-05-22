@@ -7,6 +7,7 @@ import {
   logRequestRejection,
   getClientIp,
 } from '@/lib/audit-logger';
+import { sendRequestStatusUpdateEmail } from '@/lib/email';
 
 const updateSchema = z.object({
   status: z.string().optional(),
@@ -30,10 +31,10 @@ async function handleUpdate(
 
     const validatedData = updateSchema.parse(body);
 
-    // Get IP and user agent for audit logging
+    // Get IP and device info for audit logging
     const headers = new Headers(req.headers);
     const ipAddress = getClientIp(headers);
-    const userAgent = headers.get('user-agent');
+    const deviceInfo = JSON.parse(headers.get('x-device-info') || 'null');
 
     const updatedRequest = await db.cadreChangeRequest.update({
       where: { id },
@@ -114,7 +115,7 @@ async function handleUpdate(
               approvedByRole: reviewer.role || 'Unknown',
               reviewStage: validatedData.reviewStage,
               ipAddress,
-              userAgent,
+              deviceInfo,
               additionalData: {
                 currentCadre: updatedRequest.Employee?.cadre,
                 newCadre: updatedRequest.newCadre,
@@ -134,7 +135,7 @@ async function handleUpdate(
               rejectionReason: validatedData.rejectionReason ?? undefined,
               reviewStage: validatedData.reviewStage,
               ipAddress,
-              userAgent,
+              deviceInfo,
               additionalData: {
                 currentCadre: updatedRequest.Employee?.cadre,
                 newCadre: updatedRequest.newCadre,
@@ -142,6 +143,22 @@ async function handleUpdate(
             });
           }
         }
+      }
+
+      // Send email notification to the HRO submitter on approval/rejection
+      const ccStatusLower = validatedData.status.toLowerCase();
+      const ccIsApproval = ccStatusLower.includes('approved') && !ccStatusLower.includes('rejected');
+      const ccIsRejection = ccStatusLower.includes('rejected');
+      if (ccIsApproval || ccIsRejection) {
+        await sendRequestStatusUpdateEmail({
+          requestType: 'Cadre Change',
+          employeeName: updatedRequest.Employee?.name || 'Unknown',
+          requestId: id,
+          submittedById: updatedRequest.submittedById,
+          status: validatedData.status,
+          rejectionReason: validatedData.rejectionReason ?? undefined,
+          dashboardPath: '/dashboard/cadre-change',
+        });
       }
     }
 

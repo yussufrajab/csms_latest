@@ -4,11 +4,14 @@ import { shouldApplyInstitutionFilter } from '@/lib/role-utils';
 import { validateEmployeeStatusForRequest } from '@/lib/employee-status-validation';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  logRequestSubmission,
   logRequestApproval,
   logRequestRejection,
   getClientIp,
 } from '@/lib/audit-logger';
 import { ROLES } from '@/lib/constants';
+import { createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
+import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
 
 // Cache configuration for confirmation requests
 const CACHE_TTL = 30; // 30 seconds cache (request status changes frequently)
@@ -240,6 +243,55 @@ export async function POST(req: Request) {
 
     console.log('Created confirmation request:', confirmationRequest.id);
 
+    // Create notification for CSC reviewers
+    const notification = NotificationTemplates.confirmationSubmitted(
+      confirmationRequest.Employee.name,
+      confirmationRequest.id
+    );
+
+    await createNotificationForRole(
+      ROLES.HHRMD || 'HHRMD',
+      notification.message,
+      notification.link
+    );
+    await createNotificationForRole(
+      ROLES.HRMO || 'HRMO',
+      notification.message,
+      notification.link
+    );
+    await createNotificationForRole(
+      ROLES.DO || 'DO',
+      notification.message,
+      notification.link
+    );
+
+    // Send email notifications to CSC reviewers
+    await sendRequestSubmissionEmails({
+      requestType: 'Confirmation',
+      employeeName: confirmationRequest.Employee.name,
+      requestId: confirmationRequest.id,
+      submittedByName: confirmationRequest.User_ConfirmationRequest_submittedByIdToUser?.name || 'Unknown',
+      dashboardPath: '/dashboard/confirmation',
+    });
+
+    // Log request submission for audit
+    const submittedByUser = await db.user.findUnique({
+      where: { id: body.submittedById },
+      select: { id: true, username: true, role: true },
+    });
+    await logRequestSubmission({
+      requestType: 'Confirmation',
+      requestId: confirmationRequest.id,
+      employeeId: confirmationRequest.employeeId,
+      employeeName: confirmationRequest.Employee?.name,
+      employeeZanId: confirmationRequest.Employee?.zanId,
+      submittedById: body.submittedById,
+      submittedByUsername: submittedByUser?.username || 'Unknown',
+      submittedByRole: submittedByUser?.role || 'Unknown',
+      ipAddress: getClientIp(req.headers),
+      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+    }).catch(() => {});
+
     // Transform the data to match frontend expectations
     const transformedRequest = {
       ...confirmationRequest,
@@ -316,10 +368,10 @@ export async function PATCH(req: Request) {
       );
     }
 
-    // Get IP and user agent for audit logging
+    // Get IP and device info for audit logging
     const headers = new Headers(req.headers);
     const ipAddress = getClientIp(headers);
-    const userAgent = headers.get('user-agent');
+    const deviceInfo = JSON.parse(headers.get('x-device-info') || 'null');
 
     const updatedRequest = await db.confirmationRequest.update({
       where: { id },
@@ -403,7 +455,7 @@ export async function PATCH(req: Request) {
             approvedByRole: reviewer.role || 'Unknown',
             reviewStage: updateData.reviewStage,
             ipAddress,
-            userAgent,
+            deviceInfo,
             additionalData: {
               currentStatus: updatedRequest.Employee?.status,
             },
@@ -421,12 +473,30 @@ export async function PATCH(req: Request) {
             rejectionReason: updateData.rejectionReason,
             reviewStage: updateData.reviewStage,
             ipAddress,
-            userAgent,
+            deviceInfo,
             additionalData: {
               currentStatus: updatedRequest.Employee?.status,
             },
           });
         }
+      }
+    }
+
+    // Send email notification to the HRO submitter on approval/rejection
+    if (updateData.status) {
+      const patchStatusLower = updateData.status.toLowerCase();
+      const patchIsApproval = patchStatusLower.includes('approved') && !patchStatusLower.includes('rejected');
+      const patchIsRejection = patchStatusLower.includes('rejected');
+      if (patchIsApproval || patchIsRejection) {
+        await sendRequestStatusUpdateEmail({
+          requestType: 'Confirmation',
+          employeeName: updatedRequest.Employee?.name || 'Unknown',
+          requestId: id,
+          submittedById: updatedRequest.submittedById,
+          status: updateData.status,
+          rejectionReason: updateData.rejectionReason,
+          dashboardPath: '/dashboard/confirmation',
+        });
       }
     }
 

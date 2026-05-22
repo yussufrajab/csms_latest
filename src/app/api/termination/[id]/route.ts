@@ -7,6 +7,7 @@ import {
   logRequestRejection,
   getClientIp,
 } from '@/lib/audit-logger';
+import { sendRequestStatusUpdateEmail } from '@/lib/email';
 
 const updateSchema = z.object({
   status: z.string().optional(),
@@ -26,10 +27,10 @@ async function handleUpdate(
     const body = await req.json();
     const validatedData = updateSchema.parse(body);
 
-    // Get IP and user agent for audit logging
+    // Get IP and device info for audit logging
     const headers = new Headers(req.headers);
     const ipAddress = getClientIp(headers);
-    const userAgent = headers.get('user-agent');
+    const deviceInfo = JSON.parse(headers.get('x-device-info') || 'null');
 
     const updatedRequest = await db.separationRequest.update({
       where: { id },
@@ -112,7 +113,7 @@ async function handleUpdate(
               approvedByRole: reviewer.role || 'Unknown',
               reviewStage: validatedData.reviewStage,
               ipAddress,
-              userAgent,
+              deviceInfo,
               additionalData: {
                 type: updatedRequest.type,
                 reason: updatedRequest.reason,
@@ -131,13 +132,29 @@ async function handleUpdate(
               rejectionReason: validatedData.rejectionReason ?? undefined,
               reviewStage: validatedData.reviewStage,
               ipAddress,
-              userAgent,
+              deviceInfo,
               additionalData: {
                 type: updatedRequest.type,
               },
             });
           }
         }
+      }
+
+      // Send email notification to the HRO submitter on approval/rejection
+      const termStatusLower = validatedData.status.toLowerCase();
+      const termIsApproval = termStatusLower.includes('approved') && !termStatusLower.includes('rejected');
+      const termIsRejection = termStatusLower.includes('rejected');
+      if (termIsApproval || termIsRejection) {
+        await sendRequestStatusUpdateEmail({
+          requestType: 'Termination',
+          employeeName: updatedRequest.Employee?.name || 'Unknown',
+          requestId: id,
+          submittedById: updatedRequest.submittedById,
+          status: validatedData.status,
+          rejectionReason: validatedData.rejectionReason ?? undefined,
+          dashboardPath: '/dashboard/termination',
+        });
       }
     }
 

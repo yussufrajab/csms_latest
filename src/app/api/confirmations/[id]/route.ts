@@ -7,6 +7,7 @@ import {
   logRequestRejection,
   getClientIp,
 } from '@/lib/audit-logger';
+import { sendRequestStatusUpdateEmail } from '@/lib/email';
 
 const updateSchema = z.object({
   status: z.string().optional(),
@@ -26,10 +27,10 @@ async function handleUpdate(
     const body = await req.json();
     const validatedData = updateSchema.parse(body);
 
-    // Get IP and user agent for audit logging
+    // Get IP and device info for audit logging
     const headers = new Headers(req.headers);
     const ipAddress = getClientIp(headers);
-    const userAgent = headers.get('user-agent');
+    const deviceInfo = JSON.parse(headers.get('x-device-info') || 'null');
 
     const updatedRequest = await db.confirmationRequest.update({
       where: { id },
@@ -90,7 +91,7 @@ async function handleUpdate(
               approvedByRole: reviewer.role || 'Unknown',
               reviewStage: validatedData.reviewStage,
               ipAddress,
-              userAgent,
+              deviceInfo,
             });
           } else if (isRejection) {
             await logRequestRejection({
@@ -105,10 +106,26 @@ async function handleUpdate(
               rejectionReason: validatedData.rejectionReason ?? undefined,
               reviewStage: validatedData.reviewStage,
               ipAddress,
-              userAgent,
+              deviceInfo,
             });
           }
         }
+      }
+
+      // Send email notification to the HRO submitter on approval/rejection
+      const confStatusLower = validatedData.status.toLowerCase();
+      const confIsApproval = confStatusLower.includes('approved') && !confStatusLower.includes('rejected');
+      const confIsRejection = confStatusLower.includes('rejected');
+      if (confIsApproval || confIsRejection) {
+        await sendRequestStatusUpdateEmail({
+          requestType: 'Confirmation',
+          employeeName: updatedRequest.Employee?.name || 'Unknown',
+          requestId: id,
+          submittedById: updatedRequest.submittedById,
+          status: validatedData.status,
+          rejectionReason: validatedData.rejectionReason ?? undefined,
+          dashboardPath: '/dashboard/confirmation',
+        });
       }
     }
 

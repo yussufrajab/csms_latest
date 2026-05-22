@@ -3,10 +3,14 @@ import { db } from '@/lib/db';
 import { shouldApplyInstitutionFilter } from '@/lib/role-utils';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  logRequestSubmission,
   logRequestApproval,
   logRequestRejection,
   getClientIp,
 } from '@/lib/audit-logger';
+import { createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
+import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
+import { ROLES } from '@/lib/constants';
 
 export async function GET(req: Request) {
   try {
@@ -164,17 +168,57 @@ export async function POST(req: Request) {
             Institution: { select: { id: true, name: true } },
           },
         },
+        User_SeparationRequest_submittedByIdToUser: {
+          select: { id: true, name: true, username: true },
+        },
       },
     });
 
     console.log('Created termination request:', separationRequest.id);
 
+    // Create notification for CSC reviewers
+    const notification = NotificationTemplates.terminationSubmitted(
+      separationRequest.Employee.name,
+      separationRequest.id
+    );
+
+    await createNotificationForRole(ROLES.HHRMD || 'HHRMD', notification.message, notification.link);
+    await createNotificationForRole(ROLES.HRMO || 'HRMO', notification.message, notification.link);
+    await createNotificationForRole(ROLES.DO || 'DO', notification.message, notification.link);
+
+    // Send email notifications to CSC reviewers
+    await sendRequestSubmissionEmails({
+      requestType: 'Termination',
+      employeeName: separationRequest.Employee.name,
+      requestId: separationRequest.id,
+      submittedByName: separationRequest.User_SeparationRequest_submittedByIdToUser?.name || 'Unknown',
+      dashboardPath: '/dashboard/termination',
+    });
+
+    // Log request submission for audit
+    const submittedByUser = await db.user.findUnique({
+      where: { id: body.submittedById },
+      select: { id: true, username: true, role: true },
+    });
+    await logRequestSubmission({
+      requestType: 'Termination',
+      requestId: separationRequest.id,
+      employeeId: separationRequest.employeeId,
+      employeeName: separationRequest.Employee?.name,
+      employeeZanId: separationRequest.Employee?.zanId,
+      submittedById: body.submittedById,
+      submittedByUsername: submittedByUser?.username || 'Unknown',
+      submittedByRole: submittedByUser?.role || 'Unknown',
+      ipAddress: getClientIp(req.headers),
+      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+    }).catch(() => {});
+
     // Transform the data to match frontend expectations
     const transformedRequest = {
       ...separationRequest,
       submittedBy: (separationRequest as any)
-        .User_TerminationRequest_submittedByIdToUser,
-      User_TerminationRequest_submittedByIdToUser: undefined,
+        .User_SeparationRequest_submittedByIdToUser,
+      User_SeparationRequest_submittedByIdToUser: undefined,
     };
 
     return NextResponse.json({
@@ -209,10 +253,10 @@ export async function PATCH(req: Request) {
       );
     }
 
-    // Get IP and user agent for audit logging
+    // Get IP and device info for audit logging
     const headers = new Headers(req.headers);
     const ipAddress = getClientIp(headers);
-    const userAgent = headers.get('user-agent');
+    const deviceInfo = JSON.parse(headers.get('x-device-info') || 'null');
 
     // No date conversion needed for separation requests
 
@@ -304,7 +348,7 @@ export async function PATCH(req: Request) {
             approvedByRole: reviewer.role || 'Unknown',
             reviewStage: updateData.reviewStage,
             ipAddress,
-            userAgent,
+            deviceInfo,
             additionalData: {
               type: updatedRequest.type,
               reason: updatedRequest.reason,
@@ -323,12 +367,30 @@ export async function PATCH(req: Request) {
             rejectionReason: updateData.rejectionReason,
             reviewStage: updateData.reviewStage,
             ipAddress,
-            userAgent,
+            deviceInfo,
             additionalData: {
               type: updatedRequest.type,
             },
           });
         }
+      }
+    }
+
+    // Send email notification to the HRO submitter on approval/rejection
+    if (updateData.status) {
+      const termPatchStatusLower = updateData.status.toLowerCase();
+      const termPatchIsApproval = termPatchStatusLower.includes('approved') && !termPatchStatusLower.includes('rejected');
+      const termPatchIsRejection = termPatchStatusLower.includes('rejected');
+      if (termPatchIsApproval || termPatchIsRejection) {
+        await sendRequestStatusUpdateEmail({
+          requestType: 'Termination',
+          employeeName: updatedRequest.Employee?.name || 'Unknown',
+          requestId: id,
+          submittedById: updatedRequest.submittedById,
+          status: updateData.status,
+          rejectionReason: updateData.rejectionReason,
+          dashboardPath: '/dashboard/termination',
+        });
       }
     }
 

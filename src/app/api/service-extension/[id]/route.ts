@@ -7,6 +7,7 @@ import {
   logRequestRejection,
   getClientIp,
 } from '@/lib/audit-logger';
+import { sendRequestStatusUpdateEmail } from '@/lib/email';
 
 const updateSchema = z.object({
   status: z.string().optional(),
@@ -28,10 +29,10 @@ async function handleUpdate(
     const body = await req.json();
     const validatedData = updateSchema.parse(body);
 
-    // Get IP and user agent for audit logging
+    // Get IP and device info for audit logging
     const headers = new Headers(req.headers);
     const ipAddress = getClientIp(headers);
-    const userAgent = headers.get('user-agent');
+    const deviceInfo = JSON.parse(headers.get('x-device-info') || 'null');
 
     const updatedRequest = await db.serviceExtensionRequest.update({
       where: { id },
@@ -110,7 +111,7 @@ async function handleUpdate(
               approvedByRole: reviewer.role || 'Unknown',
               reviewStage: validatedData.reviewStage,
               ipAddress,
-              userAgent,
+              deviceInfo,
               additionalData: {
                 extensionPeriod: updatedRequest.requestedExtensionPeriod,
               },
@@ -128,13 +129,29 @@ async function handleUpdate(
               rejectionReason: validatedData.rejectionReason ?? undefined,
               reviewStage: validatedData.reviewStage,
               ipAddress,
-              userAgent,
+              deviceInfo,
               additionalData: {
                 extensionPeriod: updatedRequest.requestedExtensionPeriod,
               },
             });
           }
         }
+      }
+
+      // Send email notification to the HRO submitter on approval/rejection
+      const seStatusLower = validatedData.status.toLowerCase();
+      const seIsApproval = seStatusLower.includes('approved') && !seStatusLower.includes('rejected');
+      const seIsRejection = seStatusLower.includes('rejected');
+      if (seIsApproval || seIsRejection) {
+        await sendRequestStatusUpdateEmail({
+          requestType: 'Service Extension',
+          employeeName: updatedRequest.Employee?.name || 'Unknown',
+          requestId: id,
+          submittedById: updatedRequest.submittedById,
+          status: validatedData.status,
+          rejectionReason: validatedData.rejectionReason ?? undefined,
+          dashboardPath: '/dashboard/service-extension',
+        });
       }
     }
 

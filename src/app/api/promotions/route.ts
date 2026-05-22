@@ -9,10 +9,12 @@ import {
 import { ROLES } from '@/lib/constants';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  logRequestSubmission,
   logRequestApproval,
   logRequestRejection,
   getClientIp,
 } from '@/lib/audit-logger';
+import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
 
 // Cache configuration for promotion requests
 const CACHE_TTL = 30; // 30 seconds cache (request status changes frequently)
@@ -265,10 +267,42 @@ export async function POST(req: Request) {
       notification.link
     );
     await createNotificationForRole(
+      ROLES.HRMO || 'HRMO',
+      notification.message,
+      notification.link
+    );
+    await createNotificationForRole(
       ROLES.DO || 'DO',
       notification.message,
       notification.link
     );
+
+    // Send email notifications to CSC reviewers
+    await sendRequestSubmissionEmails({
+      requestType: 'Promotion',
+      employeeName: promotionRequest.Employee.name,
+      requestId: promotionRequest.id,
+      submittedByName: promotionRequest.User_PromotionRequest_submittedByIdToUser?.name || 'Unknown',
+      dashboardPath: '/dashboard/promotion',
+    });
+
+    // Log request submission for audit
+    const submittedByUser = await db.user.findUnique({
+      where: { id: body.submittedById },
+      select: { id: true, username: true, role: true },
+    });
+    await logRequestSubmission({
+      requestType: 'Promotion',
+      requestId: promotionRequest.id,
+      employeeId: promotionRequest.employeeId,
+      employeeName: promotionRequest.Employee?.name,
+      employeeZanId: promotionRequest.Employee?.zanId,
+      submittedById: body.submittedById,
+      submittedByUsername: submittedByUser?.username || 'Unknown',
+      submittedByRole: submittedByUser?.role || 'Unknown',
+      ipAddress: getClientIp(req.headers),
+      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+    }).catch(() => {});
 
     // Transform the data to match frontend expectations
     const transformedRequest = {
@@ -312,10 +346,10 @@ export async function PATCH(req: Request) {
       );
     }
 
-    // Get IP and user agent for audit logging
+    // Get IP and device info for audit logging
     const headers = new Headers(req.headers);
     const ipAddress = getClientIp(headers);
-    const userAgent = headers.get('user-agent');
+    const deviceInfo = JSON.parse(headers.get('x-device-info') || 'null');
 
     const updatedRequest = await db.promotionRequest.update({
       where: { id },
@@ -407,7 +441,7 @@ export async function PATCH(req: Request) {
             approvedByRole: reviewer.role || 'Unknown',
             reviewStage: updateData.reviewStage,
             ipAddress,
-            userAgent,
+            deviceInfo,
             additionalData: {
               proposedCadre: updatedRequest.proposedCadre,
               finalCadre: updatedRequest.finalCadre,
@@ -429,7 +463,7 @@ export async function PATCH(req: Request) {
               updateData.rejectionReason || updateData.commissionDecisionReason,
             reviewStage: updateData.reviewStage,
             ipAddress,
-            userAgent,
+            deviceInfo,
             additionalData: {
               proposedCadre: updatedRequest.proposedCadre,
               finalCadre: updatedRequest.finalCadre,
@@ -438,6 +472,24 @@ export async function PATCH(req: Request) {
             },
           });
         }
+      }
+    }
+
+    // Send email notification to the HRO submitter on approval/rejection
+    if (updateData.status) {
+      const patchStatusLower = updateData.status.toLowerCase();
+      const patchIsApproval = patchStatusLower.includes('approved') && !patchStatusLower.includes('rejected');
+      const patchIsRejection = patchStatusLower.includes('rejected');
+      if (patchIsApproval || patchIsRejection) {
+        await sendRequestStatusUpdateEmail({
+          requestType: 'Promotion',
+          employeeName: updatedRequest.Employee?.name || 'Unknown',
+          requestId: id,
+          submittedById: updatedRequest.submittedById,
+          status: updateData.status,
+          rejectionReason: updateData.rejectionReason || updateData.commissionDecisionReason,
+          dashboardPath: '/dashboard/promotion',
+        });
       }
     }
 

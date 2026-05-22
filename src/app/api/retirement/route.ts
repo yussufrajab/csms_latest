@@ -3,10 +3,14 @@ import { db } from '@/lib/db';
 import { shouldApplyInstitutionFilter } from '@/lib/role-utils';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  logRequestSubmission,
   logRequestApproval,
   logRequestRejection,
   getClientIp,
 } from '@/lib/audit-logger';
+import { createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
+import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
+import { ROLES } from '@/lib/constants';
 
 // Cache configuration for retirement requests
 const CACHE_TTL = 30; // 30 seconds cache (request status changes frequently)
@@ -191,6 +195,55 @@ export async function POST(req: Request) {
 
     console.log('Created retirement request:', retirementRequest.id);
 
+    // Create notification for CSC reviewers
+    const notification = NotificationTemplates.retirementSubmitted(
+      retirementRequest.Employee.name,
+      retirementRequest.id
+    );
+
+    await createNotificationForRole(
+      ROLES.HHRMD || 'HHRMD',
+      notification.message,
+      notification.link
+    );
+    await createNotificationForRole(
+      ROLES.HRMO || 'HRMO',
+      notification.message,
+      notification.link
+    );
+    await createNotificationForRole(
+      ROLES.DO || 'DO',
+      notification.message,
+      notification.link
+    );
+
+    // Send email notifications to CSC reviewers
+    await sendRequestSubmissionEmails({
+      requestType: 'Retirement',
+      employeeName: retirementRequest.Employee.name,
+      requestId: retirementRequest.id,
+      submittedByName: retirementRequest.User_RetirementRequest_submittedByIdToUser?.name || 'Unknown',
+      dashboardPath: '/dashboard/retirement',
+    });
+
+    // Log request submission for audit
+    const submittedByUser = await db.user.findUnique({
+      where: { id: body.submittedById },
+      select: { id: true, username: true, role: true },
+    });
+    await logRequestSubmission({
+      requestType: 'Retirement',
+      requestId: retirementRequest.id,
+      employeeId: retirementRequest.employeeId,
+      employeeName: retirementRequest.Employee?.name,
+      employeeZanId: retirementRequest.Employee?.zanId,
+      submittedById: body.submittedById,
+      submittedByUsername: submittedByUser?.username || 'Unknown',
+      submittedByRole: submittedByUser?.role || 'Unknown',
+      ipAddress: getClientIp(req.headers),
+      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+    }).catch(() => {});
+
     // Transform the data to match frontend expectations
     const transformedRequest = {
       ...retirementRequest,
@@ -231,10 +284,10 @@ export async function PATCH(req: Request) {
       );
     }
 
-    // Get IP and user agent for audit logging
+    // Get IP and device info for audit logging
     const headers = new Headers(req.headers);
     const ipAddress = getClientIp(headers);
-    const userAgent = headers.get('user-agent');
+    const deviceInfo = JSON.parse(headers.get('x-device-info') || 'null');
 
     // Convert date string to Date object if present
     if (updateData.proposedDate) {
@@ -315,7 +368,7 @@ export async function PATCH(req: Request) {
             approvedByRole: reviewer.role || 'Unknown',
             reviewStage: updateData.reviewStage,
             ipAddress,
-            userAgent,
+            deviceInfo,
             additionalData: {
               retirementType: updatedRequest.retirementType,
               proposedDate: updatedRequest.proposedDate,
@@ -334,13 +387,31 @@ export async function PATCH(req: Request) {
             rejectionReason: updateData.rejectionReason,
             reviewStage: updateData.reviewStage,
             ipAddress,
-            userAgent,
+            deviceInfo,
             additionalData: {
               retirementType: updatedRequest.retirementType,
               proposedDate: updatedRequest.proposedDate,
             },
           });
         }
+      }
+    }
+
+    // Send email notification to the HRO submitter on approval/rejection
+    if (updateData.status) {
+      const retPatchStatusLower = updateData.status.toLowerCase();
+      const retPatchIsApproval = retPatchStatusLower.includes('approved') && !retPatchStatusLower.includes('rejected');
+      const retPatchIsRejection = retPatchStatusLower.includes('rejected');
+      if (retPatchIsApproval || retPatchIsRejection) {
+        await sendRequestStatusUpdateEmail({
+          requestType: 'Retirement',
+          employeeName: updatedRequest.Employee?.name || 'Unknown',
+          requestId: id,
+          submittedById: updatedRequest.submittedById,
+          status: updateData.status,
+          rejectionReason: updateData.rejectionReason,
+          dashboardPath: '/dashboard/retirement',
+        });
       }
     }
 

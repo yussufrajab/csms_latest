@@ -8,6 +8,7 @@ import {
   logRequestRejection,
   getClientIp,
 } from '@/lib/audit-logger';
+import { sendRequestStatusUpdateEmail } from '@/lib/email';
 
 const updateSchema = z.object({
   status: z.string().optional(),
@@ -30,10 +31,10 @@ async function handleUpdate(
     const body = await req.json();
     const validatedData = updateSchema.parse(body);
 
-    // Get IP and user agent for audit logging
+    // Get IP and device info for audit logging
     const headers = new Headers(req.headers);
     const ipAddress = getClientIp(headers);
-    const userAgent = headers.get('user-agent');
+    const deviceInfo = JSON.parse(headers.get('x-device-info') || 'null');
 
     // Check if promotion exists
     const existingRequest = await db.promotionRequest.findUnique({
@@ -123,7 +124,7 @@ async function handleUpdate(
             approvedByRole: reviewer.role || 'Unknown',
             reviewStage: 'Commission Approval',
             ipAddress,
-            userAgent,
+            deviceInfo,
             additionalData: {
               proposedCadre: existingRequest.proposedCadre,
               currentCadre: result.Employee?.cadre,
@@ -131,6 +132,16 @@ async function handleUpdate(
           });
         }
       }
+
+      // Send email notification to the HRO submitter
+      await sendRequestStatusUpdateEmail({
+        requestType: 'Promotion',
+        employeeName: result.Employee?.name || 'Unknown',
+        requestId: id,
+        submittedById: existingRequest.submittedById,
+        status: 'Approved by Commission',
+        dashboardPath: '/dashboard/promotion',
+      });
 
       return NextResponse.json(result);
     } else {
@@ -232,7 +243,7 @@ async function handleUpdate(
                 approvedByRole: reviewer.role || 'Unknown',
                 reviewStage: validatedData.reviewStage,
                 ipAddress,
-                userAgent,
+                deviceInfo,
                 additionalData: {
                   proposedCadre: updatedRequest.proposedCadre,
                   currentCadre: updatedRequest.Employee?.cadre,
@@ -253,7 +264,7 @@ async function handleUpdate(
                   validatedData.commissionDecisionReason,
                 reviewStage: validatedData.reviewStage,
                 ipAddress,
-                userAgent,
+                deviceInfo,
                 additionalData: {
                   proposedCadre: updatedRequest.proposedCadre,
                   currentCadre: updatedRequest.Employee?.cadre,
@@ -261,6 +272,22 @@ async function handleUpdate(
               });
             }
           }
+        }
+
+        // Send email notification to the HRO submitter on approval/rejection
+        const statusLower = validatedData.status.toLowerCase();
+        const isApproval = statusLower.includes('approved') && !statusLower.includes('rejected');
+        const isRejection = statusLower.includes('rejected');
+        if (isApproval || isRejection) {
+          await sendRequestStatusUpdateEmail({
+            requestType: 'Promotion',
+            employeeName: updatedRequest.Employee?.name || 'Unknown',
+            requestId: id,
+            submittedById: updatedRequest.submittedById,
+            status: validatedData.status,
+            rejectionReason: validatedData.rejectionReason || validatedData.commissionDecisionReason,
+            dashboardPath: '/dashboard/promotion',
+          });
         }
       }
 

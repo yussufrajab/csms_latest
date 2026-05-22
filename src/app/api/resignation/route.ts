@@ -4,10 +4,14 @@ import { shouldApplyInstitutionFilter } from '@/lib/role-utils';
 import { validateEmployeeStatusForRequest } from '@/lib/employee-status-validation';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  logRequestSubmission,
   logRequestApproval,
   logRequestRejection,
   getClientIp,
 } from '@/lib/audit-logger';
+import { createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
+import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
+import { ROLES } from '@/lib/constants';
 
 // Cache configuration for resignation requests
 const CACHE_TTL = 30; // 30 seconds cache (request status changes frequently)
@@ -212,6 +216,43 @@ export async function POST(req: Request) {
 
     console.log('Created resignation request:', resignationRequest.id);
 
+    // Create notification for CSC reviewers
+    const notification = NotificationTemplates.resignationSubmitted(
+      resignationRequest.Employee.name,
+      resignationRequest.id
+    );
+
+    await createNotificationForRole(ROLES.HHRMD || 'HHRMD', notification.message, notification.link);
+    await createNotificationForRole(ROLES.HRMO || 'HRMO', notification.message, notification.link);
+    await createNotificationForRole(ROLES.DO || 'DO', notification.message, notification.link);
+
+    // Send email notifications to CSC reviewers
+    await sendRequestSubmissionEmails({
+      requestType: 'Resignation',
+      employeeName: resignationRequest.Employee.name,
+      requestId: resignationRequest.id,
+      submittedByName: resignationRequest.User_ResignationRequest_submittedByIdToUser?.name || 'Unknown',
+      dashboardPath: '/dashboard/resignation',
+    });
+
+    // Log request submission for audit
+    const submittedByUser = await db.user.findUnique({
+      where: { id: body.submittedById },
+      select: { id: true, username: true, role: true },
+    });
+    await logRequestSubmission({
+      requestType: 'Resignation',
+      requestId: resignationRequest.id,
+      employeeId: resignationRequest.employeeId,
+      employeeName: resignationRequest.Employee?.name,
+      employeeZanId: resignationRequest.Employee?.zanId,
+      submittedById: body.submittedById,
+      submittedByUsername: submittedByUser?.username || 'Unknown',
+      submittedByRole: submittedByUser?.role || 'Unknown',
+      ipAddress: getClientIp(req.headers),
+      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+    }).catch(() => {});
+
     // Transform the data to match frontend expectations
     const transformedRequest = {
       ...resignationRequest,
@@ -252,10 +293,10 @@ export async function PATCH(req: Request) {
       );
     }
 
-    // Get IP and user agent for audit logging
+    // Get IP and device info for audit logging
     const headers = new Headers(req.headers);
     const ipAddress = getClientIp(headers);
-    const userAgent = headers.get('user-agent');
+    const deviceInfo = JSON.parse(headers.get('x-device-info') || 'null');
 
     // Convert date string to Date object if present
     if (updateData.effectiveDate) {
@@ -336,7 +377,7 @@ export async function PATCH(req: Request) {
             approvedByRole: reviewer.role || 'Unknown',
             reviewStage: updateData.reviewStage,
             ipAddress,
-            userAgent,
+            deviceInfo,
             additionalData: {
               effectiveDate: updatedRequest.effectiveDate,
               reason: updatedRequest.reason,
@@ -355,13 +396,31 @@ export async function PATCH(req: Request) {
             rejectionReason: updateData.rejectionReason,
             reviewStage: updateData.reviewStage,
             ipAddress,
-            userAgent,
+            deviceInfo,
             additionalData: {
               effectiveDate: updatedRequest.effectiveDate,
               reason: updatedRequest.reason,
             },
           });
         }
+      }
+    }
+
+    // Send email notification to the HRO submitter on approval/rejection
+    if (updateData.status) {
+      const resPatchStatusLower = updateData.status.toLowerCase();
+      const resPatchIsApproval = resPatchStatusLower.includes('approved') && !resPatchStatusLower.includes('rejected');
+      const resPatchIsRejection = resPatchStatusLower.includes('rejected');
+      if (resPatchIsApproval || resPatchIsRejection) {
+        await sendRequestStatusUpdateEmail({
+          requestType: 'Resignation',
+          employeeName: updatedRequest.Employee?.name || 'Unknown',
+          requestId: id,
+          submittedById: updatedRequest.submittedById,
+          status: updateData.status,
+          rejectionReason: updateData.rejectionReason,
+          dashboardPath: '/dashboard/resignation',
+        });
       }
     }
 

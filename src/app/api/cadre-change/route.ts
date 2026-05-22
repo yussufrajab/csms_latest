@@ -4,10 +4,14 @@ import { shouldApplyInstitutionFilter } from '@/lib/role-utils';
 import { validateEmployeeStatusForRequest } from '@/lib/employee-status-validation';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  logRequestSubmission,
   logRequestApproval,
   logRequestRejection,
   getClientIp,
 } from '@/lib/audit-logger';
+import { createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
+import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
+import { ROLES } from '@/lib/constants';
 
 // Cache configuration for cadre change requests
 const CACHE_TTL = 30; // 30 seconds cache (request status changes frequently)
@@ -211,6 +215,55 @@ export async function POST(req: Request) {
 
     console.log('Created cadre change request:', cadreChangeRequest.id);
 
+    // Create notification for CSC reviewers
+    const notification = NotificationTemplates.cadreChangeSubmitted(
+      cadreChangeRequest.Employee.name,
+      cadreChangeRequest.id
+    );
+
+    await createNotificationForRole(
+      ROLES.HHRMD || 'HHRMD',
+      notification.message,
+      notification.link
+    );
+    await createNotificationForRole(
+      ROLES.HRMO || 'HRMO',
+      notification.message,
+      notification.link
+    );
+    await createNotificationForRole(
+      ROLES.DO || 'DO',
+      notification.message,
+      notification.link
+    );
+
+    // Send email notifications to CSC reviewers
+    await sendRequestSubmissionEmails({
+      requestType: 'Cadre Change',
+      employeeName: cadreChangeRequest.Employee.name,
+      requestId: cadreChangeRequest.id,
+      submittedByName: cadreChangeRequest.User_CadreChangeRequest_submittedByIdToUser?.name || 'Unknown',
+      dashboardPath: '/dashboard/cadre-change',
+    });
+
+    // Log request submission for audit
+    const submittedByUser = await db.user.findUnique({
+      where: { id: body.submittedById },
+      select: { id: true, username: true, role: true },
+    });
+    await logRequestSubmission({
+      requestType: 'CadreChange',
+      requestId: cadreChangeRequest.id,
+      employeeId: cadreChangeRequest.employeeId,
+      employeeName: cadreChangeRequest.Employee?.name,
+      employeeZanId: cadreChangeRequest.Employee?.zanId,
+      submittedById: body.submittedById,
+      submittedByUsername: submittedByUser?.username || 'Unknown',
+      submittedByRole: submittedByUser?.role || 'Unknown',
+      ipAddress: getClientIp(req.headers),
+      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+    }).catch(() => {});
+
     return NextResponse.json({
       success: true,
       data: cadreChangeRequest,
@@ -243,10 +296,10 @@ export async function PATCH(req: Request) {
       );
     }
 
-    // Get IP and user agent for audit logging
+    // Get IP and device info for audit logging
     const headers = new Headers(req.headers);
     const ipAddress = getClientIp(headers);
-    const userAgent = headers.get('user-agent');
+    const deviceInfo = JSON.parse(headers.get('x-device-info') || 'null');
 
     const updatedRequest = await db.cadreChangeRequest.update({
       where: { id },
@@ -322,7 +375,7 @@ export async function PATCH(req: Request) {
             approvedByRole: reviewer.role || 'Unknown',
             reviewStage: updateData.reviewStage,
             ipAddress,
-            userAgent,
+            deviceInfo,
             additionalData: {
               newCadre: updatedRequest.newCadre,
               currentCadre: updatedRequest.Employee?.cadre,
@@ -342,7 +395,7 @@ export async function PATCH(req: Request) {
             rejectionReason: updateData.rejectionReason,
             reviewStage: updateData.reviewStage,
             ipAddress,
-            userAgent,
+            deviceInfo,
             additionalData: {
               newCadre: updatedRequest.newCadre,
               currentCadre: updatedRequest.Employee?.cadre,
@@ -350,6 +403,24 @@ export async function PATCH(req: Request) {
             },
           });
         }
+      }
+    }
+
+    // Send email notification to the HRO submitter on approval/rejection
+    if (updateData.status) {
+      const ccPatchStatusLower = updateData.status.toLowerCase();
+      const ccPatchIsApproval = ccPatchStatusLower.includes('approved') && !ccPatchStatusLower.includes('rejected');
+      const ccPatchIsRejection = ccPatchStatusLower.includes('rejected');
+      if (ccPatchIsApproval || ccPatchIsRejection) {
+        await sendRequestStatusUpdateEmail({
+          requestType: 'Cadre Change',
+          employeeName: updatedRequest.Employee?.name || 'Unknown',
+          requestId: id,
+          submittedById: updatedRequest.submittedById,
+          status: updateData.status,
+          rejectionReason: updateData.rejectionReason,
+          dashboardPath: '/dashboard/cadre-change',
+        });
       }
     }
 

@@ -4,10 +4,14 @@ import { shouldApplyInstitutionFilter } from '@/lib/role-utils';
 import { validateEmployeeStatusForRequest } from '@/lib/employee-status-validation';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  logRequestSubmission,
   logRequestApproval,
   logRequestRejection,
   getClientIp,
 } from '@/lib/audit-logger';
+import { createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
+import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
+import { ROLES } from '@/lib/constants';
 
 export async function GET(req: Request) {
   try {
@@ -214,6 +218,43 @@ export async function POST(req: Request) {
       serviceExtensionRequest.id
     );
 
+    // Create notification for CSC reviewers
+    const notification = NotificationTemplates.serviceExtensionSubmitted(
+      serviceExtensionRequest.Employee.name,
+      serviceExtensionRequest.id
+    );
+
+    await createNotificationForRole(ROLES.HHRMD || 'HHRMD', notification.message, notification.link);
+    await createNotificationForRole(ROLES.HRMO || 'HRMO', notification.message, notification.link);
+    await createNotificationForRole(ROLES.DO || 'DO', notification.message, notification.link);
+
+    // Send email notifications to CSC reviewers
+    await sendRequestSubmissionEmails({
+      requestType: 'Service Extension',
+      employeeName: serviceExtensionRequest.Employee.name,
+      requestId: serviceExtensionRequest.id,
+      submittedByName: serviceExtensionRequest.User_ServiceExtensionRequest_submittedByIdToUser?.name || 'Unknown',
+      dashboardPath: '/dashboard/service-extension',
+    });
+
+    // Log request submission for audit
+    const submittedByUser = await db.user.findUnique({
+      where: { id: body.submittedById },
+      select: { id: true, username: true, role: true },
+    });
+    await logRequestSubmission({
+      requestType: 'ServiceExtension',
+      requestId: serviceExtensionRequest.id,
+      employeeId: serviceExtensionRequest.employeeId,
+      employeeName: serviceExtensionRequest.Employee?.name,
+      employeeZanId: serviceExtensionRequest.Employee?.zanId,
+      submittedById: body.submittedById,
+      submittedByUsername: submittedByUser?.username || 'Unknown',
+      submittedByRole: submittedByUser?.role || 'Unknown',
+      ipAddress: getClientIp(req.headers),
+      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+    }).catch(() => {});
+
     return NextResponse.json({
       success: true,
       data: serviceExtensionRequest,
@@ -246,10 +287,10 @@ export async function PATCH(req: Request) {
       );
     }
 
-    // Get IP and user agent for audit logging
+    // Get IP and device info for audit logging
     const headers = new Headers(req.headers);
     const ipAddress = getClientIp(headers);
-    const userAgent = headers.get('user-agent');
+    const deviceInfo = JSON.parse(headers.get('x-device-info') || 'null');
 
     // Convert date string to Date object if present
     if (updateData.currentRetirementDate) {
@@ -363,7 +404,7 @@ export async function PATCH(req: Request) {
             approvedByRole: reviewer.role || 'Unknown',
             reviewStage: updateData.reviewStage,
             ipAddress,
-            userAgent,
+            deviceInfo,
             additionalData: {
               requestedExtensionPeriod: updatedRequest.requestedExtensionPeriod,
               currentRetirementDate: updatedRequest.currentRetirementDate,
@@ -383,7 +424,7 @@ export async function PATCH(req: Request) {
             rejectionReason: updateData.rejectionReason,
             reviewStage: updateData.reviewStage,
             ipAddress,
-            userAgent,
+            deviceInfo,
             additionalData: {
               requestedExtensionPeriod: updatedRequest.requestedExtensionPeriod,
               currentRetirementDate: updatedRequest.currentRetirementDate,
@@ -391,6 +432,24 @@ export async function PATCH(req: Request) {
             },
           });
         }
+      }
+    }
+
+    // Send email notification to the HRO submitter on approval/rejection
+    if (updateData.status) {
+      const sePatchStatusLower = updateData.status.toLowerCase();
+      const sePatchIsApproval = sePatchStatusLower.includes('approved') && !sePatchStatusLower.includes('rejected');
+      const sePatchIsRejection = sePatchStatusLower.includes('rejected');
+      if (sePatchIsApproval || sePatchIsRejection) {
+        await sendRequestStatusUpdateEmail({
+          requestType: 'Service Extension',
+          employeeName: updatedRequest.Employee?.name || 'Unknown',
+          requestId: id,
+          submittedById: updatedRequest.submittedById,
+          status: updateData.status,
+          rejectionReason: updateData.rejectionReason,
+          dashboardPath: '/dashboard/service-extension',
+        });
       }
     }
 
