@@ -73,13 +73,28 @@ export function EmployeeLoginForm() {
       const result = await response.json();
 
       if (response.ok && result.success) {
+        // Check if MFA is required
+        if (result.code === 'MFA_REQUIRED') {
+          const params = new URLSearchParams({
+            userId: result.data?.userId || '',
+            email: result.data?.email || '',
+          });
+          router.push(`/mfa-verify?${params.toString()}`);
+          setIsLoading(false);
+          return;
+        }
         // Use the auth store to set user data with session and CSRF tokens
+        // Handle both response formats: direct (result.user) and completeLogin (result.data.user)
+        const userData = result.user || result.data?.user;
+        const sessionToken = result.sessionToken || result.data?.sessionToken || null;
+        const csrfToken = result.csrfToken || result.data?.csrfToken || null;
+
         useAuthStore.setState({
-          user: result.user,
-          role: result.user.role,
+          user: userData,
+          role: userData?.role,
           isAuthenticated: true,
-          sessionToken: result.sessionToken || null,
-          csrfToken: result.csrfToken || null,
+          sessionToken: sessionToken,
+          csrfToken: csrfToken,
           accessToken: null,
           refreshToken: null,
         });
@@ -88,11 +103,11 @@ export function EmployeeLoginForm() {
         const cookieValue = JSON.stringify({
           state: {
             user: {
-              id: result.user.id,
-              role: result.user.role,
-              username: result.user.username,
+              id: userData?.id,
+              role: userData?.role,
+              username: userData?.username,
             },
-            role: result.user.role,
+            role: userData?.role,
             isAuthenticated: true,
           },
         });
@@ -102,7 +117,7 @@ export function EmployeeLoginForm() {
 
         toast({
           title: 'Login Successful',
-          description: `Welcome, ${result.user.name}!`,
+          description: `Welcome, ${userData?.name || ''}!`,
         });
 
         // Redirect to employee dashboard/profile

@@ -163,7 +163,8 @@
       "Bash(PGPASSWORD='Mamlaka2020' psql -h localhost -U postgres -d nody -t -c \"SELECT name FROM \\\\\"Institution\\\\\" ORDER BY name;\")",
       "Bash(PGPASSWORD='Mamlaka2020' psql *)",
       "Bash(npx tsc *)",
-      "Bash(pm2 describe *)"
+      "Bash(pm2 describe *)",
+      "Bash(git check-ignore *)"
     ],
     "deny": []
   }

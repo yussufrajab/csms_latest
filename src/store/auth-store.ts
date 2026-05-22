@@ -81,18 +81,20 @@ export const useAuthStore = create<AuthState>()(
           const response = await apiClient.login(username, password);
           console.log('API login response received:', response);
 
-          // Check if it's a session limit error (can be in response.code or response.data.code)
-          const errorCode = (response as any).code || response.data?.code;
-          if (errorCode === 'SESSION_LIMIT_REACHED') {
+          // Check if it's a session limit error
+          if (response.code === 'SESSION_LIMIT_REACHED') {
             const error: any = new Error('SESSION_LIMIT_REACHED');
-            error.activeSessions =
-              (response as any).data?.activeSessions ||
-              response.data?.data?.activeSessions ||
-              [];
-            error.userId =
-              (response as any).data?.userId ||
-              response.data?.data?.userId;
+            error.activeSessions = response.data?.activeSessions || [];
+            error.userId = response.data?.userId;
             throw error;
+          }
+
+          // Check if MFA is required
+          if (response.code === 'MFA_REQUIRED') {
+            const mfaError: any = new Error('MFA_REQUIRED');
+            mfaError.userId = response.data?.userId;
+            mfaError.email = response.data?.email;
+            throw mfaError;
           }
 
           if (!response.success || !response.data) {
