@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { unlockAccount } from '@/lib/account-lockout-utils';
 import { createNotification } from '@/lib/notifications';
+import { logAccountAction, getClientIp } from '@/lib/audit-logger';
 
 const unlockAccountSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
     // Verify admin user exists and has admin role
     const admin = await db.user.findUnique({
       where: { id: adminId },
-      select: { id: true, username: true, role: true },
+      select: { id: true, username: true, name: true, role: true },
     });
 
     if (!admin || admin.role !== 'Admin') {
@@ -55,6 +56,19 @@ export async function POST(req: Request) {
 
     // Unlock the account
     await unlockAccount(userId, adminId, verificationNotes);
+
+    // Log the account unlock action
+    await logAccountAction({
+      action: 'UNLOCKED',
+      targetUserId: userId,
+      targetUsername: user.username,
+      performedById: admin.id,
+      performedByUsername: admin.name || admin.username,
+      performedByRole: admin.role,
+      ipAddress: getClientIp(req.headers),
+      deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
+      additionalData: { verificationNotes },
+    }).catch(() => {});
 
     // Send notification to user
     await createNotification({

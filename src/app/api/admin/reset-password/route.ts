@@ -118,7 +118,7 @@ export async function POST(req: Request) {
     const { logAuditEvent, AuditEventCategory, AuditSeverity, getClientIp } =
       await import('@/lib/audit-logger');
     const ipAddress = getClientIp(req.headers);
-    const userAgent = req.headers.get('user-agent');
+    const deviceInfo = JSON.parse(req.headers.get('x-device-info') || 'null');
 
     await logAuditEvent({
       eventType: 'ADMIN_PASSWORD_RESET',
@@ -128,7 +128,7 @@ export async function POST(req: Request) {
       username: admin?.username || 'unknown',
       userRole: admin?.role || null,
       ipAddress,
-      userAgent,
+      deviceInfo,
       attemptedRoute: '/api/admin/reset-password',
       requestMethod: 'POST',
       isAuthenticated: true,
