@@ -443,7 +443,7 @@ describe('csrf-utils', () => {
         'user-123',
         'testuser',
         '203.0.113.1',
-        'Mozilla/5.0',
+        { userAgent: 'Mozilla/5.0' },
         '/api/protected',
         'token mismatch'
       );
@@ -456,7 +456,7 @@ describe('csrf-utils', () => {
         username: 'testuser',
         userRole: null,
         ipAddress: '203.0.113.1',
-        userAgent: 'Mozilla/5.0',
+        deviceInfo: { userAgent: 'Mozilla/5.0' },
         attemptedRoute: '/api/protected',
         requestMethod: 'POST',
         isAuthenticated: true,
@@ -475,7 +475,7 @@ describe('csrf-utils', () => {
         null,
         null,
         '203.0.113.1',
-        'Mozilla/5.0',
+        { userAgent: 'Mozilla/5.0' },
         '/api/public',
         'missing token'
       );
@@ -496,7 +496,7 @@ describe('csrf-utils', () => {
         'user-123',
         'testuser',
         '203.0.113.1',
-        'Mozilla/5.0',
+        { userAgent: 'Mozilla/5.0' },
         '/api/protected',
         'invalid signature'
       );
@@ -523,7 +523,7 @@ describe('csrf-utils', () => {
           'user-123',
           'testuser',
           '203.0.113.1',
-          'Mozilla/5.0',
+          { userAgent: 'Mozilla/5.0' },
           '/api/protected',
           'test'
         )
@@ -545,7 +545,7 @@ describe('csrf-utils', () => {
       expect(logAuditEvent).toHaveBeenCalledWith(
         expect.objectContaining({
           ipAddress: null,
-          userAgent: null,
+          deviceInfo: null,
         })
       );
     });

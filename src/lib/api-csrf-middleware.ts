@@ -44,7 +44,7 @@ export async function validateCSRF(request: NextRequest | Request): Promise<{
     // Extract user info for logging (if available from auth cookie)
     const { userId, username } = extractUserInfo(request);
     const ipAddress = getClientIp(request.headers);
-    const userAgent = request.headers.get('user-agent');
+    const deviceInfo = JSON.parse(request.headers.get('x-device-info') || 'null');
     const url =
       request instanceof NextRequest
         ? request.nextUrl.pathname
@@ -71,7 +71,7 @@ export async function validateCSRF(request: NextRequest | Request): Promise<{
     });
 
     // Log CSRF violation to audit trail
-    await logCSRFViolation(userId, username, ipAddress, userAgent, url, reason);
+    await logCSRFViolation(userId, username, ipAddress, deviceInfo, url, reason);
 
     // Return error response
     return {

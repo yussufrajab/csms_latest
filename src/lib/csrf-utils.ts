@@ -179,7 +179,7 @@ export async function logCSRFViolation(
   userId: string | null,
   username: string | null,
   ipAddress: string | null,
-  userAgent: string | null,
+  deviceInfo: Record<string, any> | null,
   attemptedRoute: string,
   reason: string
 ): Promise<void> {
@@ -196,7 +196,7 @@ export async function logCSRFViolation(
       username,
       userRole: null,
       ipAddress,
-      userAgent,
+      deviceInfo,
       attemptedRoute,
       requestMethod: 'POST', // Assume POST for CSRF violations
       isAuthenticated: !!userId,
