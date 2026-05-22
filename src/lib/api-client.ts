@@ -3,11 +3,14 @@
  * Handles all communication with the Spring Boot backend APIs
  */
 
+import { getDeviceInfoHeader } from './device-info';
+
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   message?: string;
   errors?: string[];
+  code?: string;
 }
 
 export interface LoginResponse {
@@ -199,6 +202,11 @@ class ApiClient {
       }
     }
 
+    // Add device info for audit logging on state-changing requests
+    if (requiresCSRF && typeof window !== 'undefined') {
+      headers['x-device-info'] = getDeviceInfoHeader();
+    }
+
     try {
       const response = await fetch(url, {
         ...options,
@@ -283,6 +291,7 @@ class ApiClient {
           message:
             data.message || `HTTP ${response.status}: ${response.statusText}`,
           errors: data.errors || [],
+          code: data.code,
         };
       }
 
@@ -297,12 +306,14 @@ class ApiClient {
           success: data.success,
           data: data.data,
           message: data.message,
+          code: data.code,
         };
       }
 
       return {
         success: true,
         data,
+        code: data.code,
       };
     } catch (error) {
       console.error('API Request failed:', error);
