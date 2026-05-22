@@ -5,9 +5,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuditLogs, getAuditStatistics } from '@/lib/audit-logger';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
 
 /**
  * Get user from session/cookie
