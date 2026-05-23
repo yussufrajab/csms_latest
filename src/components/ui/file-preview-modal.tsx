@@ -10,6 +10,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Loader2, Download, X, FileText, AlertCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'file-preview' });
 
 interface FilePreviewModalProps {
   open: boolean;
@@ -47,14 +50,12 @@ export function FilePreviewModal({
     setError(null);
 
     try {
-      console.log('Loading preview for objectKey:', objectKey);
-      console.log('ObjectKey type:', typeof objectKey);
-      console.log('ObjectKey length:', objectKey.length);
+      log.info({ objectKey, type: typeof objectKey, length: objectKey.length }, 'Loading preview');
 
       // The preview API streams the file directly, so we just need to construct the URL
       // Use session-based authentication (cookies will be sent automatically)
       const previewApiUrl = `/api/files/preview/${encodeURIComponent(objectKey)}`;
-      console.log('Preview API URL:', previewApiUrl);
+      log.info({ url: previewApiUrl }, 'Preview API URL');
 
       // Test if the file exists by making a HEAD request first
       const testResponse = await fetch(previewApiUrl, {
@@ -71,15 +72,15 @@ export function FilePreviewModal({
       // Get content type from headers
       const responseContentType =
         testResponse.headers.get('content-type') || 'application/pdf';
-      console.log('Content type from headers:', responseContentType);
+      log.info({ contentType: responseContentType }, 'Content type from headers');
 
       // Set the preview URL directly to the API endpoint
       setPreviewUrl(previewApiUrl);
       setContentType(responseContentType);
 
-      console.log('Preview URL set to:', previewApiUrl);
+      log.info({ url: previewApiUrl }, 'Preview URL set');
     } catch (error: any) {
-      console.error('Preview error:', error);
+      log.error({ err: error }, 'Preview error');
       setError(error.message || 'Failed to load file preview');
       toast({
         title: 'Preview Error',
@@ -93,10 +94,9 @@ export function FilePreviewModal({
 
   const handleDownload = () => {
     if (objectKey) {
-      console.log('Download - Object key:', objectKey);
+      log.info({ objectKey }, 'Download - Object key');
 
       const downloadUrl = `/api/files/download/${encodeURIComponent(objectKey)}`;
-      console.log('Download URL:', downloadUrl);
 
       // Use session-based authentication (cookies will be sent automatically)
       fetch(downloadUrl, {
@@ -126,7 +126,7 @@ export function FilePreviewModal({
           });
         })
         .catch((error) => {
-          console.error('Download error:', error);
+          log.error({ err: error }, 'Download error');
           toast({
             title: 'Download Error',
             description: `Failed to download file: ${error.message}`,

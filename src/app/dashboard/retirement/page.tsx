@@ -61,6 +61,8 @@ import { FileUpload } from '@/components/ui/file-upload';
 import { FilePreviewModal } from '@/components/ui/file-preview-modal';
 import { useAuthStore } from '@/store/auth-store';
 import { EmployeeSearch } from '@/components/shared/employee-search';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'retirement' });
 
 interface RetirementRequest {
   id: string;
@@ -639,8 +641,8 @@ export default function RetirementPage() {
       documents: documentObjectKeys,
     };
 
-    console.log('[RETIREMENT] Submission payload:', payload);
-    console.log('[RETIREMENT] Document keys:', documentObjectKeys);
+    log.info({ payload }, 'Submission payload:');
+    log.info({ documentObjectKeys }, 'Document keys:');
 
     try {
       const response = await fetch('/api/retirement', {
@@ -674,7 +676,7 @@ export default function RetirementPage() {
         description: errorMessage,
         variant: 'destructive',
       });
-      console.error('Retirement submission error:', error);
+      log.error({ err: error }, 'Retirement submission error:');
     } finally {
       setIsSubmitting(false);
     }
@@ -914,7 +916,7 @@ export default function RetirementPage() {
         setRequestToCorrect(null);
       }
     } catch (error) {
-      console.error('[RESUBMIT_RETIREMENT]', error);
+      log.error({ err: error }, '');
       toast({
         title: 'Error',
         description: 'Failed to resubmit retirement request.',
@@ -2091,7 +2093,7 @@ export default function RetirementPage() {
                                     });
                                   }
                                 } catch (error) {
-                                  console.error('Download failed:', error);
+                                  log.error({ err: error }, 'Download failed:');
                                   toast({
                                     title: 'Download Failed',
                                     description:

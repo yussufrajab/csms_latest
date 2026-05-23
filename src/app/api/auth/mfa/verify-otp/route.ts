@@ -6,6 +6,7 @@ import { completeLogin } from '@/lib/auth-helpers';
 import { incrementOtpVerifyAttempts, verifyMfaToken } from '@/lib/mfa-utils';
 import { logAuditEvent, AuditEventType, AuditEventCategory, AuditSeverity, getClientIp } from '@/lib/audit-logger';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { authLogger } from '@/lib/logger';
 
 const verifyOtpSchema = z.object({
   userId: z.string().min(1),
@@ -142,7 +143,7 @@ export const POST = withRateLimit(async (request) => {
         { status: 400 }
       );
     }
-    console.error('[MFA_VERIFY_OTP]', error);
+    authLogger.error({ err: error }, 'MFA verify OTP error');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }

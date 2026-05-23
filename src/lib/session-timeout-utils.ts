@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { sessionLogger } from '@/lib/logger';
 
 /**
  * Session Inactivity Timeout Utility
@@ -81,7 +82,7 @@ export async function updateUserActivity(userId: string): Promise<Date | null> {
 
     return updatedUser.lastActivity;
   } catch (error) {
-    console.error('[SESSION_TIMEOUT] Failed to update user activity:', error);
+    sessionLogger.error({ err: error, userId }, 'Failed to update user activity');
     return null;
   }
 }
@@ -100,7 +101,7 @@ export async function getUserActivity(userId: string): Promise<Date | null> {
 
     return user?.lastActivity || null;
   } catch (error) {
-    console.error('[SESSION_TIMEOUT] Failed to get user activity:', error);
+    sessionLogger.error({ err: error, userId }, 'Failed to get user activity');
     return null;
   }
 }
@@ -116,7 +117,7 @@ export async function clearUserActivity(userId: string): Promise<void> {
       data: { lastActivity: null },
     });
   } catch (error) {
-    console.error('[SESSION_TIMEOUT] Failed to clear user activity:', error);
+    sessionLogger.error({ err: error, userId }, 'Failed to clear user activity');
   }
 }
 

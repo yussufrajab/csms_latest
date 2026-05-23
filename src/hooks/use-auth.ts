@@ -2,6 +2,9 @@
 import { useAuthStore } from '@/store/auth-store';
 import { useEffect, useState } from 'react';
 import type { User, Role } from '@/lib/types';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'auth' });
 
 interface AuthHookState {
   user: User | null;
@@ -21,11 +24,7 @@ export const useAuth = (): AuthHookState => {
     useAuthStore.getState().initializeAuth();
 
     const unsubscribe = useAuthStore.subscribe((state) => {
-      console.log('Auth store state changed:', {
-        user: !!state.user,
-        role: state.role,
-        isAuthenticated: state.isAuthenticated,
-      });
+      log.info({ user: !!state.user, role: state.role, isAuthenticated: state.isAuthenticated }, 'Auth store state changed');
       if (state.user !== undefined) {
         setIsLoading(false);
       }

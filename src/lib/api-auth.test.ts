@@ -293,4 +293,27 @@ describe('withAuth', () => {
     const body = await response.json();
     expect(body.ok).toBe(true);
   });
+
+  it('allows access when role casing differs from allowedRoles (case-insensitive)', async () => {
+    mockFindUnique.mockResolvedValue({ id: 'admin-1', active: true, role: 'Admin' });
+
+    const handler = vi.fn().mockResolvedValue(
+      NextResponse.json({ ok: true })
+    );
+
+    // DB stores 'Admin' but allowedRoles uses 'ADMIN' — should still match
+    const wrapped = withAuth(handler, { allowedRoles: ['ADMIN', 'HHRMD', 'HRO'] });
+    const cookie = JSON.stringify({
+      state: {
+        user: { id: 'admin-1', role: 'Admin', institutionId: 'inst-1', username: 'admin' },
+      },
+    });
+    const req = makeRequest(cookie);
+
+    const response = await wrapped(req);
+
+    expect(handler).toHaveBeenCalledOnce();
+    const body = await response.json();
+    expect(body.ok).toBe(true);
+  });
 });

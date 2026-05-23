@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { z } from 'zod';
+import { hrimsLogger } from '@/lib/logger';
 
 // Validation schema for the HRIMS certificates sync request
 const hrimsCertificatesRequestSchema = z
@@ -48,7 +49,7 @@ const hrimsCertificatesResponseSchema = z.object({
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log('HRIMS certificates sync request received:', {
+    hrimsLogger.info('HRIMS certificates sync request received:', {
       ...body,
       hrimsApiKey: '[REDACTED]',
     });
@@ -116,7 +117,7 @@ export async function POST(req: Request) {
       employee.id
     );
 
-    console.log('Certificates synced successfully for Employee:', employee.id);
+    hrimsLogger.info('Certificates synced successfully for Employee:', employee.id);
 
     return NextResponse.json(
       {
@@ -133,7 +134,7 @@ export async function POST(req: Request) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('[HRIMS_CERTIFICATES_SYNC_ERROR]', error);
+    hrimsLogger.error('[HRIMS_CERTIFICATES_SYNC_ERROR]', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -189,24 +190,24 @@ async function fetchCertificatesFromHRIMS(
     );
 
     if (!response.ok) {
-      console.error(
+      hrimsLogger.error(
         `HRIMS Certificates API error: ${response.status} ${response.statusText}`
       );
       return null;
     }
 
     const data = await response.json();
-    console.log('HRIMS Certificates API response received');
+    hrimsLogger.info('HRIMS Certificates API response received');
     return data;
   } catch (error) {
-    console.error('Error fetching certificates from HRIMS:', error);
+    hrimsLogger.error('Error fetching certificates from HRIMS:', error);
 
     // For development/demo - return mock data
     if (
       process.env.NODE_ENV === 'development' ||
       process.env.HRIMS_MOCK_MODE === 'true'
     ) {
-      console.log('Using mock HRIMS certificates data for development');
+      hrimsLogger.info('Using mock HRIMS certificates data for development');
       return getMockHRIMSCertificatesData(request);
     }
 
@@ -244,7 +245,7 @@ async function storeEmployeeCertificates(
 
       successful++;
     } catch (error) {
-      console.error(`Failed to store certificate ${cert.id}:`, error);
+      hrimsLogger.error(`Failed to store certificate ${cert.id}:`, error);
       failed++;
     }
   }

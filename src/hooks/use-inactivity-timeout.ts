@@ -4,6 +4,9 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth-store';
 import { toast } from '@/hooks/use-toast';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'inactivity-timeout' });
 
 /**
  * Session Inactivity Timeout Hook
@@ -64,11 +67,11 @@ export function useInactivityTimeout(
 
       // If session expired on server, logout immediately
       if (data.sessionExpired || response.status === 401) {
-        console.log('[INACTIVITY] Session expired on server, logging out');
+        log.info('Session expired on server, logging out');
         handleTimeout();
       }
     } catch (error) {
-      console.error('[INACTIVITY] Failed to update server activity:', error);
+      log.error({ err: error }, 'Failed to update server activity');
     }
   }, [user?.id]);
 
@@ -86,7 +89,7 @@ export function useInactivityTimeout(
    * Handle session timeout - logout user
    */
   const handleTimeout = useCallback(async () => {
-    console.log('[INACTIVITY] Session timed out, logging out user');
+    log.info('Session timed out, logging out user');
 
     // Clear intervals
     if (timeoutCheckIntervalRef.current) {
@@ -158,7 +161,7 @@ export function useInactivityTimeout(
       return;
     }
 
-    console.log('[INACTIVITY] Inactivity timeout enabled');
+    log.info('Inactivity timeout enabled');
 
     // Activity event types to track
     const activityEvents = [

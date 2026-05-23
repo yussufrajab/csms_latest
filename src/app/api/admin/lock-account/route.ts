@@ -6,6 +6,7 @@ import { createNotification } from '@/lib/notifications';
 import { logAccountAction, getClientIp } from '@/lib/audit-logger';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { logger } from '@/lib/logger';
 
 const lockAccountSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
@@ -81,7 +82,7 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
       link: undefined,
     });
 
-    console.log(
+    logger.info(
       `Account locked for user ${user.username} by admin ${auth.username}`
     );
 
@@ -102,7 +103,7 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
         { status: 400 }
       );
     }
-    console.error('[LOCK_ACCOUNT_POST]', error);
+    logger.error({ err: error }, 'LOCK ACCOUNT POST');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }

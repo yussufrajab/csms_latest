@@ -1,4 +1,5 @@
 import { randomBytes, createHmac } from 'crypto';
+import { csrfLogger } from '@/lib/logger';
 
 /**
  * CSRF (Cross-Site Request Forgery) Protection Utilities
@@ -67,7 +68,7 @@ export function verifyCSRFToken(signedToken: string): boolean {
       Buffer.from(expectedSignature, 'base64')
     );
   } catch (error) {
-    console.error('[CSRF] Token verification error:', error);
+    csrfLogger.error({ err: error }, 'Token verification error');
     return false;
   }
 }
@@ -102,22 +103,19 @@ export function validateCSRFTokens(
 ): boolean {
   // Both must be present
   if (!cookieToken || !headerToken) {
-    console.warn('[CSRF] Missing CSRF token:', {
-      hasCookie: !!cookieToken,
-      hasHeader: !!headerToken,
-    });
+    csrfLogger.warn({ hasCookie: !!cookieToken, hasHeader: !!headerToken }, 'Missing CSRF token');
     return false;
   }
 
   // Verify signature of cookie token
   if (!verifyCSRFToken(cookieToken)) {
-    console.warn('[CSRF] Invalid cookie token signature');
+    csrfLogger.warn('Invalid cookie token signature');
     return false;
   }
 
   // Cookie and header must match exactly
   if (cookieToken !== headerToken) {
-    console.warn('[CSRF] Cookie and header tokens do not match');
+    csrfLogger.warn('Cookie and header tokens do not match');
     return false;
   }
 
@@ -207,6 +205,6 @@ export async function logCSRFViolation(
       },
     });
   } catch (error) {
-    console.error('[CSRF] Failed to log CSRF violation:', error);
+    csrfLogger.error({ err: error }, 'Failed to log CSRF violation');
   }
 }

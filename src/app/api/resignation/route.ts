@@ -12,6 +12,7 @@ import {
 import { createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
 import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
 import { ROLES } from '@/lib/constants';
+import { logger } from '@/lib/logger';
 
 // Cache configuration for resignation requests
 const CACHE_TTL = 30; // 30 seconds cache (request status changes frequently)
@@ -26,28 +27,28 @@ export async function GET(req: Request) {
     const size = parseInt(searchParams.get('size') || '50', 10);
     const status = searchParams.get('status') || 'all';
 
-    console.log('Resignation API called with:', {
+    logger.info({ 
       userId,
       userRole,
       userInstitutionId,
       page,
       size,
       status,
-    });
+     }, 'Resignation API called with');
 
     // Build where clause based on user role and institution
     const whereClause: any = {};
 
     // Apply institution filtering based on role
     if (shouldApplyInstitutionFilter(userRole, userInstitutionId)) {
-      console.log(
+      logger.info(
         `Applying institution filter for role ${userRole} with institutionId ${userInstitutionId}`
       );
       whereClause.Employee = {
         institutionId: userInstitutionId,
       };
     } else {
-      console.log(
+      logger.info(
         `Role ${userRole} is a CSC role - showing all resignation data across institutions`
       );
     }
@@ -119,7 +120,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    console.error('[RESIGNATION_GET]', error);
+    logger.error({ err: error }, 'RESIGNATION GET');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }
@@ -130,7 +131,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log('Creating resignation request:', body);
+    logger.info({ value: body }, 'Creating resignation request');
 
     // Basic validation
     if (
@@ -214,7 +215,7 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log('Created resignation request:', resignationRequest.id);
+    logger.info({ value: resignationRequest.id }, 'Created resignation request');
 
     // Create notification for CSC reviewers
     const notification = NotificationTemplates.resignationSubmitted(
@@ -266,7 +267,7 @@ export async function POST(req: Request) {
       data: transformedRequest,
     });
   } catch (error) {
-    console.error('[RESIGNATION_POST]', error);
+    logger.error({ err: error }, 'RESIGNATION POST');
     return NextResponse.json(
       {
         success: false,
@@ -339,7 +340,7 @@ export async function PATCH(req: Request) {
         where: { id: updatedRequest.Employee.id },
         data: { status: 'Resigned' },
       });
-      console.log(
+      logger.info(
         `Employee ${updatedRequest.Employee.name} status updated to "Resigned" after resignation approval`
       );
     }
@@ -357,13 +358,13 @@ export async function PATCH(req: Request) {
           statusLower.includes('approved') && !statusLower.includes('rejected');
         const isRejection = statusLower.includes('rejected');
 
-        console.log('[AUDIT] Resignation status update:', {
+        logger.info({ 
           status: updateData.status,
           isApproval,
           isRejection,
           reviewedById: updateData.reviewedById,
           reviewer: reviewer.username,
-        });
+         }, 'Resignation status update:');
 
         if (isApproval) {
           await logRequestApproval({
@@ -440,7 +441,7 @@ export async function PATCH(req: Request) {
       data: transformedRequest,
     });
   } catch (error) {
-    console.error('[RESIGNATION_PATCH]', error);
+    logger.error({ err: error }, 'RESIGNATION PATCH');
     return NextResponse.json(
       {
         success: false,

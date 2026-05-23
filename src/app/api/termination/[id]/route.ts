@@ -8,6 +8,7 @@ import {
   getClientIp,
 } from '@/lib/audit-logger';
 import { sendRequestStatusUpdateEmail } from '@/lib/email';
+import { logger } from '@/lib/logger';
 
 const updateSchema = z.object({
   status: z.string().optional(),
@@ -94,12 +95,12 @@ async function handleUpdate(
           const requestType =
             updatedRequest.type === 'TERMINATION' ? 'Termination' : 'Dismissal';
 
-          console.log('[AUDIT] Termination/Dismissal status update:', {
+          logger.info({ 
             status: validatedData.status,
             isApproval,
             isRejection,
             reviewedById: validatedData.reviewedById,
-          });
+           }, 'Termination/Dismissal status update:');
 
           if (isApproval) {
             await logRequestApproval({
@@ -160,7 +161,7 @@ async function handleUpdate(
 
     return NextResponse.json(updatedRequest);
   } catch (error) {
-    console.error('[SEPARATION_PUT]', error);
+    logger.error({ err: error }, 'SEPARATION PUT');
     if (error instanceof z.ZodError) {
       return new NextResponse(JSON.stringify(error.errors), { status: 400 });
     }

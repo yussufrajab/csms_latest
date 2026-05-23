@@ -4,13 +4,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { logInstitutionAction, getClientIp } from '@/lib/audit-logger';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { logger } from '@/lib/logger';
 
 // Cache configuration for institution data
 const CACHE_TTL = 300; // 5 minutes cache (institutions rarely change)
 
 export const GET = withRateLimit(withAuth(async (request) => {
   try {
-    console.log('Institutions API called');
+    logger.info('Institutions API called');
 
     const institutions = await db.institution.findMany({
       select: {
@@ -27,7 +28,7 @@ export const GET = withRateLimit(withAuth(async (request) => {
       orderBy: { name: 'asc' },
     });
 
-    console.log(`Found ${institutions.length} institutions`);
+    logger.info(`Found ${institutions.length} institutions`);
 
     // Set cache headers for institutions (changes infrequently)
     const headers = new Headers();
@@ -44,7 +45,7 @@ export const GET = withRateLimit(withAuth(async (request) => {
       { headers }
     );
   } catch (error) {
-    console.error('[INSTITUTIONS_GET]', error);
+    logger.error({ err: error }, 'INSTITUTIONS GET');
     return NextResponse.json(
       {
         success: false,
@@ -179,7 +180,7 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
       },
     });
 
-    console.log('Created new Institution:', newInstitution);
+    logger.info({ value: newInstitution }, 'Created new Institution');
 
     // Audit log: institution created using verified auth context
     await logInstitutionAction({
@@ -202,7 +203,7 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
       { status: 201 }
     );
   } catch (error) {
-    console.error('[INSTITUTIONS_POST]', error);
+    logger.error({ err: error }, 'INSTITUTIONS POST');
 
     // Handle unique constraint violations from Prisma
     if ((error as any).code === 'P2002') {

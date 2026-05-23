@@ -4,6 +4,8 @@
  * Wrapper for AI functionality that handles errors gracefully
  */
 
+import { logger } from '@/lib/logger';
+
 export interface StandardizeComplaintFormattingInput {
   complaintText: string;
 }
@@ -21,10 +23,7 @@ export async function standardizeComplaintFormatting(
       await import('@/ai/flows/complaint-rewriter');
     return await originalFunction(input);
   } catch (error) {
-    console.warn(
-      'AI functionality unavailable, returning original text:',
-      error
-    );
+    logger.warn({ err: error }, 'AI functionality unavailable, returning original text');
     // Fallback: return the original text
     return {
       rewrittenComplaint: input.complaintText,

@@ -8,6 +8,7 @@
 import { Worker, Job } from 'bullmq';
 import { getHrimsApiConfig } from '@/lib/hrims-config';
 import { createRedisConnection } from '../redis';
+import { workerLogger } from '@/lib/logger';
 import {
   HRIMS_SYNC_QUEUE_NAME,
   HRIMSSyncJobData,
@@ -216,7 +217,7 @@ async function saveEmployeeFromDetailedData(
       status: dbEmployeeData.status,
     };
   } catch (error) {
-    console.error('Error saving employee:', error);
+    workerLogger.error({ err: error }, 'Error saving employee');
     throw error;
   }
 }
@@ -236,12 +237,10 @@ async function processHRIMSSyncJob(job: Job<HRIMSSyncJobData>): Promise<any> {
   } = job.data;
 
   const startTime = Date.now();
-  console.log(`\n${'='.repeat(80)}`);
-  console.log(`🚀 Processing HRIMS Sync Job: ${job.id}`);
-  console.log(`   Institution: ${institutionName}`);
-  console.log(`   Identifier: ${identifierLabel} = ${identifier}`);
-  console.log(`   Page size: ${pageSize}`);
-  console.log(`${'='.repeat(80)}\n`);
+  workerLogger.info(
+    { jobId: job.id, institutionName, identifierLabel, identifier, pageSize },
+    'Processing HRIMS sync job'
+  );
 
   // Update progress
   await job.updateProgress({
@@ -261,7 +260,7 @@ async function processHRIMSSyncJob(job: Job<HRIMSSyncJobData>): Promise<any> {
 
   while (hasMoreData && currentPage < MAX_PAGES) {
     const pageStartTime = Date.now();
-    console.log(`\n📄 [Page ${currentPage}] Fetching from HRIMS...`);
+    workerLogger.info({ page: currentPage }, 'Fetching page from HRIMS');
 
     await job.updateProgress({
       type: 'progress',
@@ -284,12 +283,13 @@ async function processHRIMSSyncJob(job: Job<HRIMSSyncJobData>): Promise<any> {
       );
 
       const pageFetchTime = Date.now() - pageStartTime;
-      console.log(`   Response received in ${pageFetchTime}ms`);
+      workerLogger.info({ page: currentPage, fetchTimeMs: pageFetchTime }, 'HRIMS page response received');
 
       if (employeeListResponse.code !== 200) {
         failedPages++;
-        console.log(
-          `   ❌ Page ${currentPage} failed with code ${employeeListResponse.code}`
+        workerLogger.warn(
+          { page: currentPage, code: employeeListResponse.code },
+          'HRIMS page fetch failed with non-200 code'
         );
 
         if (currentPage === 0) {
@@ -300,7 +300,7 @@ async function processHRIMSSyncJob(job: Job<HRIMSSyncJobData>): Promise<any> {
         }
 
         if (failedPages >= 3) {
-          console.log(`   ⚠️ 3 consecutive page failures, stopping pagination`);
+          workerLogger.warn({ failedPages }, '3 consecutive page failures, stopping pagination');
           break;
         }
 
@@ -312,7 +312,7 @@ async function processHRIMSSyncJob(job: Job<HRIMSSyncJobData>): Promise<any> {
 
       if (currentPage === 0) {
         overallDataSize = employeeListResponse.overallDataSize || 0;
-        console.log(`\n📊 Total employees reported: ${overallDataSize}`);
+        workerLogger.info({ overallDataSize }, 'Total employees reported by HRIMS');
 
         await job.updateProgress({
           type: 'progress',
@@ -332,9 +332,9 @@ async function processHRIMSSyncJob(job: Job<HRIMSSyncJobData>): Promise<any> {
           overallDataSize > 0
             ? (allEmployees.length / overallDataSize) * 100
             : 0;
-        console.log(`   ✓ Added ${employeeListResponse.data.length} employees`);
-        console.log(
-          `   📈 Progress: ${allEmployees.length}/${overallDataSize} (${progress.toFixed(1)}%)`
+        workerLogger.info(
+          { added: employeeListResponse.data.length, totalFetched: allEmployees.length, overallDataSize, progressPercent: progress.toFixed(1) },
+          'Employees fetched from HRIMS page'
         );
 
         await job.updateProgress({
@@ -359,15 +359,13 @@ async function processHRIMSSyncJob(job: Job<HRIMSSyncJobData>): Promise<any> {
         (overallDataSize > 0 && allEmployees.length >= overallDataSize)
       ) {
         hasMoreData = false;
-        console.log(
-          `\n✅ Pagination complete. Fetched ${allEmployees.length} total employees`
-        );
+        workerLogger.info({ totalFetched: allEmployees.length }, 'Pagination complete');
       } else {
         currentPage++;
       }
     } catch (error) {
       failedPages++;
-      console.error(`   ❌ Error fetching page ${currentPage}:`, error);
+      workerLogger.error({ err: error, page: currentPage }, 'Error fetching HRIMS page');
 
       if (currentPage === 0 || failedPages >= 3) {
         throw error;
@@ -384,7 +382,7 @@ async function processHRIMSSyncJob(job: Job<HRIMSSyncJobData>): Promise<any> {
   }
 
   // Save employees
-  console.log(`\n💾 Saving ${allEmployees.length} employees to database...`);
+  workerLogger.info({ totalEmployees: allEmployees.length }, 'Saving employees to database');
 
   await job.updateProgress({
     type: 'progress',
@@ -428,7 +426,7 @@ async function processHRIMSSyncJob(job: Job<HRIMSSyncJobData>): Promise<any> {
 
       await new Promise((resolve) => setTimeout(resolve, 10));
     } catch (error) {
-      console.error(`   ❌ Error processing employee:`, error);
+      workerLogger.error({ err: error }, 'Error processing employee');
       skippedCount++;
     }
   }
@@ -439,9 +437,10 @@ async function processHRIMSSyncJob(job: Job<HRIMSSyncJobData>): Promise<any> {
   ).toFixed(1);
   const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
 
-  console.log(`\n✅ Processing complete!`);
-  console.log(`   Saved: ${savedEmployees.length}, Skipped: ${skippedCount}`);
-  console.log(`   Total time: ${totalTime}s`);
+  workerLogger.info(
+    { saved: savedEmployees.length, skipped: skippedCount, totalTimeSec: totalTime },
+    'HRIMS sync processing complete'
+  );
 
   return {
     success: true,
@@ -475,18 +474,18 @@ export function createHRIMSSyncWorker(): Worker {
   );
 
   worker.on('completed', (job) => {
-    console.log(`✅ Job ${job.id} completed successfully`);
+    workerLogger.info({ jobId: job.id }, 'Job completed successfully');
   });
 
   worker.on('failed', (job, error) => {
-    console.error(`❌ Job ${job?.id} failed:`, error.message);
+    workerLogger.error({ jobId: job?.id, err: error }, 'Job failed');
   });
 
   worker.on('error', (error) => {
-    console.error('❌ Worker error:', error);
+    workerLogger.error({ err: error }, 'Worker error');
   });
 
-  console.log('✅ HRIMS Sync Worker started');
+  workerLogger.info('HRIMS Sync Worker started');
 
   return worker;
 }

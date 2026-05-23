@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getHrimsApiConfig } from '@/lib/hrims-config';
+import { logger } from '@/lib/logger';
 
 function getCorsOrigin(request: NextRequest | Request): string {
   const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').filter(Boolean);
@@ -16,11 +17,11 @@ export async function POST(req: NextRequest) {
 
     const externalUrl = `${hrimsConfig.BASE_URL}/Employees`;
 
-    console.log('Proxying request to HRIMS:', {
+    logger.info({ 
       url: externalUrl,
       requestId: body.RequestId,
       requestPayloadData: body.RequestPayloadData,
-    });
+     }, 'Proxying request to HRIMS');
 
     // Forward the request to the external API
     const response = await fetch(externalUrl, {
@@ -34,12 +35,12 @@ export async function POST(req: NextRequest) {
     });
 
     if (!response.ok) {
-      console.error(`HRIMS API responded with status: ${response.status}`);
+      logger.error(`HRIMS API responded with status: ${response.status}`);
       throw new Error(`External API responded with status: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('HRIMS API response received successfully');
+    logger.info('HRIMS API response received successfully');
 
     const corsOrigin = getCorsOrigin(req);
     return NextResponse.json(data, {
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error proxying to external API:', error);
+    logger.error({ value: error }, 'Error proxying to external API');
 
     const corsOrigin = getCorsOrigin(req);
     return NextResponse.json(

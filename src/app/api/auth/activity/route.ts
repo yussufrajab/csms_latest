@@ -5,6 +5,7 @@ import {
   getUserActivity,
   isSessionTimedOut,
 } from '@/lib/session-timeout-utils';
+import { authLogger } from '@/lib/logger';
 
 const activitySchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    console.error('[ACTIVITY_POST]', error);
+    authLogger.error({ err: error }, 'Activity POST error');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }
@@ -89,7 +90,7 @@ export async function GET(req: Request) {
       sessionExpired,
     });
   } catch (error) {
-    console.error('[ACTIVITY_GET]', error);
+    authLogger.error({ err: error }, 'Activity GET error');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }

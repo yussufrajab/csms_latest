@@ -5,6 +5,7 @@ import { verifyMfaToken } from '@/lib/mfa-utils';
 import { completeLogin } from '@/lib/auth-helpers';
 import { logAuditEvent, AuditEventType, AuditEventCategory, AuditSeverity, getClientIp } from '@/lib/audit-logger';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { authLogger } from '@/lib/logger';
 
 const magicLinkSchema = z.object({
   token: z.string().min(1),
@@ -97,7 +98,7 @@ export const POST = withRateLimit(async (request) => {
         { status: 400 }
       );
     }
-    console.error('[MFA_MAGIC_LINK_VERIFY]', error);
+    authLogger.error({ err: error }, 'MFA magic link verify error');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }

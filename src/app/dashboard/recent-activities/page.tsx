@@ -42,6 +42,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ROLES } from '@/lib/constants';
 import { toast } from '@/hooks/use-toast';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'recent-activities' });
 
 interface RecentActivity {
   id: string;
@@ -175,18 +177,18 @@ export default function RecentActivitiesPage() {
         );
 
         const result = await response.json();
-        console.log('Recent activities API response:', result);
+        log.info({ result }, 'Recent activities API response:');
 
         if (result.success && result.data?.recentActivities) {
           setRecentActivities(result.data.recentActivities);
           setPagination(result.data.pagination);
         } else {
-          console.error('Failed to fetch recent activities:', result.message);
+          log.error({ message: result.message }, 'Failed to fetch recent activities');
           setRecentActivities([]);
           setPagination(null);
         }
       } catch (error) {
-        console.error('Recent activities fetch error:', error);
+        log.error({ err: error }, 'Recent activities fetch error:');
         toast({
           title: 'Error',
           description: 'Could not load recent activities.',

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cleanupExpiredSessions } from '@/lib/session-manager';
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 
 /**
  * GET handler — returns session statistics for the admin dashboard
@@ -47,7 +48,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error('[ADMIN_CLEANUP_SESSIONS_GET]', error);
+    logger.error({ err: error }, 'ADMIN CLEANUP SESSIONS GET');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }
@@ -148,7 +149,7 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   } catch (error) {
-    console.error('[ADMIN_CLEANUP_SESSIONS]', error);
+    logger.error({ err: error }, 'ADMIN CLEANUP SESSIONS');
     return NextResponse.json(
       {
         success: false,

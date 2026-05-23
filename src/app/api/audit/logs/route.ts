@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuditLogs, getAuditStatistics } from '@/lib/audit-logger';
+import { logger } from '@/lib/logger';
 
 /**
  * Get user from session/cookie
@@ -27,7 +28,7 @@ async function getUserFromRequest(
       role: state.role || state.user.role,
     };
   } catch (error) {
-    console.error('[API] Error parsing auth cookie:', error);
+    logger.error({ value: error }, '[API] Error parsing auth cookie');
     return null;
   }
 }
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
       data: result,
     });
   } catch (error) {
-    console.error('[API] Error fetching audit logs:', error);
+    logger.error({ value: error }, '[API] Error fetching audit logs');
     return NextResponse.json(
       {
         success: false,

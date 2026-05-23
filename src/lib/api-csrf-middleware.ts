@@ -8,6 +8,7 @@ import {
   CSRF_HEADER_NAME,
   getClientIp,
 } from '@/lib/csrf-utils';
+import { csrfLogger } from '@/lib/logger';
 
 /**
  * CSRF Protection Middleware for API Routes
@@ -62,13 +63,13 @@ export async function validateCSRF(request: NextRequest | Request): Promise<{
       reason = 'CSRF tokens do not match';
     }
 
-    console.warn('[CSRF] Validation failed:', {
+    csrfLogger.warn({
       url,
       method,
       reason,
       userId,
       username,
-    });
+    }, 'CSRF validation failed');
 
     // Log CSRF violation to audit trail
     await logCSRFViolation(userId, username, ipAddress, deviceInfo, url, reason);

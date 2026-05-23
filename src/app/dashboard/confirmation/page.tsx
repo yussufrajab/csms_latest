@@ -41,6 +41,9 @@ import { Pagination } from '@/components/shared/pagination';
 import { FileUpload } from '@/components/ui/file-upload';
 import { FilePreviewModal } from '@/components/ui/file-preview-modal';
 import { EmployeeSearch } from '@/components/shared/employee-search';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'confirmation' });
 
 interface ConfirmationRequest {
   id: string;
@@ -146,7 +149,7 @@ export default function ConfirmationPage() {
         setIsLoading(true);
       }
       try {
-        console.log('Fetching confirmation requests...');
+        log.info('Fetching confirmation requests');
         // The backend consistently requires userId and userRole. Send both always.
         // Client-side filtering will then handle role-specific display logic.
         // Add cache-busting parameter and headers for refresh
@@ -173,15 +176,13 @@ export default function ConfirmationPage() {
             Expires: isRefresh ? '0' : 'default',
           },
         });
-        console.log('Response received:', response);
+        log.info({ status: response.status }, 'Response received');
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(
-            'Failed to fetch confirmation requests. Status:',
-            response.status,
-            'Error Text:',
-            errorText
+          log.error(
+            { status: response.status, errorText },
+            'Failed to fetch confirmation requests'
           );
           throw new Error(
             `Failed to fetch confirmation requests: ${response.status} - ${errorText}`
@@ -189,18 +190,18 @@ export default function ConfirmationPage() {
         }
 
         const result = await response.json();
-        console.log('Fetched data (before client-side filter):', result);
+        log.info({ dataCount: allRequests.length }, 'Fetched data (before client-side filter)');
 
         // Log the user and role to confirm they are correctly identified
-        console.log('Current user:', user);
-        console.log('Current role:', role);
+        log.info({ userId: user?.id, role }, 'Current user and role');
 
         // Handle both paginated and non-paginated responses
         const allRequests = Array.isArray(result) ? result : result.data || [];
 
         allRequests.forEach((req: ConfirmationRequest) => {
-          console.log(
-            `Request ID: ${req.id}, Status: ${req.status}, Review Stage: ${req.reviewStage}`
+          log.info(
+            { requestId: req.id, status: req.status, reviewStage: req.reviewStage },
+            'Request details'
           );
         });
 
@@ -220,15 +221,14 @@ export default function ConfirmationPage() {
           return true;
         });
 
-        console.log('Filtered data:', filteredData);
+        log.info({ count: filteredData.length }, 'Filtered data');
         // Additional debug for HHRMD
         if (role === ROLES.HHRMD) {
-          console.log(
-            'HHRMD Debug - Showing requests with following reviewStages:'
-          );
+          log.info('HHRMD Debug - Showing requests with following reviewStages');
           filteredData.forEach((req: ConfirmationRequest) => {
-            console.log(
-              `- ID: ${req.id}, Status: "${req.status}", ReviewStage: "${req.reviewStage}"`
+            log.info(
+              { id: req.id, status: req.status, reviewStage: req.reviewStage },
+              'Request review stage'
             );
           });
         }
@@ -256,7 +256,7 @@ export default function ConfirmationPage() {
           });
         }
       } catch (error: any) {
-        console.error('Error in fetchRequests:', error);
+        log.error({ err: error }, 'Error in fetchRequests');
         toast({
           title: 'Error',
           description: `Could not load confirmation requests: ${error.message || error}`,
@@ -288,11 +288,11 @@ export default function ConfirmationPage() {
 
   // Check for pending confirmation whenever employee or requests change
   useEffect(() => {
-    console.log('[CONFIRMATION] useEffect triggered:', {
+    log.info({
       hasEmployee: !!employeeToConfirm,
       employeeId: employeeToConfirm?.id,
       requestsCount: pendingRequests.length,
-    });
+    }, 'useEffect triggered');
 
     if (employeeToConfirm && pendingRequests.length > 0) {
       const pendingStatuses = [
@@ -303,14 +303,14 @@ export default function ConfirmationPage() {
 
       // Log all employee IDs from pending requests to debug
       // Note: API returns 'Employee' (capital E) not 'employee'
-      console.log(
-        '[CONFIRMATION] All employee IDs in pending requests:',
-        pendingRequests.map((req) => ({
+      log.info(
+        { requests: pendingRequests.map((req) => ({
           requestId: req.id,
           employeeId: (req as any).Employee?.id || req.employee?.id,
           employeeName: (req as any).Employee?.name || req.employee?.name,
           status: req.status,
-        }))
+        })) },
+        'All employee IDs in pending requests'
       );
 
       // Find matching requests for this employee
@@ -320,7 +320,7 @@ export default function ConfirmationPage() {
         return employeeId === employeeToConfirm.id;
       });
 
-      console.log('[CONFIRMATION] Matching requests for employee:', {
+      log.info({
         employeeId: employeeToConfirm.id,
         matchingCount: matchingRequests.length,
         matchingRequests: matchingRequests.map((r) => ({
@@ -330,25 +330,23 @@ export default function ConfirmationPage() {
           status: r.status,
           reviewStage: r.reviewStage,
         })),
-      });
+      }, 'Matching requests for employee');
 
       const hasPending = matchingRequests.some((req) =>
         pendingStatuses.includes(req.status)
       );
 
-      console.log('[CONFIRMATION] Has pending result:', {
+      log.info({
         hasPending,
         pendingStatuses,
-      });
+      }, 'Has pending result');
 
       setHasPendingConfirmation(hasPending);
     } else if (!employeeToConfirm) {
-      console.log(
-        '[CONFIRMATION] No employee selected, clearing pending state'
-      );
+      log.info('No employee selected, clearing pending state');
       setHasPendingConfirmation(false);
     } else if (pendingRequests.length === 0) {
-      console.log('[CONFIRMATION] No requests loaded yet, waiting...');
+      log.info('No requests loaded yet, waiting');
     }
   }, [employeeToConfirm, pendingRequests]);
 
@@ -364,7 +362,7 @@ export default function ConfirmationPage() {
   };
 
   const handleEmployeeFound = (employee: Employee) => {
-    console.log(`[CONFIRMATION] Found employee: ${employee.name}`);
+    log.info({ employeeId: employee.id, employeeName: employee.name }, 'Found employee');
 
     // Reset form fields when new employee is selected
     resetEmployeeAndForm();
@@ -674,7 +672,7 @@ export default function ConfirmationPage() {
     } catch (error) {
       // Revert optimistic update on error and show error feedback
       await fetchRequests();
-      console.error('[RESUBMIT_CONFIRMATION]', error);
+      log.error({ err: error }, 'Resubmit confirmation error');
       toast({
         title: 'Error',
         description: 'Failed to resubmit confirmation request.',
@@ -693,16 +691,16 @@ export default function ConfirmationPage() {
     hasPendingConfirmation;
 
   // Debug logging for button state
-  console.log('Submit button state:', {
+  log.info({
     hasEmployee: !!employeeToConfirm,
-    evaluationFormFile,
-    ipaCertificateFile,
-    letterOfRequestFile,
+    evaluationFormFile: !!evaluationFormFile,
+    ipaCertificateFile: !!ipaCertificateFile,
+    letterOfRequestFile: !!letterOfRequestFile,
     isIpaRequired,
     isSubmitting,
     isAlreadyConfirmed,
     isDisabled: isSubmitDisabled,
-  });
+  }, 'Submit button state');
 
   // Server-side pagination - use requests directly from API
   const paginatedRequests = pendingRequests || [];
@@ -1516,7 +1514,7 @@ export default function ConfirmationPage() {
                                         });
                                       }
                                     } catch (error) {
-                                      console.error('Download failed:', error);
+                                      log.error({ err: error }, 'Download failed');
                                       toast({
                                         title: 'Download Failed',
                                         description:

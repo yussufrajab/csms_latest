@@ -66,6 +66,8 @@ import { FileUpload } from '@/components/ui/file-upload';
 import { FilePreviewModal } from '@/components/ui/file-preview-modal';
 import { Pagination } from '@/components/shared/pagination';
 import { format, parseISO } from 'date-fns';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'complaints' });
 
 const COMPLAINT_TYPES = [
   'Unyanyasaji',
@@ -341,7 +343,7 @@ export default function ComplaintsPage() {
           'AI imeandika upya maelezo ya lalamiko lako kwa uwazi na utimilifu. Yamesasishwa kwenye fomu. Sasa unaweza kuwasilisha lalamiko.',
       });
     } catch (error) {
-      console.error('AI Rewrite Error:', error);
+      log.error({ err: error }, 'AI Rewrite Error:');
       toast({
         title: 'Kuandika Upya Kumeshindikana',
         description: 'Imeshindwa kuboresha lalamiko kwa kutumia AI.',
@@ -426,7 +428,7 @@ export default function ComplaintsPage() {
       // Note: We no longer update state here since we're using optimistic updates
       return updatedComplaint;
     } catch (error) {
-      console.error('Error updating complaint:', error);
+      log.error({ err: error }, 'Error updating complaint:');
       return null;
     }
   };
@@ -1900,10 +1902,7 @@ export default function ComplaintsPage() {
                                 );
                               }
                             } catch (error) {
-                              console.error(
-                                'Error updating complaint status:',
-                                error
-                              );
+                              log.error({ err: error }, 'Error updating complaint status:');
                               // Revert optimistic update on error
                               setComplaints((prev) =>
                                 prev.map((c) =>
@@ -2242,7 +2241,7 @@ export default function ComplaintsPage() {
                                     });
                                   }
                                 } catch (error) {
-                                  console.error('Download failed:', error);
+                                  log.error({ err: error }, 'Download failed:');
                                   toast({
                                     title: 'Download Failed',
                                     description:

@@ -6,6 +6,7 @@
  */
 
 import Redis from 'ioredis';
+import { dbLogger } from '@/lib/logger';
 
 // Redis connection configuration
 const REDIS_CONFIG = {
@@ -32,15 +33,15 @@ export function getRedisConnection(): Redis {
     redisConnection = new Redis(REDIS_CONFIG);
 
     redisConnection.on('connect', () => {
-      console.log('✅ Redis connected');
+      dbLogger.info('Redis connected');
     });
 
     redisConnection.on('error', (error) => {
-      console.error('❌ Redis connection error:', error);
+      dbLogger.error({ err: error }, 'Redis connection error');
     });
 
     redisConnection.on('close', () => {
-      console.log('⚠️  Redis connection closed');
+      dbLogger.warn('Redis connection closed');
     });
   }
 

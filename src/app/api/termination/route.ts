@@ -11,6 +11,7 @@ import {
 import { createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
 import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
 import { ROLES } from '@/lib/constants';
+import { logger } from '@/lib/logger';
 
 export async function GET(req: Request) {
   try {
@@ -22,28 +23,28 @@ export async function GET(req: Request) {
     const size = parseInt(searchParams.get('size') || '50', 10);
     const status = searchParams.get('status') || 'all';
 
-    console.log('Termination API called with:', {
+    logger.info({ 
       userId,
       userRole,
       userInstitutionId,
       page,
       size,
       status,
-    });
+     }, 'Termination API called with');
 
     // Build where clause based on user role and institution
     const whereClause: any = {};
 
     // Apply institution filtering based on role
     if (shouldApplyInstitutionFilter(userRole, userInstitutionId)) {
-      console.log(
+      logger.info(
         `Applying institution filter for role ${userRole} with institutionId ${userInstitutionId}`
       );
       whereClause.Employee = {
         institutionId: userInstitutionId,
       };
     } else {
-      console.log(
+      logger.info(
         `Role ${userRole} is a CSC role - showing all termination data across institutions`
       );
     }
@@ -115,7 +116,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    console.error('[TERMINATION_GET]', error);
+    logger.error({ err: error }, 'TERMINATION GET');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }
@@ -126,7 +127,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log('Creating termination request:', body);
+    logger.info({ value: body }, 'Creating termination request');
 
     // Basic validation
     if (!body.employeeId || !body.submittedById || !body.type || !body.reason) {
@@ -174,7 +175,7 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log('Created termination request:', separationRequest.id);
+    logger.info({ value: separationRequest.id }, 'Created termination request');
 
     // Create notification for CSC reviewers
     const notification = NotificationTemplates.terminationSubmitted(
@@ -226,7 +227,7 @@ export async function POST(req: Request) {
       data: transformedRequest,
     });
   } catch (error) {
-    console.error('[TERMINATION_POST]', error);
+    logger.error({ err: error }, 'TERMINATION POST');
     return NextResponse.json(
       {
         success: false,
@@ -308,7 +309,7 @@ export async function PATCH(req: Request) {
         data: { status: newStatus },
       });
 
-      console.log(
+      logger.info(
         `Employee ${updatedRequest.Employee.name} status updated from "${currentEmployeeStatus}" to "${newStatus}" after ${updatedRequest.type.toLowerCase()} approval`
       );
     }
@@ -328,13 +329,13 @@ export async function PATCH(req: Request) {
         const requestType =
           updatedRequest.type === 'TERMINATION' ? 'Termination' : 'Dismissal';
 
-        console.log('[AUDIT] Termination/Dismissal status update:', {
+        logger.info({ 
           status: updateData.status,
           isApproval,
           isRejection,
           reviewedById: updateData.reviewedById,
           reviewer: reviewer.username,
-        });
+         }, 'Termination/Dismissal status update:');
 
         if (isApproval) {
           await logRequestApproval({
@@ -410,7 +411,7 @@ export async function PATCH(req: Request) {
       data: transformedRequest,
     });
   } catch (error) {
-    console.error('[TERMINATION_PATCH]', error);
+    logger.error({ err: error }, 'TERMINATION PATCH');
     return NextResponse.json(
       {
         success: false,

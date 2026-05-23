@@ -11,6 +11,7 @@ import {
 import { createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
 import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
 import { ROLES } from '@/lib/constants';
+import { logger } from '@/lib/logger';
 
 // Cache configuration for retirement requests
 const CACHE_TTL = 30; // 30 seconds cache (request status changes frequently)
@@ -25,28 +26,28 @@ export async function GET(req: Request) {
     const size = parseInt(searchParams.get('size') || '50', 10);
     const status = searchParams.get('status') || 'all';
 
-    console.log('Retirement API called with:', {
+    logger.info({ 
       userId,
       userRole,
       userInstitutionId,
       page,
       size,
       status,
-    });
+     }, 'Retirement API called with');
 
     // Build where clause based on user role and institution
     const whereClause: any = {};
 
     // Apply institution filtering based on role
     if (shouldApplyInstitutionFilter(userRole, userInstitutionId)) {
-      console.log(
+      logger.info(
         `Applying institution filter for role ${userRole} with institutionId ${userInstitutionId}`
       );
       whereClause.Employee = {
         institutionId: userInstitutionId,
       };
     } else {
-      console.log(
+      logger.info(
         `Role ${userRole} is a CSC role - showing all retirement data across institutions`
       );
     }
@@ -118,7 +119,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    console.error('[RETIREMENT_GET]', error);
+    logger.error({ err: error }, 'RETIREMENT GET');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }
@@ -129,7 +130,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log('Creating retirement request:', body);
+    logger.info({ value: body }, 'Creating retirement request');
 
     // Basic validation
     if (!body.employeeId || !body.submittedById || !body.retirementType) {
@@ -193,7 +194,7 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log('Created retirement request:', retirementRequest.id);
+    logger.info({ value: retirementRequest.id }, 'Created retirement request');
 
     // Create notification for CSC reviewers
     const notification = NotificationTemplates.retirementSubmitted(
@@ -257,7 +258,7 @@ export async function POST(req: Request) {
       data: transformedRequest,
     });
   } catch (error) {
-    console.error('[RETIREMENT_POST]', error);
+    logger.error({ err: error }, 'RETIREMENT POST');
     return NextResponse.json(
       {
         success: false,
@@ -330,7 +331,7 @@ export async function PATCH(req: Request) {
         where: { id: updatedRequest.Employee.id },
         data: { status: 'Retired' },
       });
-      console.log(
+      logger.info(
         `Employee ${updatedRequest.Employee.name} status updated to "Retired" after retirement approval`
       );
     }
@@ -348,13 +349,13 @@ export async function PATCH(req: Request) {
           statusLower.includes('approved') && !statusLower.includes('rejected');
         const isRejection = statusLower.includes('rejected');
 
-        console.log('[AUDIT] Retirement status update:', {
+        logger.info({ 
           status: updateData.status,
           isApproval,
           isRejection,
           reviewedById: updateData.reviewedById,
           reviewer: reviewer.username,
-        });
+         }, 'Retirement status update:');
 
         if (isApproval) {
           await logRequestApproval({
@@ -431,7 +432,7 @@ export async function PATCH(req: Request) {
       data: transformedRequest,
     });
   } catch (error) {
-    console.error('[RETIREMENT_PATCH]', error);
+    logger.error({ err: error }, 'RETIREMENT PATCH');
     return NextResponse.json(
       {
         success: false,

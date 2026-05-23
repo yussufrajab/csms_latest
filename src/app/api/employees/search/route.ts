@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { shouldApplyInstitutionFilter } from '@/lib/role-utils';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { logger } from '@/lib/logger';
 
 export const GET = withRateLimit(withAuth(async (request, { auth }) => {
   try {
@@ -14,14 +15,14 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
     const userRole = auth.role;
     const userInstitutionId = auth.institutionId;
 
-    console.log('Employee search API called with:', {
+    logger.info({ 
       zanId,
       payrollNumber,
       identifier,
       q,
       userRole,
       userInstitutionId,
-    });
+     }, 'Employee search API called with');
 
     if (!zanId && !payrollNumber && !identifier && !q) {
       return NextResponse.json(
@@ -39,7 +40,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       userRole,
       userInstitutionId
     );
-    console.log(`Should apply institution filter: ${shouldFilter}`);
+    logger.info(`Should apply institution filter: ${shouldFilter}`);
 
     const whereClause: any = {};
 
@@ -116,7 +117,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       })
       .catch(() => []);
 
-    console.log(`Found ${employees.length} employees matching search criteria`);
+    logger.info(`Found ${employees.length} employees matching search criteria`);
 
     // Critical security validation: For HRO and institution-restricted roles,
     // ensure ALL returned employees belong to the user's institution
@@ -127,7 +128,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       );
 
       if (unauthorizedEmployees.length > 0) {
-        console.warn(
+        logger.warn(
           `Security violation detected: User ${userRole} from institution ${userInstitutionId} attempted to access employees from other institutions:`,
           unauthorizedEmployees.map((emp) => ({
             id: emp.id,
@@ -149,7 +150,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       const filteredEmployees = employees.filter(
         (emp) => emp.institutionId === userInstitutionId
       );
-      console.log(
+      logger.info(
         `After institution validation: ${filteredEmployees.length} employees from institution ${userInstitutionId}`
       );
 
@@ -183,7 +184,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       data: mappedEmployees,
     });
   } catch (error) {
-    console.error('[EMPLOYEES_SEARCH_GET]', error);
+    logger.error({ err: error }, 'EMPLOYEES SEARCH GET');
     return NextResponse.json(
       {
         success: false,

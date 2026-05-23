@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { authLogger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -30,7 +31,7 @@ function parseAuthStorage(cookieValue: string | undefined): {
       userId: state.user?.id || null,
     };
   } catch (error) {
-    console.error('Failed to parse auth-storage cookie:', error);
+    authLogger.error({ err: error }, 'Failed to parse auth-storage cookie');
     return { userId: null };
   }
 }
@@ -126,7 +127,7 @@ export async function GET(request: NextRequest) {
     response.headers.set('Expires', '0');
     return response;
   } catch (error) {
-    console.error('Error refreshing user data:', error);
+    authLogger.error({ err: error }, 'Error refreshing user data');
     const response = NextResponse.json(
       { success: false, error: 'Internal Server Error' },
       { status: 500 }

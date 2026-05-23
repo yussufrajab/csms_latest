@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { hrimsLogger } from '@/lib/logger';
 
 // Default HRIMS configuration (secrets from env vars only)
 const DEFAULT_HRIMS_CONFIG = {
@@ -34,7 +35,7 @@ async function getSetting(key: string): Promise<string | null> {
     });
     return setting?.value ?? null;
   } catch (error) {
-    console.error(`Error getting setting ${key}:`, error);
+    hrimsLogger.error({ err: error, key }, 'Error getting setting');
     return null;
   }
 }
@@ -55,7 +56,7 @@ async function setSetting(key: string, value: string): Promise<void> {
       },
     });
   } catch (error) {
-    console.error(`Error setting ${key}:`, error);
+    hrimsLogger.error({ err: error, key }, 'Error setting setting');
     throw error;
   }
 }

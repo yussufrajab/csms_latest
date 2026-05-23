@@ -5,6 +5,7 @@ import { logEmployeeAction, getClientIp } from '@/lib/audit-logger';
 import { validateFileUpload } from '@/lib/file-validation';
 import { withAuth, AuthContext } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -211,7 +212,7 @@ export const POST = withRateLimit(withAuth(async (
       h.replace('*', '').trim()
     );
 
-    console.log('CSV Headers:', headers);
+    logger.info({ value: headers }, 'CSV Headers');
 
     // Expected header mapping
     const headerMap: Record<string, string> = {
@@ -424,7 +425,7 @@ export const POST = withRateLimit(withAuth(async (
       },
     });
   } catch (error) {
-    console.error('Error processing bulk upload:', error);
+    logger.error({ value: error }, 'Error processing bulk upload');
     return NextResponse.json(
       {
         success: false,
@@ -571,7 +572,7 @@ export const PUT = withRateLimit(withAuth(async (
       },
     });
   } catch (error) {
-    console.error('Error creating bulk employees:', error);
+    logger.error({ value: error }, 'Error creating bulk employees');
     return NextResponse.json(
       {
         success: false,

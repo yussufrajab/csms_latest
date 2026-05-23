@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadFile } from '@/lib/minio';
 import { validateFileUpload } from '@/lib/file-validation';
+import { logger } from '@/lib/logger';
 
 const TEMPLATE_OBJECT_KEY = 'templates/promotion-form-template.docx';
 
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Promotion form template upload error:', error);
+    logger.error({ value: error }, 'Promotion form template upload error');
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
       { status: 500 }

@@ -49,6 +49,8 @@ import { FileUpload } from '@/components/ui/file-upload';
 import { FilePreviewModal } from '@/components/ui/file-preview-modal';
 import { apiClient } from '@/lib/api-client';
 import { EmployeeSearch } from '@/components/shared/employee-search';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'termination' });
 
 interface SeparationRequest {
   id: string;
@@ -334,10 +336,10 @@ export default function TerminationAndDismissalPage() {
       'Request Received – Awaiting Commission Decision',
     ];
 
-    console.log('[TERMINATION] Checking for pending requests:', {
+    log.info({
       employeeId: employee.id,
       totalRequests: pendingRequests.length,
-    });
+    }, 'Checking for pending termination requests');
 
     // Log all requests for this employee to debug
     const matchingRequests = pendingRequests.filter((req) => {
@@ -345,7 +347,7 @@ export default function TerminationAndDismissalPage() {
       return employeeId === employee.id;
     });
 
-    console.log('[TERMINATION] Matching requests for employee:', {
+    log.info({
       employeeId: employee.id,
       matchingCount: matchingRequests.length,
       matchingRequests: matchingRequests.map((r) => ({
@@ -354,17 +356,17 @@ export default function TerminationAndDismissalPage() {
         reviewStage: r.reviewStage,
         type: r.type,
       })),
-    });
+    }, 'Matching termination requests for employee');
 
     // API returns 'Employee' (capital E), check both for compatibility
     const hasPending = matchingRequests.some((req) =>
       pendingStatuses.includes(req.status)
     );
 
-    console.log('[TERMINATION] Has pending result:', {
+    log.info({
       hasPending,
       pendingStatuses,
-    });
+    }, 'Termination has pending result');
 
     setHasPendingTermination(hasPending);
   };
@@ -710,7 +712,7 @@ export default function TerminationAndDismissalPage() {
     } catch (error) {
       // Revert optimistic update on error and show error feedback
       await fetchRequests();
-      console.error('[RESUBMIT_TERMINATION]', error);
+      log.error({ err: error }, '');
       toast({
         title: 'Update Failed',
         description: 'Could not update the request.',
@@ -1780,7 +1782,7 @@ export default function TerminationAndDismissalPage() {
                                     });
                                   }
                                 } catch (error) {
-                                  console.error('Download failed:', error);
+                                  log.error({ err: error }, 'Download failed:');
                                   toast({
                                     title: 'Download Failed',
                                     description:

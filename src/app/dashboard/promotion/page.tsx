@@ -65,6 +65,8 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { format, parseISO, differenceInYears } from 'date-fns';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'promotion' });
 
 interface PromotionRequest {
   id: string;
@@ -175,7 +177,7 @@ export default function PromotionPage() {
         });
       }
     } catch (error) {
-      console.error('Template upload error:', error);
+      log.error({ err: error }, 'Template upload error:');
       toast({
         title: 'Error',
         description: 'An error occurred while uploading the template',
@@ -216,7 +218,7 @@ export default function PromotionPage() {
         });
       }
     } catch (error) {
-      console.error('Template download error:', error);
+      log.error({ err: error }, 'Template download error:');
       toast({
         title: 'Error',
         description: 'An error occurred while downloading the template',
@@ -382,7 +384,7 @@ export default function PromotionPage() {
   };
 
   const handleEmployeeFound = (employee: Employee) => {
-    console.log(`[PROMOTION] Found employee: ${employee.name}`);
+    log.info(`Found employee: ${employee.name}`);
 
     // Reset form fields when new employee is selected
     resetFormFields();
@@ -1468,7 +1470,7 @@ export default function PromotionPage() {
             paginatedRequests.map((request) => {
               // Skip requests with missing employee data
               if (!request.Employee) {
-                console.error('Promotion request missing employee data:', request.id);
+                log.error({ requestId: request.id }, 'Promotion request missing employee data');
                 return null;
               }
 
@@ -1946,7 +1948,7 @@ export default function PromotionPage() {
                                     });
                                   }
                                 } catch (error) {
-                                  console.error('Download failed:', error);
+                                  log.error({ err: error }, 'Download failed:');
                                   toast({
                                     title: 'Download Failed',
                                     description:

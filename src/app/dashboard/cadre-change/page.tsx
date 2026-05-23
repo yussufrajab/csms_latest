@@ -47,6 +47,8 @@ import { FilePreviewModal } from '@/components/ui/file-preview-modal';
 import { useAuthStore } from '@/store/auth-store';
 import { EmployeeSearch } from '@/components/shared/employee-search';
 import { validateEmployeeStatusForRequest } from '@/lib/employee-status-validation';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'cadre-change' });
 
 interface CadreChangeRequest {
   id: string;
@@ -300,10 +302,10 @@ export default function CadreChangePage() {
       'Request Received – Awaiting Commission Decision',
     ];
 
-    console.log('[CADRE_CHANGE] Checking for pending requests:', {
+    log.info({
       employeeId: employee.id,
       totalRequests: pendingRequests.length,
-    });
+    }, 'Checking for pending cadre change requests');
 
     // API returns 'Employee' (capital E), check both for compatibility
     const hasPending = pendingRequests.some((req) => {
@@ -311,7 +313,7 @@ export default function CadreChangePage() {
       return employeeId === employee.id && pendingStatuses.includes(req.status);
     });
 
-    console.log('[CADRE_CHANGE] Has pending result:', hasPending);
+    log.info({ hasPending }, 'Has pending result');
 
     setHasPendingCadreChange(hasPending);
     setEmployeeDetails(employee);
@@ -1640,7 +1642,7 @@ export default function CadreChangePage() {
                                         });
                                       }
                                     } catch (error) {
-                                      console.error('Download failed:', error);
+                                      log.error({ err: error }, 'Download failed:');
                                       toast({
                                         title: 'Download Failed',
                                         description:
@@ -1689,10 +1691,7 @@ export default function CadreChangePage() {
                                           document.body.removeChild(a);
                                         })
                                         .catch((error) => {
-                                          console.error(
-                                            'Download error:',
-                                            error
-                                          );
+                                          log.error({ err: error }, 'Download error:');
                                           toast({
                                             title: 'Download Error',
                                             description:

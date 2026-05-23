@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -71,7 +72,7 @@ export async function GET(
     response.headers.set('Expires', '0');
     return response;
   } catch (error) {
-    console.error('Error checking manual entry permission:', error);
+    logger.error({ value: error }, 'Error checking manual entry permission');
     const response = NextResponse.json(
       { success: false, error: 'Internal Server Error' },
       { status: 500 }

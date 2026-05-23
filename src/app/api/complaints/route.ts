@@ -9,6 +9,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { sendRequestSubmissionEmails } from '@/lib/email';
 import { logComplaintAction, getClientIp } from '@/lib/audit-logger';
+import { logger } from '@/lib/logger';
 
 const complaintSchema = z.object({
   complaintType: z.string().min(1),
@@ -109,7 +110,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(newComplaint, { status: 201 });
   } catch (error) {
-    console.error('[COMPLAINTS_POST]', error);
+    logger.error({ err: error }, 'COMPLAINTS POST');
     if (error instanceof z.ZodError) {
       return new NextResponse(JSON.stringify(error.errors), { status: 400 });
     }
@@ -236,7 +237,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    console.error('[COMPLAINTS_GET]', error);
+    logger.error({ err: error }, 'COMPLAINTS GET');
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }

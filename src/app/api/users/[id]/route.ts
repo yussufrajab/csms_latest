@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { logUserAction, getClientIp } from '@/lib/audit-logger';
+import { logger } from '@/lib/logger';
 
 const userUpdateSchema = z.object({
   name: z.string().min(2).optional(),
@@ -116,7 +117,7 @@ export async function PUT(
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('[USER_PUT]', error);
+    logger.error({ err: error }, 'USER PUT');
     if (error instanceof z.ZodError) {
       return new NextResponse(JSON.stringify(error.errors), { status: 400 });
     }
@@ -138,7 +139,7 @@ export async function DELETE(
     });
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    console.error('[USER_DELETE]', error);
+    logger.error({ err: error }, 'USER DELETE');
     if ((error as any).code === 'P2025') {
       return new NextResponse('User not found', { status: 404 });
     }

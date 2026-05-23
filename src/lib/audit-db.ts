@@ -7,6 +7,7 @@
  */
 
 import { Pool, types } from 'pg';
+import { dbLogger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // INET type parser – OID 869 should return a string, not a JS object
@@ -28,7 +29,7 @@ function createAuditPool(): Pool {
   });
 
   pool.on('error', (err: Error) => {
-    console.error('[AUDIT-DB] Unexpected pool error:', err);
+    dbLogger.error({ err }, 'Audit DB unexpected pool error');
   });
 
   return pool;
@@ -166,8 +167,9 @@ export async function writeAuditLog(data: AuditLogWriteData): Promise<void> {
   } catch (err: any) {
     // If the failure is due to an invalid INET cast, retry with ip_address = NULL
     if (ipAddressRaw && isInvalidInetError(err)) {
-      console.warn(
-        `[AUDIT-DB] INET cast failed for "${ipAddressRaw}", retrying with ip_address = NULL`
+      dbLogger.warn(
+        { ipAddress: ipAddressRaw },
+        'INET cast failed, retrying with ip_address = NULL'
       );
       const retryParams = [...params];
       retryParams[8] = null; // replace ip_address with null
@@ -178,14 +180,14 @@ export async function writeAuditLog(data: AuditLogWriteData): Promise<void> {
         );
         return;
       } catch (retryErr: any) {
-        console.error('[AUDIT-DB] Failed to write audit log (retry):', retryErr);
-        console.error('[AUDIT-DB] Event data:', JSON.stringify(data));
+        dbLogger.error({ err: retryErr }, 'Failed to write audit log (retry)');
+        dbLogger.error({ eventData: data }, 'Event data for failed audit log write');
         return; // never throw
       }
     }
 
-    console.error('[AUDIT-DB] Failed to write audit log:', err);
-    console.error('[AUDIT-DB] Event data:', JSON.stringify(data));
+    dbLogger.error({ err }, 'Failed to write audit log');
+    dbLogger.error({ eventData: data }, 'Event data for failed audit log write');
     // Never throw — audit logging must not break the application
   }
 }
@@ -337,7 +339,7 @@ export async function queryAuditLogs(
 
     return { logs, total, limit, offset };
   } catch (err) {
-    console.error('[AUDIT-DB] Failed to query audit logs:', err);
+    dbLogger.error({ err }, 'Failed to query audit logs');
     throw err; // callers expect to handle query errors
   }
 }
@@ -397,7 +399,7 @@ export async function queryAuditStats(
       })),
     };
   } catch (err) {
-    console.error('[AUDIT-DB] Failed to query audit stats:', err);
+    dbLogger.error({ err }, 'Failed to query audit stats');
     throw err;
   }
 }
@@ -455,7 +457,7 @@ export async function ensurePartitions(monthsAhead: number = 12): Promise<void> 
       if (err?.code === '42P07' || String(err?.message ?? '').includes('already exists')) {
         continue;
       }
-      console.error(`[AUDIT-DB] Failed to create partition ${partitionName}:`, err);
+      dbLogger.error({ err, partitionName }, 'Failed to create partition');
     }
   }
 }

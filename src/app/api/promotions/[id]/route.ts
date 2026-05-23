@@ -9,6 +9,7 @@ import {
   getClientIp,
 } from '@/lib/audit-logger';
 import { sendRequestStatusUpdateEmail } from '@/lib/email';
+import { logger } from '@/lib/logger';
 
 const updateSchema = z.object({
   status: z.string().optional(),
@@ -223,13 +224,13 @@ async function handleUpdate(
               !statusLower.includes('rejected');
             const isRejection = statusLower.includes('rejected');
 
-            console.log('[AUDIT] Promotion status update:', {
+            logger.info({ 
               status: validatedData.status,
               isApproval,
               isRejection,
               reviewedById: validatedData.reviewedById,
               reviewer: reviewer.username,
-            });
+             }, 'Promotion status update:');
 
             if (isApproval) {
               await logRequestApproval({
@@ -294,7 +295,7 @@ async function handleUpdate(
       return NextResponse.json(updatedRequest);
     }
   } catch (error) {
-    console.error('[PROMOTION_PUT]', error);
+    logger.error({ err: error }, 'PROMOTION PUT');
     if (error instanceof z.ZodError) {
       return new NextResponse(JSON.stringify(error.errors), { status: 400 });
     }

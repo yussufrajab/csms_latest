@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { shouldApplyInstitutionFilter } from '@/lib/role-utils';
+import { logger } from '@/lib/logger';
 
 // Cache configuration
 const CACHE_TTL = 300; // 5 minutes cache for urgent actions
@@ -18,13 +19,13 @@ export async function GET(req: Request) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const skip = (page - 1) * limit;
 
-    console.log('Urgent actions API called with:', {
+    logger.info({ 
       userRole,
       userInstitutionId,
       countOnly,
       page,
       limit,
-    });
+     }, 'Urgent actions API called with');
 
     // Get employees that need urgent actions
     const today = new Date();
@@ -50,7 +51,7 @@ export async function GET(req: Request) {
 
     // ===== OPTIMIZATION: Use counts instead of loading all data =====
     if (countOnly) {
-      console.log('Fetching counts only (optimized)...');
+      logger.info('Fetching counts only (optimized)...');
 
       // Parallel count queries for better performance
       const [nearingRetirementCount, probationOverdueCount] = await Promise.all(
@@ -79,7 +80,7 @@ export async function GET(req: Request) {
         ]
       );
 
-      console.log(
+      logger.info(
         `Urgent counts: ${nearingRetirementCount} aged 59.5+ years, ${probationOverdueCount} probation - completed in ${Date.now() - startTime}ms`
       );
 
@@ -102,7 +103,7 @@ export async function GET(req: Request) {
     }
 
     // ===== Full data fetch with server-side pagination =====
-    console.log('Fetching paginated urgent employee data...');
+    logger.info('Fetching paginated urgent employee data...');
 
     // Build where clauses for each type
     const probationWhere: any = {
@@ -177,7 +178,7 @@ export async function GET(req: Request) {
       }),
     ]);
 
-    console.log(
+    logger.info(
       `Fetched page ${page} - Probation: ${probationEmployees.length}/${probationCount}, Retirement: ${retirementEmployees.length}/${retirementCount} in ${Date.now() - startTime}ms`
     );
 
@@ -219,7 +220,7 @@ export async function GET(req: Request) {
       { headers }
     );
   } catch (error) {
-    console.error('[URGENT_ACTIONS_GET]', error);
+    logger.error({ err: error }, 'URGENT ACTIONS GET');
     return NextResponse.json(
       {
         success: false,

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { checkPasswordExpirations } from '@/lib/cron-service';
+import { logger } from '@/lib/logger';
 
 export async function POST(req: Request) {
   try {
@@ -15,7 +16,7 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log('[API] Manually triggering password expiration check...');
+    logger.info('[API] Manually triggering password expiration check...');
     await checkPasswordExpirations();
 
     return NextResponse.json({
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
       message: 'Password expiration check completed successfully',
     });
   } catch (error) {
-    console.error('[API] Error triggering password expiration check:', error);
+    logger.error({ value: error }, '[API] Error triggering password expiration check');
     return NextResponse.json(
       {
         success: false,

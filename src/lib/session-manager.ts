@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { sessionLogger } from '@/lib/logger';
 import { randomBytes } from 'crypto';
 
 /**
@@ -89,7 +90,7 @@ export async function checkSessionLimit(userId: string): Promise<{
       count: activeSessions.length,
     };
   } catch (error) {
-    console.error('[SESSION] Failed to check session limit:', error);
+    sessionLogger.error({ err: error }, 'Failed to check session limit');
     return {
       isAtLimit: false,
       activeSessions: [],
@@ -118,16 +119,14 @@ export async function terminateSessionById(
     });
 
     if (!session) {
-      console.error('[SESSION] Session not found:', sessionId);
+      sessionLogger.error({ sessionId }, 'Session not found');
       return false;
     }
 
     if (session.userId !== requestingUserId) {
-      console.error(
-        '[SESSION] User does not own session:',
-        sessionId,
-        'Requesting user:',
-        requestingUserId
+      sessionLogger.error(
+        { sessionId, requestingUserId },
+        'User does not own session'
       );
       return false;
     }
@@ -136,12 +135,10 @@ export async function terminateSessionById(
       where: { id: sessionId },
     });
 
-    console.log(
-      `[SESSION] Terminated session by ID: ${sessionId} for user ${requestingUserId}`
-    );
+    sessionLogger.info({ sessionId, requestingUserId }, 'Terminated session by ID');
     return true;
   } catch (error) {
-    console.error('[SESSION] Failed to terminate session by ID:', error);
+    sessionLogger.error({ err: error }, 'Failed to terminate session by ID');
     return false;
   }
 }
@@ -187,13 +184,11 @@ export async function createSession(
       },
     });
 
-    console.log(
-      `[SESSION] Created new session for user ${userId} (${deviceInfo})`
-    );
+    sessionLogger.info({ userId, deviceInfo }, 'Created new session');
 
     return session;
   } catch (error) {
-    console.error('[SESSION] Failed to create session:', error);
+    sessionLogger.error({ err: error }, 'Failed to create session');
     throw error;
   }
 }
@@ -232,7 +227,7 @@ export async function validateSession(sessionToken: string) {
 
     return session;
   } catch (error) {
-    console.error('[SESSION] Failed to validate session:', error);
+    sessionLogger.error({ err: error }, 'Failed to validate session');
     return null;
   }
 }
@@ -247,12 +242,10 @@ export async function terminateSession(sessionToken: string): Promise<boolean> {
     await db.session.delete({
       where: { sessionToken },
     });
-    console.log(
-      `[SESSION] Terminated session: ${sessionToken.substring(0, 10)}...`
-    );
+    sessionLogger.info({ sessionTokenPrefix: sessionToken.substring(0, 10) }, 'Terminated session');
     return true;
   } catch (error) {
-    console.error('[SESSION] Failed to terminate session:', error);
+    sessionLogger.error({ err: error }, 'Failed to terminate session');
     return false;
   }
 }
@@ -269,12 +262,10 @@ export async function terminateAllUserSessions(
     const result = await db.session.deleteMany({
       where: { userId },
     });
-    console.log(
-      `[SESSION] Terminated ${result.count} session(s) for user ${userId}`
-    );
+    sessionLogger.info({ count: result.count, userId }, 'Terminated sessions for user');
     return result.count;
   } catch (error) {
-    console.error('[SESSION] Failed to terminate all sessions:', error);
+    sessionLogger.error({ err: error, userId }, 'Failed to terminate all sessions');
     return 0;
   }
 }
@@ -308,7 +299,7 @@ export async function getUserActiveSessions(userId: string) {
 
     return sessions;
   } catch (error) {
-    console.error('[SESSION] Failed to get user sessions:', error);
+    sessionLogger.error({ err: error, userId }, 'Failed to get user sessions');
     return [];
   }
 }
@@ -325,12 +316,12 @@ export async function cleanupExpiredSessions(): Promise<number> {
     });
 
     if (result.count > 0) {
-      console.log(`[SESSION] Cleaned up ${result.count} expired session(s)`);
+      sessionLogger.info({ count: result.count }, 'Cleaned up expired sessions');
     }
 
     return result.count;
   } catch (error) {
-    console.error('[SESSION] Failed to cleanup expired sessions:', error);
+    sessionLogger.error({ err: error }, 'Failed to cleanup expired sessions');
     return 0;
   }
 }
@@ -351,7 +342,7 @@ export async function getUserSessionCount(userId: string): Promise<number> {
     });
     return count;
   } catch (error) {
-    console.error('[SESSION] Failed to get session count:', error);
+    sessionLogger.error({ err: error, userId }, 'Failed to get session count');
     return 0;
   }
 }

@@ -12,6 +12,7 @@ import {
 import { ROLES } from '@/lib/constants';
 import { createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
 import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
+import { logger } from '@/lib/logger';
 
 // Cache configuration for confirmation requests
 const CACHE_TTL = 30; // 30 seconds cache (request status changes frequently)
@@ -45,28 +46,28 @@ export async function GET(req: Request) {
     const size = parseInt(searchParams.get('size') || '50', 10);
     const status = searchParams.get('status') || 'all';
 
-    console.log('Confirmations API called with:', {
+    logger.info({ 
       userId,
       userRole,
       userInstitutionId,
       page,
       size,
       status,
-    });
+     }, 'Confirmations API called with');
 
     // Build where clause based on user role and institution
     const whereClause: any = {};
 
     // Apply institution filtering based on role
     if (shouldApplyInstitutionFilter(userRole, userInstitutionId)) {
-      console.log(
+      logger.info(
         `Applying institution filter for role ${userRole} with institutionId ${userInstitutionId}`
       );
       whereClause.Employee = {
         institutionId: userInstitutionId,
       };
     } else {
-      console.log(
+      logger.info(
         `Role ${userRole} is a CSC role - showing all confirmation data across institutions`
       );
     }
@@ -139,7 +140,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    console.error('[CONFIRMATIONS_GET]', error);
+    logger.error({ err: error }, 'CONFIRMATIONS GET');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }
@@ -150,7 +151,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log('Creating confirmation request:', body);
+    logger.info({ value: body }, 'Creating confirmation request');
 
     // Authorization: Only HRO and HRRP can create confirmation requests
     const authCheck = checkRoleAuthorization(body.userRole, [
@@ -241,7 +242,7 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log('Created confirmation request:', confirmationRequest.id);
+    logger.info({ value: confirmationRequest.id }, 'Created confirmation request');
 
     // Create notification for CSC reviewers
     const notification = NotificationTemplates.confirmationSubmitted(
@@ -305,7 +306,7 @@ export async function POST(req: Request) {
       data: transformedRequest,
     });
   } catch (error) {
-    console.error('[CONFIRMATIONS_POST]', error);
+    logger.error({ err: error }, 'CONFIRMATIONS POST');
     return NextResponse.json(
       {
         success: false,
@@ -413,11 +414,11 @@ export async function PATCH(req: Request) {
           },
         });
 
-        console.log(
+        logger.info(
           `Employee ${updatedRequest.Employee.name} (${updatedRequest.Employee.zanId}) status updated to "Confirmed" due to commission approval`
         );
       } catch (employeeUpdateError) {
-        console.error('Failed to update employee status:', employeeUpdateError);
+        logger.error({ value: employeeUpdateError }, 'Failed to update employee status');
         // Don't fail the entire request if employee update fails
       }
     }
@@ -435,13 +436,13 @@ export async function PATCH(req: Request) {
           statusLower.includes('approved') && !statusLower.includes('rejected');
         const isRejection = statusLower.includes('rejected');
 
-        console.log('[AUDIT] Confirmation status update:', {
+        logger.info({ 
           status: updateData.status,
           isApproval,
           isRejection,
           reviewedById: updateData.reviewedById,
           reviewer: reviewer.username,
-        });
+         }, 'Confirmation status update:');
 
         if (isApproval) {
           await logRequestApproval({
@@ -516,7 +517,7 @@ export async function PATCH(req: Request) {
       data: transformedRequest,
     });
   } catch (error) {
-    console.error('[CONFIRMATIONS_PATCH]', error);
+    logger.error({ err: error }, 'CONFIRMATIONS PATCH');
     return NextResponse.json(
       {
         success: false,

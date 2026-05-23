@@ -1,5 +1,6 @@
 import Redis from 'ioredis';
 import { NextResponse } from 'next/server';
+import { rateLimitLogger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,10 +39,10 @@ function getRedisClient(): Redis | null {
     });
 
     redisClient.on('error', (err) => {
-      console.warn('[rate-limiter] Redis error:', err.message || err);
+      rateLimitLogger.warn({ err: err.message || err }, 'Redis error');
     });
   } catch (err) {
-    console.warn('[rate-limiter] Failed to create Redis client:', err);
+    rateLimitLogger.warn({ err }, 'Failed to create Redis client');
     redisClient = null;
   }
 
@@ -87,7 +88,7 @@ export async function checkRateLimit(
 
   // Fail open if Redis is unavailable
   if (!client) {
-    console.warn('[rate-limiter] Redis client unavailable – allowing request (fail-open)');
+    rateLimitLogger.warn('Redis client unavailable – allowing request (fail-open)');
     return { allowed: true };
   }
 
@@ -119,7 +120,7 @@ export async function checkRateLimit(
     };
   } catch (err) {
     // Fail open on Redis errors
-    console.warn('[rate-limiter] Redis error during rate-limit check:', err);
+    rateLimitLogger.warn({ err }, 'Redis error during rate-limit check');
     return { allowed: true };
   }
 }

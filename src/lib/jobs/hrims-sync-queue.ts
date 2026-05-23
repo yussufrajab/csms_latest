@@ -7,6 +7,7 @@
 
 import { Queue, QueueEvents } from 'bullmq';
 import { createRedisConnection } from '../redis';
+import { workerLogger } from '@/lib/logger';
 
 // Job data interface
 export interface HRIMSSyncJobData {
@@ -68,7 +69,7 @@ export function getHRIMSSyncQueue(): Queue<HRIMSSyncJobData> {
       },
     });
 
-    console.log('✅ HRIMS Sync Queue created');
+    workerLogger.info('HRIMS Sync Queue created');
   }
 
   return hrimsSyncQueue;
@@ -83,7 +84,7 @@ export function getQueueEvents(): QueueEvents {
       connection: createRedisConnection(),
     });
 
-    console.log('✅ Queue Events listener created');
+    workerLogger.info('Queue Events listener created');
   }
 
   return queueEvents;
@@ -99,8 +100,9 @@ export async function addHRIMSSyncJob(data: HRIMSSyncJobData): Promise<string> {
     jobId: `hrims-sync-${data.institutionId}-${Date.now()}`, // Unique job ID
   });
 
-  console.log(
-    `✅ HRIMS sync job added: ${job.id} for institution ${data.institutionName}`
+  workerLogger.info(
+    { jobId: job.id, institutionId: data.institutionId, institutionName: data.institutionName },
+    'HRIMS sync job added to queue'
   );
 
   return job.id!;

@@ -1,4 +1,5 @@
 import { Client as MinioClient } from 'minio';
+import { fileLogger } from '@/lib/logger';
 
 // MinIO client configuration from environment variables
 const accessKey = process.env.MINIO_ACCESS_KEY || 'minioadmin';
@@ -7,14 +8,14 @@ const endPoint = process.env.MINIO_ENDPOINT || 'localhost';
 const port = parseInt(process.env.MINIO_PORT || '9000');
 const useSSL = process.env.MINIO_USE_SSL === 'true';
 
-console.log('MinIO credentials check:', {
+fileLogger.info({
   accessKey,
-  secretKey: secretKey ? '[CONFIGURED]' : '[MISSING]',
+  secretKeyConfigured: !!secretKey,
   endPoint,
   port,
   useSSL,
-  NODE_ENV: process.env.NODE_ENV,
-});
+  nodeEnv: process.env.NODE_ENV,
+}, 'MinIO credentials check');
 
 const minioClient = new MinioClient({
   endPoint,
@@ -33,10 +34,10 @@ export async function ensureBucketExists(bucketName: string = DEFAULT_BUCKET) {
     const exists = await minioClient.bucketExists(bucketName);
     if (!exists) {
       await minioClient.makeBucket(bucketName, 'us-east-1');
-      console.log(`Bucket ${bucketName} created successfully`);
+      fileLogger.info({ bucketName }, 'Bucket created successfully');
     }
   } catch (error) {
-    console.error('Error ensuring bucket exists:', error);
+    fileLogger.error({ err: error, bucketName }, 'Error ensuring bucket exists');
     throw error;
   }
 }
@@ -80,7 +81,7 @@ export async function uploadFile(
       bucketName,
     };
   } catch (error) {
-    console.error('MinIO upload error:', error);
+    fileLogger.error({ err: error, objectKey }, 'MinIO upload error');
     throw error;
   }
 }
@@ -94,7 +95,7 @@ export async function downloadFile(
     const stream = await minioClient.getObject(bucketName, objectKey);
     return stream;
   } catch (error) {
-    console.error('MinIO download error:', error);
+    fileLogger.error({ err: error, objectKey }, 'MinIO download error');
     throw error;
   }
 }
@@ -114,7 +115,7 @@ export async function getFileMetadata(
       etag: stat.etag,
     };
   } catch (error) {
-    console.error('MinIO metadata error:', error);
+    fileLogger.error({ err: error, objectKey }, 'MinIO metadata error');
     throw error;
   }
 }
@@ -133,7 +134,7 @@ export async function generatePresignedUrl(
     );
     return url;
   } catch (error) {
-    console.error('MinIO presigned URL error:', error);
+    fileLogger.error({ err: error, objectKey }, 'MinIO presigned URL error');
     throw error;
   }
 }
@@ -147,7 +148,7 @@ export async function deleteFile(
     await minioClient.removeObject(bucketName, objectKey);
     return { success: true };
   } catch (error) {
-    console.error('MinIO delete error:', error);
+    fileLogger.error({ err: error, objectKey }, 'MinIO delete error');
     throw error;
   }
 }
@@ -167,7 +168,7 @@ export async function listFiles(
       stream.on('end', () => resolve(objects));
     });
   } catch (error) {
-    console.error('MinIO list error:', error);
+    fileLogger.error({ err: error, prefix }, 'MinIO list error');
     throw error;
   }
 }

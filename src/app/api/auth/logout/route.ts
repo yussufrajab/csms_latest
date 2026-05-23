@@ -11,6 +11,7 @@ import {
   AuditSeverity,
   getClientIp,
 } from '@/lib/audit-logger';
+import { authLogger } from '@/lib/logger';
 
 export async function POST(req: Request) {
   try {
@@ -20,46 +21,43 @@ export async function POST(req: Request) {
     const sessionToken = body?.sessionToken;
     const logoutAll = body?.logoutAll || false; // Option to logout all sessions
 
-    console.log('[LOGOUT] Request:', {
+    authLogger.info({
       userId,
       hasSessionToken: !!sessionToken,
       sessionTokenPreview: sessionToken
         ? sessionToken.substring(0, 15) + '...'
         : 'none',
       logoutAll,
-    });
+    }, 'Logout request');
 
     // Terminate session(s)
     if (logoutAll && userId) {
       // Terminate all sessions for this user
       const count = await terminateAllUserSessions(userId);
-      console.log(
-        `[LOGOUT] Terminated all ${count} session(s) for user:`,
-        userId
-      );
+      authLogger.info({ userId, count }, 'Terminated all sessions');
     } else if (sessionToken) {
       // Terminate specific session
       const success = await terminateSession(sessionToken);
       if (!success) {
-        console.error(
-          '[LOGOUT] Failed to terminate session:',
-          sessionToken.substring(0, 15) + '...'
+        authLogger.error(
+          { sessionTokenPreview: sessionToken.substring(0, 15) + '...' },
+          'Failed to terminate session'
         );
         // Still clear activity and return success since session might already be deleted
       } else {
-        console.log(
-          '[LOGOUT] Successfully terminated session:',
-          sessionToken.substring(0, 15) + '...'
+        authLogger.info(
+          { sessionTokenPreview: sessionToken.substring(0, 15) + '...' },
+          'Successfully terminated session'
         );
       }
     } else {
-      console.warn('[LOGOUT] No sessionToken or userId provided for logout');
+      authLogger.warn('No sessionToken or userId provided for logout');
     }
 
     // Clear user's activity timestamp
     if (userId) {
       await clearUserActivity(userId);
-      console.log('[LOGOUT] Cleared activity for user:', userId);
+      authLogger.info({ userId }, 'Cleared activity for user');
     }
 
     // Log logout event
@@ -87,7 +85,7 @@ export async function POST(req: Request) {
       message: 'Logged out successfully',
     });
   } catch (error) {
-    console.error('[LOGOUT_POST] Error:', error);
+    authLogger.error({ err: error }, 'Logout POST error');
     return NextResponse.json(
       {
         success: false,

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 
 export async function GET(req: Request) {
   try {
@@ -10,13 +11,13 @@ export async function GET(req: Request) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '100');
 
-    console.log('Track requests API called with:', {
+    logger.info({ 
       institutionName,
       requestType,
       status,
       page,
       limit,
-    });
+     }, 'Track requests API called with');
 
     // Build where clause for institution filtering
     let institutionFilter: any = {};
@@ -356,7 +357,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    console.error('[TRACK_REQUESTS_GET]', error);
+    logger.error({ err: error }, 'TRACK REQUESTS GET');
     return NextResponse.json(
       {
         success: false,

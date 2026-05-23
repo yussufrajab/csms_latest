@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFileMetadata } from '@/lib/minio';
+import { logger } from '@/lib/logger';
 
 export async function GET(
   request: NextRequest,
@@ -11,11 +12,11 @@ export async function GET(
     // Reconstruct the object key from the dynamic route segments
     const objectKey = decodeURIComponent(resolvedParams.objectKey.join('/'));
 
-    console.log(
+    logger.info(
       'File exists API - Object key segments:',
       resolvedParams.objectKey
     );
-    console.log('File exists API - Reconstructed object key:', objectKey);
+    logger.info({ value: objectKey }, 'File exists API - Reconstructed object key');
 
     // Try to get file metadata to check if file exists
     const metadata = await getFileMetadata(objectKey);
@@ -30,7 +31,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('File exists check error:', error);
+    logger.error({ value: error }, 'File exists check error');
     // If file doesn't exist or any error occurs, return exists: false
     return NextResponse.json({
       success: true,

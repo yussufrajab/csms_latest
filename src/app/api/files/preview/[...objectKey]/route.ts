@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import {
   downloadFile,
   getFileMetadata,
@@ -16,8 +17,8 @@ export async function GET(
     // Reconstruct the object key from the dynamic route segments
     const objectKey = decodeURIComponent(resolvedParams.objectKey.join('/'));
 
-    console.log('Preview API - Object key segments:', resolvedParams.objectKey);
-    console.log('Preview API - Reconstructed object key:', objectKey);
+    logger.info({ value: resolvedParams.objectKey }, 'Preview API - Object key segments');
+    logger.info({ value: objectKey }, 'Preview API - Reconstructed object key');
 
     // Get query parameters
     const searchParams = request.nextUrl.searchParams;
@@ -83,7 +84,7 @@ export async function GET(
       headers,
     });
   } catch (error) {
-    console.error('File preview error:', error);
+    logger.error({ value: error }, 'File preview error');
     return NextResponse.json(
       { success: false, message: 'File not found or internal server error' },
       { status: 404 }

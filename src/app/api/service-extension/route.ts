@@ -12,6 +12,7 @@ import {
 import { createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
 import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
 import { ROLES } from '@/lib/constants';
+import { logger } from '@/lib/logger';
 
 export async function GET(req: Request) {
   try {
@@ -23,28 +24,28 @@ export async function GET(req: Request) {
     const size = parseInt(searchParams.get('size') || '50', 10);
     const status = searchParams.get('status') || 'all';
 
-    console.log('Service Extension API called with:', {
+    logger.info({ 
       userId,
       userRole,
       userInstitutionId,
       page,
       size,
       status,
-    });
+     }, 'Service Extension API called with');
 
     // Build where clause based on user role and institution
     const whereClause: any = {};
 
     // Apply institution filtering based on role
     if (shouldApplyInstitutionFilter(userRole, userInstitutionId)) {
-      console.log(
+      logger.info(
         `Applying institution filter for role ${userRole} with institutionId ${userInstitutionId}`
       );
       whereClause.Employee = {
         institutionId: userInstitutionId,
       };
     } else {
-      console.log(
+      logger.info(
         `Role ${userRole} is a CSC role - showing all service extension data across institutions`
       );
     }
@@ -116,7 +117,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    console.error('[SERVICE_EXTENSION_GET]', error);
+    logger.error({ err: error }, 'SERVICE EXTENSION GET');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }
@@ -127,7 +128,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log('Creating service extension request:', body);
+    logger.info({ value: body }, 'Creating service extension request');
 
     // Basic validation
     if (
@@ -213,7 +214,7 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log(
+    logger.info(
       'Created service extension request:',
       serviceExtensionRequest.id
     );
@@ -260,7 +261,7 @@ export async function POST(req: Request) {
       data: serviceExtensionRequest,
     });
   } catch (error) {
-    console.error('[SERVICE_EXTENSION_POST]', error);
+    logger.error({ err: error }, 'SERVICE EXTENSION POST');
     return NextResponse.json(
       {
         success: false,
@@ -359,11 +360,11 @@ export async function PATCH(req: Request) {
           },
         });
 
-        console.log(
+        logger.info(
           `Employee ${updatedRequest.Employee.name} (${updatedRequest.Employee.zanId}) retirement date updated from ${currentRetirementDate.toISOString().split('T')[0]} to ${newRetirementDate.toISOString().split('T')[0]} due to approved service extension`
         );
       } catch (employeeUpdateError) {
-        console.error(
+        logger.error(
           'Failed to update employee retirement date:',
           employeeUpdateError
         );
@@ -384,13 +385,13 @@ export async function PATCH(req: Request) {
           statusLower.includes('approved') && !statusLower.includes('rejected');
         const isRejection = statusLower.includes('rejected');
 
-        console.log('[AUDIT] Service Extension status update:', {
+        logger.info({ 
           status: updateData.status,
           isApproval,
           isRejection,
           reviewedById: updateData.reviewedById,
           reviewer: reviewer.username,
-        });
+         }, 'Service Extension status update:');
 
         if (isApproval) {
           await logRequestApproval({
@@ -469,7 +470,7 @@ export async function PATCH(req: Request) {
       data: transformedRequest,
     });
   } catch (error) {
-    console.error('[SERVICE_EXTENSION_PATCH]', error);
+    logger.error({ err: error }, 'SERVICE EXTENSION PATCH');
     return NextResponse.json(
       {
         success: false,

@@ -4,6 +4,7 @@
  */
 
 import type { User, Role } from '@/lib/types';
+import { authLogger } from '@/lib/logger';
 
 /**
  * Refresh auth cookie with current user data
@@ -13,7 +14,7 @@ export function refreshAuthCookie(user: User | null, role: Role | null, isAuthen
   if (typeof window === 'undefined') return;
 
   if (!user || !role || !isAuthenticated) {
-    console.warn('[AUTH-COOKIE] Cannot refresh cookie - missing auth data');
+    authLogger.warn('Cannot refresh cookie - missing auth data');
     return;
   }
 
@@ -35,12 +36,12 @@ export function refreshAuthCookie(user: User | null, role: Role | null, isAuthen
 
   document.cookie = `auth-storage=${encodeURIComponent(cookieValue)}; path=/; expires=${expiryDate.toUTCString()}; SameSite=Strict`;
 
-  console.log('[AUTH-COOKIE] Cookie refreshed successfully', {
+  authLogger.info({
     userId: user.id,
     username: user.username,
     role: role,
     institutionId: user.institutionId,
-  });
+  }, 'Cookie refreshed successfully');
 }
 
 /**
@@ -50,5 +51,5 @@ export function clearAuthCookie(): void {
   if (typeof window === 'undefined') return;
 
   document.cookie = 'auth-storage=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-  console.log('[AUTH-COOKIE] Cookie cleared');
+  authLogger.info('Cookie cleared');
 }

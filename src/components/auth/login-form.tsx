@@ -21,6 +21,9 @@ import { ROLES } from '@/lib/constants';
 import type { User } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 import { DeviceLimitDialog } from './device-limit-dialog';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'login-form' });
 
 const loginFormSchema = z.object({
   username: z.string().min(1, { message: 'Username or email is required.' }),
@@ -56,22 +59,16 @@ export function LoginForm() {
 
   async function onSubmit(data: LoginFormValues) {
     setIsLoading(true);
-    console.log('LoginForm onSubmit - data:', data);
-    console.log(
-      'Username:',
-      data.username,
-      'Password length:',
-      data.password?.length
-    );
+    log.info({ username: data.username, passwordLength: data.password?.length }, 'LoginForm onSubmit');
 
     try {
       const user = await login(data.username, data.password);
-      console.log('LoginForm onSubmit - returned user:', user);
+      log.info({ userId: user?.id, userRole: user?.role }, 'LoginForm onSubmit - returned user');
 
       if (user) {
         // Check if password change is required
         if (user.mustChangePassword || user.isTemporaryPassword) {
-          console.log('Password change required for user:', user.id);
+          log.info({ userId: user.id }, 'Password change required');
           toast({
             title: 'Password Change Required',
             description: 'You must change your password to continue.',
@@ -109,7 +106,7 @@ export function LoginForm() {
 
       // Check if error is session limit reached
       if (error.message === 'SESSION_LIMIT_REACHED') {
-        console.log('Session limit reached, showing dialog');
+        log.info('Session limit reached, showing dialog');
         setActiveSessions(error.activeSessions || []);
         setPendingCredentials({
           username: data.username,
@@ -134,7 +131,7 @@ export function LoginForm() {
 
   const handleForceLogout = async (sessionId: string) => {
     try {
-      console.log('Force logout for session:', sessionId);
+      log.info({ sessionId }, 'Force logout for session');
 
       // Call API to force logout the selected session
       const response = await fetch('/api/auth/sessions/force-logout', {
@@ -172,7 +169,7 @@ export function LoginForm() {
         });
       }
     } catch (error) {
-      console.error('Force logout error:', error);
+      log.error({ err: error }, 'Force logout error');
       toast({
         title: 'Error',
         description:

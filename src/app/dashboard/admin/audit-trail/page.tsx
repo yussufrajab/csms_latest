@@ -43,6 +43,8 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'audit-trail' });
 
 interface AuditLog {
   id: string;
@@ -182,7 +184,7 @@ if (categoryFilter && categoryFilter !== 'all')
         });
       }
     } catch (error) {
-      console.error('Error fetching audit logs:', error);
+      log.error({ err: error }, 'Error fetching audit logs:');
       toast({
         title: 'Error',
         description: 'An error occurred while fetching audit logs',
@@ -215,7 +217,7 @@ if (categoryFilter && categoryFilter !== 'all')
         setStats(data.data);
       }
     } catch (error) {
-      console.error('Error fetching audit stats:', error);
+      log.error({ err: error }, 'Error fetching audit stats:');
     }
   };
 

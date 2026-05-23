@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { emailLogger } from '@/lib/logger';
 import { db } from '@/lib/db';
 import { ROLES } from '@/lib/constants';
 
@@ -60,10 +61,10 @@ export async function sendEmail(
       text: text || html.replace(/<[^>]*>/g, ''),
     });
 
-    console.log('[EMAIL] Sent to:', to, 'MessageId:', result.messageId);
+    emailLogger.info({ to, messageId: result.messageId }, 'Email sent');
     return { success: true, messageId: result.messageId };
   } catch (error: any) {
-    console.error('[EMAIL] Failed to send:', error.message);
+    emailLogger.error({ err: error, to }, 'Failed to send email');
     return { success: false, error: error.message };
   }
 }
@@ -397,11 +398,11 @@ export async function sendRequestSubmissionEmails(params: {
         text
       );
       if (!result.success) {
-        console.error(`[EMAIL] Failed to send submission notification to ${user.email}: ${result.error}`);
+        emailLogger.error({ err: result.error, email: user.email }, 'Failed to send submission notification');
       }
     }
   } catch (error) {
-    console.error('[EMAIL] sendRequestSubmissionEmails failed:', error);
+    emailLogger.error({ err: error }, 'sendRequestSubmissionEmails failed');
   }
 }
 
@@ -421,7 +422,7 @@ export async function sendRequestStatusUpdateEmail(params: {
     });
 
     if (!submitter?.email) {
-      console.log(`[EMAIL] No email on file for submitter ${params.submittedById}, skipping notification`);
+      emailLogger.info({ submittedById: params.submittedById }, 'No email on file for submitter, skipping notification');
       return;
     }
 
@@ -472,9 +473,9 @@ export async function sendRequestStatusUpdateEmail(params: {
 
     const result = await sendEmail(submitter.email, subject, html, text);
     if (!result.success) {
-      console.error(`[EMAIL] Failed to send status update to ${submitter.email}: ${result.error}`);
+      emailLogger.error({ err: result.error, email: submitter.email }, 'Failed to send status update email');
     }
   } catch (error) {
-    console.error('[EMAIL] sendRequestStatusUpdateEmail failed:', error);
+    emailLogger.error({ err: error }, 'sendRequestStatusUpdateEmail failed');
   }
 }

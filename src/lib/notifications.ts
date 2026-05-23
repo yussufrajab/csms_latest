@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import { ROLES } from '@/lib/constants';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -19,14 +20,9 @@ export async function createNotification(data: NotificationData) {
         isRead: false,
       },
     });
-    console.log(
-      'Notification created:',
-      data.message,
-      'for user:',
-      data.userId
-    );
+    logger.info({ message: data.message, userId: data.userId }, 'Notification created');
   } catch (error) {
-    console.error('Failed to create notification:', error);
+    logger.error({ err: error }, 'Failed to create notification');
   }
 }
 
@@ -53,12 +49,10 @@ export async function createNotificationForRole(
       await db.notification.createMany({
         data: notifications,
       });
-      console.log(
-        `Created ${notifications.length} notifications for role: ${role}`
-      );
+      logger.info({ count: notifications.length, role }, 'Created notifications for role');
     }
   } catch (error) {
-    console.error('Failed to create notifications for role:', error);
+    logger.error({ err: error, role }, 'Failed to create notifications for role');
   }
 }
 

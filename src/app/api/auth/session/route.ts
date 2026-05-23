@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { authLogger } from '@/lib/logger';
 
 export async function GET(req: Request) {
   try {
@@ -9,7 +10,7 @@ export async function GET(req: Request) {
       data: { isAuthenticated: true },
     });
   } catch (error) {
-    console.error('[SESSION_GET]', error);
+    authLogger.error({ err: error }, 'Session GET error');
     return NextResponse.json(
       {
         success: false,

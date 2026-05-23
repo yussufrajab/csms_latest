@@ -36,6 +36,9 @@ import { ROLES } from '@/lib/constants';
 import { Pagination } from '@/components/shared/pagination';
 import type { Institution } from '@/app/dashboard/admin/institutions/page';
 import { apiClient } from '@/lib/api-client';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'reports' });
 
 // Augment jsPDF with autoTable
 declare module 'jspdf' {
@@ -125,23 +128,19 @@ export default function ReportsPage() {
 
   useEffect(() => {
     const fetchInstitutions = async () => {
-      console.log('=== Fetching institutions ===');
+      log.info('Fetching institutions');
       try {
         const response = await apiClient.getInstitutions();
-        console.log('Institutions response:', response);
+        log.info({ response }, 'Institutions response');
         if (response.success && Array.isArray(response.data)) {
-          console.log(
-            'Setting institutions:',
-            response.data.length,
-            'institutions'
-          );
+          log.info({ count: response.data.length }, 'Setting institutions');
           setAvailableInstitutions(response.data);
         } else {
-          console.log('Invalid institutions response, setting empty array');
+          log.info('Invalid institutions response, setting empty array');
           setAvailableInstitutions([]);
         }
       } catch (error) {
-        console.error('Error fetching institutions:', error);
+        log.error({ err: error }, 'Error fetching institutions');
         toast({
           title: 'Error',
           description: 'Could not load institutions for filter.',
@@ -161,16 +160,10 @@ export default function ReportsPage() {
   }, [role, user?.institutionId]);
 
   const handleGenerateReport = async () => {
-    console.log('=== Starting report generation ===');
-    console.log('Selected report type:', selectedReportType);
-    console.log('User role:', role);
-    console.log('User institution ID:', user?.institutionId);
-    console.log('Institution filter:', institutionFilter);
-    console.log('From date:', fromDate);
-    console.log('To date:', toDate);
+    log.info({ selectedReportType, role, institutionId: user?.institutionId, institutionFilter, fromDate, toDate }, 'Starting report generation');
 
     if (!selectedReportType) {
-      console.log('No report type selected');
+      log.info('No report type selected');
       toast({
         title: 'Kosa',
         description: 'Tafadhali chagua aina ya ripoti.',
@@ -203,18 +196,18 @@ export default function ReportsPage() {
       }
 
       const apiUrl = `/reports?${params.toString()}`;
-      console.log('Making API call to:', apiUrl);
+      log.info({ url: apiUrl }, 'Making API call');
 
       const response = await apiClient.get<ReportOutput>(apiUrl);
-      console.log('API response:', response);
+      log.info({ response }, 'API response');
 
       if (!response.success || !response.data) {
-        console.log('API response failed:', response);
+        log.info({ response }, 'API response failed');
         throw new Error(response.message || 'Failed to generate report.');
       }
 
       const result: ReportOutput = response.data;
-      console.log('Processed result:', result);
+      log.info({ result }, 'Processed result');
 
       setReportData(result.data || []);
       setReportHeaders(result.headers || []);
@@ -222,11 +215,7 @@ export default function ReportsPage() {
       setReportTotals(result.totals || null);
       setReportDataKeys(result.dataKeys || []);
 
-      console.log('Report data set:', {
-        dataLength: (result.data || []).length,
-        headers: result.headers,
-        title: result.title,
-      });
+      log.info({ dataLength: (result.data || []).length, headers: result.headers, title: result.title }, 'Report data set');
 
       if ((result.data || []).length === 0) {
         toast({
@@ -240,7 +229,7 @@ export default function ReportsPage() {
         });
       }
     } catch (error: any) {
-      console.error('Report generation error:', error);
+      log.error({ err: error }, 'Report generation error');
       toast({
         title: 'Report Generation Failed',
         description: error.message,
@@ -369,7 +358,7 @@ export default function ReportsPage() {
         description: 'Ripoti imehamishwa kwenda PDF.',
       });
     } catch (error) {
-      console.error('PDF export error:', error);
+      log.error({ err: error }, 'PDF export error');
       toast({
         title: 'Kosa la Kuhamisha',
         description: 'Imeshindwa kuhamisha PDF. Tafadhali jaribu tena.',
@@ -458,7 +447,7 @@ export default function ReportsPage() {
         description: 'Ripoti imehamishwa kwenda Excel.',
       });
     } catch (error) {
-      console.error('Excel export error:', error);
+      log.error({ err: error }, 'Excel export error');
       toast({
         title: 'Kosa la Kuhamisha',
         description: 'Imeshindwa kuhamisha Excel. Tafadhali jaribu tena.',

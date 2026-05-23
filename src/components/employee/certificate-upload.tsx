@@ -32,6 +32,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'certificate-upload' });
 
 interface Certificate {
   id: string;
@@ -163,7 +166,7 @@ export function CertificateUpload({
         });
       }
     } catch (error) {
-      console.error('Upload error:', error);
+      log.error({ err: error }, 'Upload error');
       toast({
         title: 'Upload failed',
         description:
@@ -253,7 +256,7 @@ export function CertificateUpload({
         onDeleteSuccess(certificateType);
       }
     } catch (error) {
-      console.error('Delete error:', error);
+      log.error({ err: error }, 'Delete error');
       toast({
         title: 'Delete failed',
         description:

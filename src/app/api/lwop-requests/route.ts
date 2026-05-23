@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { shouldApplyInstitutionFilter } from '@/lib/role-utils';
+import { logger } from '@/lib/logger';
 
 export async function GET(req: Request) {
   try {
@@ -12,14 +13,14 @@ export async function GET(req: Request) {
 
     // Apply institution filtering based on role
     if (shouldApplyInstitutionFilter(userRole, userInstitutionId)) {
-      console.log(
+      logger.info(
         `Applying institution filter for role ${userRole} with institutionId ${userInstitutionId}`
       );
       whereClause.Employee = {
         institutionId: userInstitutionId,
       };
     } else {
-      console.log(
+      logger.info(
         `Role ${userRole} is a CSC role - showing all LWOP requests across institutions`
       );
     }
@@ -49,7 +50,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ success: true, data: requests });
   } catch (error) {
-    console.error('[LWOP_REQUESTS_GET]', error);
+    logger.error({ err: error }, 'LWOP REQUESTS GET');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }

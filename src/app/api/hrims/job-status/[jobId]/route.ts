@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getJobStatus } from '@/lib/jobs/hrims-sync-queue';
+import { hrimsLogger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,7 +52,7 @@ export async function GET(
       finishedOn: jobStatus.finishedOn,
     });
   } catch (error) {
-    console.error('Error getting job status:', error);
+    hrimsLogger.error({ err: error }, 'Error getting job status');
     return NextResponse.json(
       {
         success: false,

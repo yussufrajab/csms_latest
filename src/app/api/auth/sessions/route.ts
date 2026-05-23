@@ -8,6 +8,7 @@ import {
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
 import { maskSessionToken } from '@/lib/sanitize-response';
+import { authLogger } from '@/lib/logger';
 
 const getSessionsSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
@@ -47,7 +48,7 @@ export const GET = withRateLimit(
       maxSessions: 3,
     });
   } catch (error) {
-    console.error('[SESSIONS_GET]', error);
+    authLogger.error({ err: error }, 'Sessions GET error');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }
@@ -124,7 +125,7 @@ export const POST = withRateLimit(
           { status: 400 }
         );
       }
-      console.error('[SESSIONS_POST]', error);
+      authLogger.error({ err: error }, 'Sessions POST error');
       return NextResponse.json(
         { success: false, message: 'Internal Server Error' },
         { status: 500 }

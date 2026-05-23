@@ -4,6 +4,7 @@ import { ROLES } from '@/lib/constants';
 import { shouldApplyInstitutionFilter, isCSCRole } from '@/lib/role-utils';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { logger } from '@/lib/logger';
 
 const getRequestHref = (type: string, id: string) => {
   switch (type) {
@@ -36,7 +37,7 @@ const CACHE_TTL = 60; // 60 seconds cache
 
 export const GET = withRateLimit(withAuth(async (request, { auth }) => {
   try {
-    console.log('=== Dashboard metrics API called ===');
+    logger.info('=== Dashboard metrics API called ===');
     const startTime = Date.now();
 
     // Get role and institution from verified auth context
@@ -49,10 +50,10 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
     const limit = parseInt(searchParams.get('limit') || '10');
     const skip = (page - 1) * limit;
 
-    console.log('Dashboard metrics API called with:', {
+    logger.info({ 
       userRole,
       userInstitutionId,
-    });
+     }, 'Dashboard metrics API called with');
 
     // Determine if institution filtering should be applied
     // Admin sees total system counts (no filtering) for system administration purposes
@@ -61,7 +62,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       userRole === 'Admin'
         ? false
         : shouldApplyInstitutionFilter(userRole, userInstitutionId);
-    console.log(
+    logger.info(
       `Should apply institution filter: ${shouldFilter} (role: ${userRole})`
     );
 
@@ -105,14 +106,14 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       ? { ...complaintWhereClause }
       : {};
 
-    console.log('Where clauses:', {
+    logger.info({ 
       employeeCountWhereClause,
       requestEmployeeWhereClause,
       complaintCountWhereClause,
-    });
+     }, 'Where clauses');
 
     // ===== OPTIMIZATION: Parallelize all count queries using Promise.allSettled =====
-    console.log('Starting parallel count queries...');
+    logger.info('Starting parallel count queries...');
     const countStartTime = Date.now();
 
     // Define status arrays for role-specific filtering
@@ -412,13 +413,13 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
         ? pendingServiceExtensionsResult.value
         : 0;
 
-    console.log(`Count queries completed in ${Date.now() - countStartTime}ms`);
+    logger.info(`Count queries completed in ${Date.now() - countStartTime}ms`);
 
     // ===== OPTIMIZATION: Parallelize recent activities queries =====
-    console.log('Starting parallel recent activities queries...');
+    logger.info('Starting parallel recent activities queries...');
     const activitiesStartTime = Date.now();
-    console.log('Employee where clause:', employeeWhereClause);
-    console.log('Complaint where clause:', complaintWhereClause);
+    logger.info({ value: employeeWhereClause }, 'Employee where clause');
+    logger.info({ value: complaintWhereClause }, 'Complaint where clause');
 
     // PAGINATION STRATEGY for multiple tables:
     // True server-side pagination requires UNION query across 9 tables (not supported by Prisma)
@@ -427,7 +428,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
     // - Supports pagination of recent activities (last few weeks/months)
     // - For true historical pagination across ALL time, would need raw SQL UNION
     const itemsPerTable = 100; // Fetch last 100 from each table
-    console.log(
+    logger.info(
       `Fetching ${itemsPerTable} recent items per table for pagination`
     );
     const [
@@ -566,11 +567,11 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
         ? serviceExtensionsResult.value
         : [];
 
-    console.log(
+    logger.info(
       `Recent activities queries completed in ${Date.now() - activitiesStartTime}ms`
     );
 
-    console.log('Recent activities found:', {
+    logger.info({ 
       confirmations: confirmations.length,
       promotions: promotions.length,
       lwops: lwops.length,
@@ -580,7 +581,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       retirements: retirements.length,
       resignations: resignations.length,
       serviceExtensions: serviceExtensions.length,
-    });
+     }, 'Recent activities found');
 
     const allActivities = [
       ...confirmations
@@ -702,9 +703,9 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       pendingServiceExtensions,
     };
 
-    console.log('=== Dashboard metrics calculated ===', stats);
-    console.log('=== Recent activities count ===', recentActivities.length);
-    console.log(`=== Total request time: ${Date.now() - startTime}ms ===`);
+    logger.info('=== Dashboard metrics calculated ===', stats);
+    logger.info('=== Recent activities count ===', recentActivities.length);
+    logger.info(`=== Total request time: ${Date.now() - startTime}ms ===`);
 
     const response = {
       success: true,
@@ -733,7 +734,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
 
     return NextResponse.json(response, { headers });
   } catch (error) {
-    console.error('[DASHBOARD_METRICS_GET]', error);
+    logger.error({ err: error }, 'DASHBOARD METRICS GET');
     return NextResponse.json(
       {
         success: false,

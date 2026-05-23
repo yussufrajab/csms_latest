@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 
 export async function GET() {
   if (process.env.NODE_ENV === 'production') {
     return NextResponse.json({ success: false, message: 'Not found' }, { status: 404 });
   }
-  console.log('=== TEST API CALLED ===');
+  logger.info('=== TEST API CALLED ===');
   try {
     // Test database connection
     const userCount = await db.user.count();
@@ -20,7 +21,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error('[TEST_API]', error);
+    logger.error({ err: error }, 'TEST API');
     return NextResponse.json({
       success: false,
       message: 'Test API working but database error',

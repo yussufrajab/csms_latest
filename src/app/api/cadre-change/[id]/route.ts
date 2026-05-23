@@ -8,6 +8,7 @@ import {
   getClientIp,
 } from '@/lib/audit-logger';
 import { sendRequestStatusUpdateEmail } from '@/lib/email';
+import { logger } from '@/lib/logger';
 
 const updateSchema = z.object({
   status: z.string().optional(),
@@ -27,7 +28,7 @@ async function handleUpdate(
   try {
     const { id } = await params;
     const body = await req.json();
-    console.log('Updating cadre change request:', id, body);
+    logger.info({ value: id, body }, 'Updating cadre change request');
 
     const validatedData = updateSchema.parse(body);
 
@@ -96,12 +97,12 @@ async function handleUpdate(
             !statusLower.includes('rejected');
           const isRejection = statusLower.includes('rejected');
 
-          console.log('[AUDIT] CadreChange status update:', {
+          logger.info({ 
             status: validatedData.status,
             isApproval,
             isRejection,
             reviewedById: validatedData.reviewedById,
-          });
+           }, 'CadreChange status update:');
 
           if (isApproval) {
             await logRequestApproval({
@@ -173,18 +174,18 @@ async function handleUpdate(
         where: { id: updatedRequest.Employee.id },
         data: { cadre: updatedRequest.newCadre },
       });
-      console.log(
+      logger.info(
         `Employee ${updatedRequest.Employee.name} cadre updated to "${updatedRequest.newCadre}" after cadre change approval`
       );
     }
 
-    console.log(
-      'Cadre change request updated successfully:',
-      updatedRequest.id
+    logger.info(
+      { requestId: updatedRequest.id },
+      'Cadre change request updated successfully'
     );
     return NextResponse.json(updatedRequest);
   } catch (error) {
-    console.error('[CADRE_CHANGE_PUT]', error);
+    logger.error({ err: error }, 'CADRE CHANGE PUT');
     if (error instanceof z.ZodError) {
       return new NextResponse(JSON.stringify(error.errors), { status: 400 });
     }
@@ -236,7 +237,7 @@ export async function GET(
 
     return NextResponse.json(request);
   } catch (error) {
-    console.error('[CADRE_CHANGE_GET_BY_ID]', error);
+    logger.error({ err: error }, 'CADRE CHANGE GET BY ID');
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }

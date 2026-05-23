@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { createNotification, NotificationTemplates } from '@/lib/notifications';
 import { sendRequestStatusUpdateEmail } from '@/lib/email';
 import { logComplaintAction, getClientIp } from '@/lib/audit-logger';
+import { logger } from '@/lib/logger';
 
 const updateComplaintSchema = z.object({
   status: z.string().optional(),
@@ -151,7 +152,7 @@ export async function PUT(
 
     return NextResponse.json(formattedResponse);
   } catch (error) {
-    console.error('[COMPLAINT_PUT]', error);
+    logger.error({ err: error }, 'COMPLAINT PUT');
     if (error instanceof z.ZodError) {
       return new NextResponse(JSON.stringify(error.errors), { status: 400 });
     }

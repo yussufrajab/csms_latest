@@ -27,6 +27,9 @@ import { useAuth } from '@/hooks/use-auth';
 import { APP_NAME } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'sidebar' });
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -37,23 +40,18 @@ export function AppSidebar() {
   // Check if HRO user has manual entry permission for their institution
   React.useEffect(() => {
     const checkManualEntryPermission = async () => {
-      console.log('[Sidebar] Checking manual entry permission:', {
-        role,
-        userId: user?.id,
-        username: user?.username,
-        institutionId: user?.institutionId,
-      });
+      log.info({ role, userId: user?.id, username: user?.username, institutionId: user?.institutionId }, 'Checking manual entry permission');
 
       // Only check for HRO users with an institutionId
       if (role !== 'HRO' || !user?.institutionId) {
-        console.log('[Sidebar] Not HRO or no institutionId, setting permission to false');
+        log.info('Not HRO or no institutionId, setting permission to false');
         setHasManualEntryPermission(false);
         return;
       }
 
       try {
         const url = `/api/institutions/${user.institutionId}/manual-entry-permission?t=${Date.now()}`;
-        console.log('[Sidebar] Fetching permission from:', url);
+        log.info({ url }, 'Fetching permission');
 
         const response = await fetch(url, {
           cache: 'no-store',
@@ -64,18 +62,18 @@ export function AppSidebar() {
         });
 
         const result = await response.json();
-        console.log('[Sidebar] Permission API response:', result);
+        log.info({ result }, 'Permission API response');
 
         if (result.success && result.data) {
           const hasPermission = result.data.enabled === true;
-          console.log('[Sidebar] Setting hasManualEntryPermission to:', hasPermission);
+          log.info({ hasPermission }, 'Setting hasManualEntryPermission');
           setHasManualEntryPermission(hasPermission);
         } else {
-          console.log('[Sidebar] Invalid response, setting permission to false');
+          log.info('Invalid response, setting permission to false');
           setHasManualEntryPermission(false);
         }
       } catch (error) {
-        console.error('[Sidebar] Error checking manual entry permission:', error);
+        log.error({ err: error }, 'Error checking manual entry permission');
         setHasManualEntryPermission(false);
       }
     };
@@ -85,21 +83,16 @@ export function AppSidebar() {
 
   const navItems = React.useMemo(() => {
     const items = getNavItemsForRole(role);
-    console.log('[Sidebar] Computing navItems:', {
-      role,
-      hasManualEntryPermission,
-      totalItems: items.length,
-      itemTitles: items.map(item => item.title),
-    });
+    log.info({ role, hasManualEntryPermission, totalItems: items.length, itemTitles: items.map(item => item.title) }, 'Computing navItems');
 
     // Filter out "Add Employee" if HRO doesn't have manual entry permission
     if (role === 'HRO' && !hasManualEntryPermission) {
       const filtered = items.filter((item) => item.href !== '/dashboard/add-employee?nocache=1');
-      console.log('[Sidebar] Filtering out Add Employee. Before:', items.length, 'After:', filtered.length);
+      log.info({ before: items.length, after: filtered.length }, 'Filtering out Add Employee');
       return filtered;
     }
 
-    console.log('[Sidebar] Not filtering, returning all items');
+    log.info('Not filtering, returning all items');
     return items;
   }, [role, hasManualEntryPermission]);
 

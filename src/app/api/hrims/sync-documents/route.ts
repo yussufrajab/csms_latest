@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { z } from 'zod';
+import { hrimsLogger } from '@/lib/logger';
 
 // Validation schema for the HRIMS documents sync request
 const hrimsDocumentsRequestSchema = z
@@ -53,7 +54,7 @@ const hrimsDocumentsResponseSchema = z.object({
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log('HRIMS documents sync request received:', {
+    hrimsLogger.info('HRIMS documents sync request received:', {
       ...body,
       hrimsApiKey: '[REDACTED]',
     });
@@ -121,7 +122,7 @@ export async function POST(req: Request) {
       employee.id
     );
 
-    console.log('Documents synced successfully for Employee:', employee.id);
+    hrimsLogger.info('Documents synced successfully for Employee:', employee.id);
 
     return NextResponse.json(
       {
@@ -138,7 +139,7 @@ export async function POST(req: Request) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('[HRIMS_DOCUMENTS_SYNC_ERROR]', error);
+    hrimsLogger.error('[HRIMS_DOCUMENTS_SYNC_ERROR]', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -194,24 +195,24 @@ async function fetchDocumentsFromHRIMS(
     );
 
     if (!response.ok) {
-      console.error(
+      hrimsLogger.error(
         `HRIMS Documents API error: ${response.status} ${response.statusText}`
       );
       return null;
     }
 
     const data = await response.json();
-    console.log('HRIMS Documents API response received');
+    hrimsLogger.info('HRIMS Documents API response received');
     return data;
   } catch (error) {
-    console.error('Error fetching documents from HRIMS:', error);
+    hrimsLogger.error('Error fetching documents from HRIMS:', error);
 
     // For development/demo - return mock data
     if (
       process.env.NODE_ENV === 'development' ||
       process.env.HRIMS_MOCK_MODE === 'true'
     ) {
-      console.log('Using mock HRIMS documents data for development');
+      hrimsLogger.info('Using mock HRIMS documents data for development');
       return getMockHRIMSDocumentsData(request);
     }
 
@@ -254,7 +255,7 @@ async function storeEmployeeDocuments(
 
       successful++;
     } catch (error) {
-      console.error(`Failed to store document ${doc.id}:`, error);
+      hrimsLogger.error(`Failed to store document ${doc.id}:`, error);
       failed++;
     }
   }

@@ -5,6 +5,7 @@ import { createMfaToken, checkOtpRateLimit, maskEmail } from '@/lib/mfa-utils';
 import { sendMfaEmail } from '@/lib/email';
 import { logAuditEvent, AuditEventType, AuditEventCategory, AuditSeverity, getClientIp } from '@/lib/audit-logger';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { authLogger } from '@/lib/logger';
 
 const sendOtpSchema = z.object({
   userId: z.string().min(1),
@@ -98,7 +99,7 @@ export const POST = withRateLimit(async (request) => {
         { status: 400 }
       );
     }
-    console.error('[MFA_SEND_OTP]', error);
+    authLogger.error({ err: error }, 'MFA send OTP error');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }

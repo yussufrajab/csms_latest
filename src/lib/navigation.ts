@@ -266,41 +266,12 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 export function getNavItemsForRole(role: Role | null): NavItem[] {
-  console.log(
-    'getNavItemsForRole called with role:',
-    role,
-    'type:',
-    typeof role
-  );
-
   if (!role) {
-    console.log('getNavItemsForRole: No role provided, returning empty array');
     return [];
   }
 
-  console.log('Available roles in ROLES constant:', Object.values(ROLES));
-  console.log(
-    'Role comparison - input role:',
-    role,
-    'HRMO constant:',
-    ROLES.HRMO,
-    'equal?',
-    role === ROLES.HRMO
-  );
-
   const filteredItems = NAV_ITEMS.filter((item) => {
-    const hasRole = item.roles.includes(role);
-    console.log(
-      `Item "${item.title}": roles=${JSON.stringify(item.roles)}, includes ${role}? ${hasRole}`
-    );
-    return hasRole;
+    return item.roles.includes(role);
   });
-
-  console.log(
-    'Filtered nav items for role',
-    role,
-    ':',
-    filteredItems.map((item) => item.title)
-  );
   return filteredItems;
 }

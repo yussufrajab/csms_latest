@@ -44,6 +44,8 @@ import {
 import { toast } from '@/hooks/use-toast';
 import React, { useState, useEffect, useCallback } from 'react';
 import { format, isValid, parseISO } from 'date-fns';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'session-cleanup' });
 
 function safeFormatDate(value: string | null | undefined, fmt: string): string {
   if (!value) return '-';
@@ -105,7 +107,7 @@ export default function SessionCleanupPage() {
         setStats(result.data);
       }
     } catch (error) {
-      console.error('Error fetching session stats:', error);
+      log.error({ err: error }, 'Error fetching session stats:');
     }
   }, []);
 
@@ -130,7 +132,7 @@ export default function SessionCleanupPage() {
         });
       }
     } catch (error) {
-      console.error('Error fetching sessions:', error);
+      log.error({ err: error }, 'Error fetching sessions:');
       toast({
         title: 'Error',
         description: 'Failed to fetch sessions',
@@ -177,7 +179,7 @@ export default function SessionCleanupPage() {
         });
       }
     } catch (error) {
-      console.error('Error cleaning up expired sessions:', error);
+      log.error({ err: error }, 'Error cleaning up expired sessions:');
       toast({
         title: 'Error',
         description: 'Failed to cleanup expired sessions',
@@ -211,7 +213,7 @@ export default function SessionCleanupPage() {
         });
       }
     } catch (error) {
-      console.error('Error cleaning up all sessions:', error);
+      log.error({ err: error }, 'Error cleaning up all sessions:');
       toast({
         title: 'Error',
         description: 'Failed to cleanup all sessions',
@@ -245,7 +247,7 @@ export default function SessionCleanupPage() {
         });
       }
     } catch (error) {
-      console.error('Error cleaning up user sessions:', error);
+      log.error({ err: error }, 'Error cleaning up user sessions:');
       toast({
         title: 'Error',
         description: `Failed to cleanup sessions for ${username}`,

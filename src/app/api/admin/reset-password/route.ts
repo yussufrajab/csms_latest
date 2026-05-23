@@ -10,6 +10,7 @@ import {
 } from '@/lib/password-utils';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { logger } from '@/lib/logger';
 
 const resetPasswordSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
@@ -22,7 +23,7 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
     const { userId, temporaryPassword } =
       resetPasswordSchema.parse(body);
 
-    console.log('Password reset request for user ID:', userId);
+    logger.info({ value: userId }, 'Password reset request for user ID');
 
     // Use verified admin ID from auth context
     const adminId = auth.userId;
@@ -33,7 +34,7 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
     });
 
     if (!user) {
-      console.log('User not found:', userId);
+      logger.info({ value: userId }, 'User not found');
       return NextResponse.json(
         { success: false, message: 'User not found' },
         { status: 404 }
@@ -126,7 +127,7 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
       },
     });
 
-    console.log('Password reset successfully for user:', userId);
+    logger.info({ value: userId }, 'Password reset successfully for user');
 
     return NextResponse.json({
       success: true,
@@ -144,7 +145,7 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
         { status: 400 }
       );
     }
-    console.error('[ADMIN_RESET_PASSWORD_POST]', error);
+    logger.error({ err: error }, 'ADMIN RESET PASSWORD POST');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }

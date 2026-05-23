@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { shouldApplyInstitutionFilter } from '@/lib/role-utils';
+import { logger } from '@/lib/logger';
 
 export async function GET(req: Request) {
   try {
@@ -8,10 +9,10 @@ export async function GET(req: Request) {
     const userRole = searchParams.get('userRole');
     const userInstitutionId = searchParams.get('userInstitutionId');
 
-    console.log('Confirmation requests API called with:', {
+    logger.info({ 
       userRole,
       userInstitutionId,
-    });
+     }, 'Confirmation requests API called with');
 
     const whereClause: any = {};
 
@@ -19,12 +20,12 @@ export async function GET(req: Request) {
       whereClause.Employee = {
         institutionId: userInstitutionId,
       };
-      console.log(
+      logger.info(
         'Applying institution filter for confirmation requests, role:',
         userRole
       );
     } else {
-      console.log(
+      logger.info(
         'CSC role - showing ALL confirmation requests for role:',
         userRole
       );
@@ -55,7 +56,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ success: true, data: requests });
   } catch (error) {
-    console.error('[CONFIRMATION_REQUESTS_GET]', error);
+    logger.error({ err: error }, 'CONFIRMATION REQUESTS GET');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }

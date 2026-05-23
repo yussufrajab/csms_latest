@@ -44,6 +44,8 @@ import { FileUpload } from '@/components/ui/file-upload';
 import { FilePreviewModal } from '@/components/ui/file-preview-modal';
 import { useAuthStore } from '@/store/auth-store';
 import { EmployeeSearch } from '@/components/shared/employee-search';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'service-extension' });
 
 interface ServiceExtensionRequest {
   id: string;
@@ -262,15 +264,9 @@ export default function ServiceExtensionPage() {
   const handleEmployeeFound = (employee: Employee) => {
     resetFormFields();
 
-    console.log(
-      '[SERVICE_EXT] handleEmployeeFound called with employee:',
-      employee
-    );
-    console.log('[SERVICE_EXT] Current pendingRequests:', pendingRequests);
-    console.log(
-      '[SERVICE_EXT] pendingRequests length:',
-      pendingRequests.length
-    );
+    log.info({ employee }, 'handleEmployeeFound called with employee:');
+    log.info({ pendingRequests }, 'Current pendingRequests');
+    log.info({ pendingRequestsLength: pendingRequests.length }, 'Pending requests length');
 
     // Check for pending service extension request
     const pendingStatuses = [
@@ -279,27 +275,22 @@ export default function ServiceExtensionPage() {
       'Request Received – Awaiting Commission Decision',
     ];
 
-    console.log(
-      '[SERVICE_EXT] Checking for pending requests with employee.id:',
-      employee.id
-    );
-    console.log('[SERVICE_EXT] Pending statuses to check:', pendingStatuses);
+    log.info({ employeeId: employee.id }, 'Checking for pending requests with employee');
+    log.info({ pendingStatuses }, 'Pending statuses to check');
 
     const hasPending = pendingRequests.some((req) => {
-      console.log('[SERVICE_EXT] Checking request:', {
+      log.info({
         requestId: req.id,
         employeeId: req.Employee?.id,
         status: req.status,
-        matches:
-          req.Employee?.id === employee.id &&
-          pendingStatuses.includes(req.status),
-      });
+        matches: req.Employee?.id === employee.id && pendingStatuses.includes(req.status),
+      }, 'Checking request');
       return (
         req.Employee?.id === employee.id && pendingStatuses.includes(req.status)
       );
     });
 
-    console.log('[SERVICE_EXT] hasPending result:', hasPending);
+    log.info({ hasPending }, 'hasPending result:');
 
     if (hasPending) {
       setHasPendingServiceExtension(true);
@@ -1690,7 +1681,7 @@ export default function ServiceExtensionPage() {
                                     });
                                   }
                                 } catch (error) {
-                                  console.error('Download failed:', error);
+                                  log.error({ err: error }, 'Download failed:');
                                   toast({
                                     title: 'Download Failed',
                                     description:

@@ -40,6 +40,8 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'dismissal' });
 
 interface MockPendingDismissalRequest {
   id: string;
@@ -400,7 +402,7 @@ export default function DismissalPage() {
       reviewStage: 'initial',
     };
 
-    console.log('Submitting Dismissal Request:', newRequest);
+    log.info({ newRequest }, 'Submitting Dismissal Request:');
 
     setTimeout(() => {
       setPendingRequests((prev) => [newRequest, ...prev]);

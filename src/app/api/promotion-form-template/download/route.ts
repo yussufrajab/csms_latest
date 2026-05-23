@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { downloadFile, getFileMetadata } from '@/lib/minio';
+import { logger } from '@/lib/logger';
 
 const TEMPLATE_OBJECT_KEY = 'templates/promotion-form-template.docx';
 
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
       headers,
     });
   } catch (error) {
-    console.error('Promotion form template download error:', error);
+    logger.error({ value: error }, 'Promotion form template download error');
     return NextResponse.json(
       {
         success: false,

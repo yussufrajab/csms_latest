@@ -17,6 +17,8 @@ import { refreshAuthCookie } from '@/lib/auth-cookie-helper';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { UserPlus, Upload } from 'lucide-react';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'add-employee' });
 
 export default function AddEmployeePage() {
   const router = useRouter();
@@ -40,17 +42,16 @@ export default function AddEmployeePage() {
     }
 
     // Debug: Log full user object
-    console.log('[ADD-EMPLOYEE] Full user object:', user);
-    console.log('[ADD-EMPLOYEE] User institutionId:', user?.institutionId);
-    console.log('[ADD-EMPLOYEE] User keys:', user ? Object.keys(user) : 'no user');
+    log.info({ user }, 'Full user object');
+    log.info({ institutionId: user?.institutionId, userKeys: user ? Object.keys(user) : [] }, 'User institutionId');
 
     // Fetch permission from API
     const checkPermission = async () => {
       // ALWAYS try to refresh user data on page load to get latest state from database
       // This fixes the issue where localStorage has stale data
       if (!user?.institutionId) {
-        console.error('[ADD-EMPLOYEE] No institutionId found in user object!');
-        console.log('[ADD-EMPLOYEE] Attempting to refresh user data from database...');
+        log.error('No institutionId found in user object!');
+        log.info('Attempting to refresh user data from database...');
 
         // Try to refresh user data from database
         setIsRefreshing(true);
@@ -60,12 +61,12 @@ export default function AddEmployeePage() {
           const success = await useAuthStore.getState().refreshUserData();
 
           if (success) {
-            console.log('[ADD-EMPLOYEE] Auth state updated successfully!');
+            log.info('Auth state updated successfully!');
             // Get the updated user from the store
             const updatedUser = useAuthStore.getState().user;
 
             if (updatedUser?.institutionId) {
-              console.log('[ADD-EMPLOYEE] User now has institutionId, continuing...');
+              log.info('User now has institutionId, continuing...');
               // Don't reload, just continue with the updated user
               setIsRefreshing(false);
               // Re-trigger permission check by calling checkPermission again
@@ -92,7 +93,7 @@ export default function AddEmployeePage() {
                     setHasPermission(false);
                   }
                 } catch (error) {
-                  console.error('Error checking permission:', error);
+                  log.error({ err: error }, 'Error checking permission:');
                   setHasPermission(false);
                 } finally {
                   setIsLoading(false);
@@ -102,20 +103,20 @@ export default function AddEmployeePage() {
             }
 
             // If still no institutionId after refresh, show error
-            console.error('[ADD-EMPLOYEE] Still no institutionId after refresh');
+            log.error('Still no institutionId after refresh');
             setHasPermission(false);
             setIsLoading(false);
             setIsRefreshing(false);
             return;
           } else {
-            console.error('[ADD-EMPLOYEE] Failed to refresh user data from database');
+            log.error('Failed to refresh user data from database');
           }
         } catch (refreshError) {
-          console.error('[ADD-EMPLOYEE] Failed to refresh user data:', refreshError);
+          log.error({ refreshError }, 'Failed to refresh user data:');
         }
         setIsRefreshing(false);
 
-        console.error('[ADD-EMPLOYEE] User needs to logout and login again to refresh auth state');
+        log.error('User needs to logout and login again to refresh auth state');
         setHasPermission(false);
         setIsLoading(false);
         return;
@@ -141,7 +142,7 @@ export default function AddEmployeePage() {
           setHasPermission(false);
         }
       } catch (error) {
-        console.error('Error checking permission:', error);
+        log.error({ err: error }, 'Error checking permission:');
         setHasPermission(false);
       } finally {
         setIsLoading(false);

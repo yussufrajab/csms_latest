@@ -41,6 +41,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ROLES } from '@/lib/constants';
 import { toast } from '@/hooks/use-toast';
 import { apiClient } from '@/lib/api-client';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'dashboard' });
 
 interface DashboardStats {
   totalEmployees: number;
@@ -186,10 +188,10 @@ export default function DashboardPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(auditData),
           }).catch((err) => {
-            console.error('[Dashboard] Failed to log audit event:', err);
+            log.error({ err: err }, 'Failed to log audit event:');
           });
         } catch (err) {
-          console.error('[Dashboard] Failed to parse audit data:', err);
+          log.error({ err: err }, 'Failed to parse audit data:');
         }
       }
 
@@ -219,17 +221,17 @@ export default function DashboardPage() {
 
     const fetchDashboardData = async () => {
       try {
-        console.log('=== Testing API connectivity ===');
+        log.info('=== Testing API connectivity ===');
         // First test a simple endpoint
         try {
           const testResponse = await fetch('/api/test');
           const testData = await testResponse.json();
-          console.log('Test API response:', testData);
+          log.info({ testData }, 'Test API response:');
         } catch (testError) {
-          console.error('Test API failed:', testError);
+          log.error({ testError }, 'Test API failed:');
         }
 
-        console.log('=== Fetching dashboard data ===');
+        log.info('=== Fetching dashboard data ===');
 
         // Test direct API call to bypass API client
         try {
@@ -240,7 +242,7 @@ export default function DashboardPage() {
             }
           );
           const directData = await directResponse.json();
-          console.log('Direct API response:', directData);
+          log.info({ directData }, 'Direct API response:');
 
           if (directData.success && directData.data) {
             setStats(directData.data.stats);
@@ -248,11 +250,11 @@ export default function DashboardPage() {
             return; // Skip the API client call if direct call works
           }
         } catch (directError) {
-          console.error('Direct API call failed:', directError);
+          log.error({ directError }, 'Direct API call failed:');
         }
 
         const response = await apiClient.getDashboardSummary();
-        console.log('Dashboard response:', response);
+        log.info({ response }, 'Dashboard response:');
 
         if (!response.success || !response.data) {
           throw new Error(
@@ -266,12 +268,12 @@ export default function DashboardPage() {
           setRecentActivities(response.data.recentActivities || []);
         } else {
           // Handle case where data structure is different
-          console.log('Unexpected data structure:', response.data);
+          log.info({ data: response.data }, 'Unexpected data structure');
           setStats(response.data.stats || null);
           setRecentActivities(response.data.recentActivities || []);
         }
       } catch (error) {
-        console.error('Dashboard fetch error:', error);
+        log.error({ err: error }, 'Dashboard fetch error:');
         toast({
           title: 'Error',
           description: 'Could not load dashboard data.',
@@ -297,11 +299,11 @@ export default function DashboardPage() {
               (result.data.nearingRetirement?.length || 0);
             setUrgentCount(totalUrgent);
           } else {
-            console.error('Failed to fetch urgent actions:', result.message);
+            log.error({ message: result.message }, 'Failed to fetch urgent actions');
             setUrgentCount(0);
           }
         } catch (error) {
-          console.error('Could not load urgent actions count.', error);
+          log.error({ err: error }, 'Could not load urgent actions count.');
           setUrgentCount(0);
         }
       }

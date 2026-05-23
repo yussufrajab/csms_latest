@@ -14,6 +14,7 @@ import {
   queryAuditStats,
   ensurePartitions,
 } from './audit-db';
+import { logger } from '@/lib/logger';
 
 export enum AuditEventType {
   // Access Control Events
@@ -116,19 +117,21 @@ export async function logAuditEvent(data: AuditLogData): Promise<void> {
       additionalData: data.additionalData,
     });
 
-    // Also log to console for real-time monitoring
-    console.log(`[AUDIT] ${data.severity} - ${data.eventType}:`, {
+    // Also log to structured logger for real-time monitoring
+    logger.info({
+      severity: data.severity,
+      eventType: data.eventType,
       user: data.username || 'anonymous',
       role: data.userRole || 'none',
       route: data.attemptedRoute,
       blocked: data.wasBlocked,
       reason: data.blockReason,
-    });
+    }, `Audit event: ${data.eventType}`);
   } catch (error: any) {
-    // If audit logging fails, log to console but don't throw
+    // If audit logging fails, log to structured logger but don't throw
     // We don't want audit logging failures to break the app
-    console.error('[AUDIT] Failed to log audit event:', error);
-    console.error('[AUDIT] Event data:', data);
+    logger.error({ err: error }, 'Failed to log audit event');
+    logger.error({ eventData: data }, 'Event data for failed audit log');
   }
 }
 

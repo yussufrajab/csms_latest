@@ -6,6 +6,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Clock } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'password-expiration' });
 
 export function PasswordExpirationBanner() {
   const { user } = useAuth();
@@ -34,7 +37,7 @@ export function PasswordExpirationBanner() {
           setStatus(result.data);
         }
       } catch (error) {
-        console.error('Failed to fetch password status:', error);
+        log.error({ err: error }, 'Failed to fetch password status');
       } finally {
         setLoading(false);
       }

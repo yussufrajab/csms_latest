@@ -63,6 +63,8 @@ import {
 import type { Role as UserRoleType } from '@/lib/types';
 import { Pagination } from '@/components/shared/pagination';
 import { loadPdfExporter, loadExcelExporter } from '@/lib/export-utils';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'track-status' });
 
 // Augment jsPDF with autoTable
 declare module 'jspdf' {
@@ -377,7 +379,7 @@ export default function TrackStatusPage() {
         });
       }
     } catch (error) {
-      console.error('Export error:', error);
+      log.error({ err: error }, 'Export error:');
       toast({
         title: 'Export Error',
         description: `Failed to export ${format.toUpperCase()}. Please try again.`,

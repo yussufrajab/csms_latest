@@ -21,6 +21,8 @@
  * ```
  */
 
+import { clientLogger as logger } from '@/lib/logger-client';
+
 /**
  * Dynamically loads jsPDF library with autotable plugin
  * @returns Promise<jsPDF constructor>
@@ -37,7 +39,7 @@ export async function loadPdfExporter() {
     // jsPDF default export is the constructor
     return jsPDFModule.default;
   } catch (error) {
-    console.error('Failed to load PDF exporter:', error);
+    logger.error({ err: error }, 'Failed to load PDF exporter');
     throw new Error(
       'PDF export functionality is currently unavailable. Please try again.'
     );
@@ -56,7 +58,7 @@ export async function loadExcelExporter() {
     // XLSX exports the entire module
     return XLSXModule;
   } catch (error) {
-    console.error('Failed to load Excel exporter:', error);
+    logger.error({ err: error }, 'Failed to load Excel exporter');
     throw new Error(
       'Excel export functionality is currently unavailable. Please try again.'
     );

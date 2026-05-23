@@ -12,6 +12,7 @@ import {
 import { createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
 import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
 import { ROLES } from '@/lib/constants';
+import { logger } from '@/lib/logger';
 
 // Cache configuration for cadre change requests
 const CACHE_TTL = 30; // 30 seconds cache (request status changes frequently)
@@ -26,28 +27,28 @@ export async function GET(req: Request) {
     const size = parseInt(searchParams.get('size') || '50', 10);
     const status = searchParams.get('status') || 'all';
 
-    console.log('Cadre Change API called with:', {
+    logger.info({ 
       userId,
       userRole,
       userInstitutionId,
       page,
       size,
       status,
-    });
+     }, 'Cadre Change API called with');
 
     // Build where clause based on user role and institution
     const whereClause: any = {};
 
     // Apply institution filtering based on role
     if (shouldApplyInstitutionFilter(userRole, userInstitutionId)) {
-      console.log(
+      logger.info(
         `Applying institution filter for role ${userRole} with institutionId ${userInstitutionId}`
       );
       whereClause.Employee = {
         institutionId: userInstitutionId,
       };
     } else {
-      console.log(
+      logger.info(
         `Role ${userRole} is a CSC role - showing all cadre change data across institutions`
       );
     }
@@ -100,7 +101,7 @@ export async function GET(req: Request) {
       db.cadreChangeRequest.count({ where: whereClause }),
     ]);
 
-    console.log(`Found ${requests.length} cadre change requests (page ${page} of ${Math.ceil(total / size)})`);
+    logger.info(`Found ${requests.length} cadre change requests (page ${page} of ${Math.ceil(total / size)})`);
 
     // Transform the data to match frontend expectations
     const transformedRequests = requests.map((req: any) => ({
@@ -121,7 +122,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    console.error('[CADRE_CHANGE_GET]', error);
+    logger.error({ err: error }, 'CADRE CHANGE GET');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }
@@ -132,7 +133,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log('Creating cadre change request:', body);
+    logger.info({ value: body }, 'Creating cadre change request');
 
     // Basic validation
     if (!body.employeeId || !body.submittedById || !body.newCadre) {
@@ -213,7 +214,7 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log('Created cadre change request:', cadreChangeRequest.id);
+    logger.info({ value: cadreChangeRequest.id }, 'Created cadre change request');
 
     // Create notification for CSC reviewers
     const notification = NotificationTemplates.cadreChangeSubmitted(
@@ -269,7 +270,7 @@ export async function POST(req: Request) {
       data: cadreChangeRequest,
     });
   } catch (error) {
-    console.error('[CADRE_CHANGE_POST]', error);
+    logger.error({ err: error }, 'CADRE CHANGE POST');
     return NextResponse.json(
       {
         success: false,
@@ -337,7 +338,7 @@ export async function PATCH(req: Request) {
         where: { id: updatedRequest.Employee.id },
         data: { cadre: updatedRequest.newCadre },
       });
-      console.log(
+      logger.info(
         `Employee ${updatedRequest.Employee.name} cadre updated to "${updatedRequest.newCadre}" after cadre change approval`
       );
     }
@@ -355,13 +356,13 @@ export async function PATCH(req: Request) {
           statusLower.includes('approved') && !statusLower.includes('rejected');
         const isRejection = statusLower.includes('rejected');
 
-        console.log('[AUDIT] Cadre Change status update:', {
+        logger.info({ 
           status: updateData.status,
           isApproval,
           isRejection,
           reviewedById: updateData.reviewedById,
           reviewer: reviewer.username,
-        });
+         }, 'Cadre Change status update:');
 
         if (isApproval) {
           await logRequestApproval({
@@ -440,7 +441,7 @@ export async function PATCH(req: Request) {
       data: transformedRequest,
     });
   } catch (error) {
-    console.error('[CADRE_CHANGE_PATCH]', error);
+    logger.error({ err: error }, 'CADRE CHANGE PATCH');
     return NextResponse.json(
       {
         success: false,

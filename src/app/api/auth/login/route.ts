@@ -8,6 +8,7 @@ import { completeLogin } from '@/lib/auth-helpers';
 import { createMfaToken, checkOtpRateLimit, maskEmail } from '@/lib/mfa-utils';
 import { sendMfaEmail } from '@/lib/email';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { authLogger } from '@/lib/logger';
 
 const loginSchema = z.object({
   username: z.string().min(1, 'Username or email is required.'),
@@ -19,7 +20,7 @@ export const POST = withRateLimit(async (request) => {
     const body = await request.json();
     const { username, password } = loginSchema.parse(body);
 
-    console.log('Login attempt for username/email:', username);
+    authLogger.info({ username }, 'Login attempt');
 
     // Get client info for audit logging
     const ipAddress = getClientIp(request.headers);
@@ -39,7 +40,7 @@ export const POST = withRateLimit(async (request) => {
     });
 
     if (!user) {
-      console.log('User not found:', username);
+      authLogger.info({ username }, 'User not found');
 
       // Log failed login attempt
       await logLoginAttempt({
@@ -108,7 +109,7 @@ export const POST = withRateLimit(async (request) => {
     // Check if account is locked
     if (isAccountLocked(currentUser)) {
       const lockoutStatus = getAccountLockoutStatus(currentUser);
-      console.log('Account locked for user:', username);
+      authLogger.info({ username }, 'Account locked');
 
       // Still increment failed attempts to track persistent attack attempts
       // This allows upgrading from STANDARD to SECURITY lockout after 11 total attempts
@@ -140,7 +141,7 @@ export const POST = withRateLimit(async (request) => {
     }
 
     if (!user.active) {
-      console.log('User account is inactive:', username);
+      authLogger.info({ username }, 'User account is inactive');
 
       // Log failed login attempt
       await logLoginAttempt({
@@ -166,7 +167,7 @@ export const POST = withRateLimit(async (request) => {
     );
 
     if (!isPasswordValid) {
-      console.log('Invalid password for user:', username);
+      authLogger.info({ username }, 'Invalid password');
 
       // Increment failed login attempts
       const lockoutResult = await incrementFailedLoginAttempts(
@@ -218,7 +219,7 @@ export const POST = withRateLimit(async (request) => {
 
     // If temporary password has expired, deny login
     if (isTemporaryPasswordExpired) {
-      console.log('Temporary password expired for user:', username);
+      authLogger.info({ username }, 'Temporary password expired');
       return NextResponse.json(
         {
           success: false,
@@ -244,7 +245,7 @@ export const POST = withRateLimit(async (request) => {
 
       // If expired beyond grace period, deny login
       if (expirationStatus.isExpired && !expirationStatus.isInGracePeriod) {
-        console.log('Password expired beyond grace period for user:', username);
+        authLogger.info({ username }, 'Password expired beyond grace period');
 
         await logLoginAttempt({
           success: false,
@@ -276,7 +277,7 @@ export const POST = withRateLimit(async (request) => {
       }
     }
 
-    console.log('Login successful for user:', username);
+    authLogger.info({ username }, 'Login successful');
 
     // --- MFA Gate ---
     // If user has an email address, require MFA verification before creating a session
@@ -302,7 +303,7 @@ export const POST = withRateLimit(async (request) => {
       const emailResult = await sendMfaEmail(user.email, otpToken, magicLinkUrl, user.name, mfaTokenExpiryMinutes);
 
       if (!emailResult.success) {
-        console.error('[LOGIN] Failed to send MFA email:', emailResult.error);
+        authLogger.error({ err: emailResult.error }, 'Failed to send MFA email');
         return NextResponse.json(
           { success: false, message: 'Failed to send verification email. Please try again.' },
           { status: 500 }
@@ -321,7 +322,7 @@ export const POST = withRateLimit(async (request) => {
     }
 
     // No email on file — skip MFA and complete login directly
-    console.log('[LOGIN] No email on file, skipping MFA for user:', username);
+    authLogger.info({ username }, 'No email on file, skipping MFA');
 
     return completeLogin({
       user: {
@@ -341,7 +342,7 @@ export const POST = withRateLimit(async (request) => {
         { status: 400 }
       );
     }
-    console.error('[LOGIN_POST]', error);
+    authLogger.error({ err: error }, 'Login POST error');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }

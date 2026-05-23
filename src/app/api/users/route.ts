@@ -11,6 +11,7 @@ import { logUserAction, getClientIp } from '@/lib/audit-logger';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
 import { sanitizeUser, sanitizeUsers } from '@/lib/sanitize-response';
+import { logger } from '@/lib/logger';
 
 const userSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -84,7 +85,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
 
     return NextResponse.json(formattedUsers);
   } catch (error) {
-    console.error('[USERS_GET]', error);
+    logger.error({ err: error }, 'USERS GET');
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }, { allowedRoles: ['ADMIN', 'HHRMD', 'HRO'] }), 'read');
@@ -209,7 +210,7 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
 
     return NextResponse.json(sanitizeUser(response), { status: 201 });
   } catch (error) {
-    console.error('[USERS_POST]', error);
+    logger.error({ err: error }, 'USERS POST');
 
     // Handle Zod validation errors with user-friendly messages
     if (error instanceof z.ZodError) {

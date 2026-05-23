@@ -4,6 +4,9 @@
 import { useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/store/auth-store';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'api-init' });
 
 export function useApiInit() {
   const { isAuthenticated, refreshAuthToken, logout } = useAuthStore();
@@ -26,9 +29,7 @@ export function useApiInit() {
           : null;
 
       if (!storedRefreshToken) {
-        console.log(
-          'No refresh token found, skipping automatic token refresh (session-based auth)'
-        );
+        log.info('No refresh token found, skipping automatic token refresh (session-based auth)');
         return null;
       }
 
@@ -38,7 +39,7 @@ export function useApiInit() {
           if (isAuthenticated) {
             const success = await refreshAuthToken();
             if (!success) {
-              console.log('Token refresh failed, logging out');
+              log.info('Token refresh failed, logging out');
               clearInterval(refreshInterval);
             }
           }

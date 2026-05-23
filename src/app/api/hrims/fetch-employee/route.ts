@@ -3,6 +3,7 @@ import { getHrimsApiConfig } from '@/lib/hrims-config';
 import { db } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { uploadFile } from '@/lib/minio';
+import { hrimsLogger } from '@/lib/logger';
 
 interface HRIMSEmployeeResponse {
   success: boolean;
@@ -180,7 +181,7 @@ async function saveEmployeeToDatabase(hrimsData: any, institutionId: string) {
       employeeEntityId: personalInfo.zanIdNumber, // Use ZanID as entity ID
     };
 
-    console.log('Saving employee data:', {
+    hrimsLogger.info('Saving employee data:', {
       zanId: dbEmployeeData.zanId,
       name: dbEmployeeData.name,
       ministry: dbEmployeeData.ministry,
@@ -196,7 +197,7 @@ async function saveEmployeeToDatabase(hrimsData: any, institutionId: string) {
 
     return employeeId;
   } catch (error) {
-    console.error('Error saving employee to database:', error);
+    hrimsLogger.error('Error saving employee to database:', error);
     throw error;
   }
 }
@@ -229,8 +230,8 @@ async function processDocuments(
   hrimsConfig: { BASE_URL: string; API_KEY: string; TOKEN: string }
 ) {
   try {
-    console.log(
-      `📄 Fetching documents for employee (Payroll: ${payrollNumber})`
+    hrimsLogger.info(
+      ` Fetching documents for employee (Payroll: ${payrollNumber})`
     );
     let savedDocuments = 0;
 
@@ -257,8 +258,8 @@ async function processDocuments(
         });
 
         if (!response.ok) {
-          console.error(
-            `❌ HRIMS API error for ${docType.name}: ${response.status}`
+          hrimsLogger.error(
+            ` HRIMS API error for ${docType.name}: ${response.status}`
           );
           continue;
         }
@@ -267,8 +268,8 @@ async function processDocuments(
 
         // Check for HRIMS internal errors
         if (hrimsData.code === 500 || hrimsData.status === 'Failure') {
-          console.error(
-            `❌ HRIMS internal error for ${docType.name}:`,
+          hrimsLogger.error(
+            ` HRIMS internal error for ${docType.name}:`,
             hrimsData.message
           );
           continue;
@@ -277,7 +278,7 @@ async function processDocuments(
         // Extract attachments
         const attachments = Array.isArray(hrimsData.data) ? hrimsData.data : [];
         if (attachments.length === 0) {
-          console.log(`⚠️ No ${docType.name} found`);
+          hrimsLogger.info(` No ${docType.name} found`);
           continue;
         }
 
@@ -290,7 +291,7 @@ async function processDocuments(
         const filePath = `employee-documents/${fileName}`;
 
         await uploadFile(buffer, filePath, 'application/pdf');
-        console.log(`✅ Uploaded ${docType.name} to MinIO: ${filePath}`);
+        hrimsLogger.info(` Uploaded ${docType.name} to MinIO: ${filePath}`);
 
         // Update employee record with MinIO URL
         const minioUrl = `/api/files/employee-documents/${fileName}`;
@@ -303,13 +304,13 @@ async function processDocuments(
 
         savedDocuments++;
       } catch (error) {
-        console.error(`Error processing ${docType.name}:`, error);
+        hrimsLogger.error(`Error processing ${docType.name}:`, error);
       }
     }
 
     return savedDocuments;
   } catch (error) {
-    console.error('Error processing documents:', error);
+    hrimsLogger.error('Error processing documents:', error);
     return 0;
   }
 }
@@ -320,7 +321,7 @@ async function processPhoto(
   hrimsConfig: { BASE_URL: string; API_KEY: string; TOKEN: string }
 ) {
   try {
-    console.log(`📸 Fetching photo for employee (Payroll: ${payrollNumber})`);
+    hrimsLogger.info(` Fetching photo for employee (Payroll: ${payrollNumber})`);
 
     const photoPayload = {
       RequestId: '203',
@@ -339,7 +340,7 @@ async function processPhoto(
     });
 
     if (!photoResponse.ok) {
-      console.error(`❌ HRIMS API error for photo: ${photoResponse.status}`);
+      hrimsLogger.error(` HRIMS API error for photo: ${photoResponse.status}`);
       return false;
     }
 
@@ -364,7 +365,7 @@ async function processPhoto(
     }
 
     if (!photoBase64) {
-      console.log('⚠️ No photo data in HRIMS response');
+      hrimsLogger.info(' No photo data in HRIMS response');
       return false;
     }
 
@@ -397,7 +398,7 @@ async function processPhoto(
     const filePath = `employee-photos/${fileName}`;
 
     await uploadFile(photoBuffer, filePath, mimeType);
-    console.log(`✅ Photo uploaded to MinIO: ${filePath}`);
+    hrimsLogger.info(` Photo uploaded to MinIO: ${filePath}`);
 
     // Store MinIO URL in database
     const minioUrl = `/api/files/employee-photos/${fileName}`;
@@ -408,7 +409,7 @@ async function processPhoto(
 
     return true;
   } catch (error) {
-    console.error('Error processing photo:', error);
+    hrimsLogger.error('Error processing photo:', error);
     return false;
   }
 }
@@ -450,7 +451,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Fetch employee data from HRIMS
-    console.log('Fetching employee data from HRIMS...');
+    hrimsLogger.info('Fetching employee data from HRIMS...');
     const employeeResponse = await fetchFromHRIMS(
       '202',
       {
@@ -459,7 +460,7 @@ export async function POST(req: NextRequest) {
       HRIMS_CONFIG
     );
 
-    console.log('HRIMS Response received:', {
+    hrimsLogger.info('HRIMS Response received:', {
       code: employeeResponse.code,
       status: employeeResponse.status,
       message: employeeResponse.message,
@@ -480,7 +481,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Save employee to database
-    console.log('Saving employee to database...');
+    hrimsLogger.info('Saving employee to database...');
     const employeeId = await saveEmployeeToDatabase(
       employeeResponse.data,
       institution.id
@@ -494,7 +495,7 @@ export async function POST(req: NextRequest) {
     let documentsCount = 0;
 
     if (employeePayrollNumber) {
-      console.log('📦 Processing photo and documents...');
+      hrimsLogger.info(' Processing photo and documents...');
 
       // Run photo and documents fetch in parallel for better performance
       const [photoResult, docsCount] = await Promise.all([
@@ -505,12 +506,12 @@ export async function POST(req: NextRequest) {
       photoStored = photoResult;
       documentsCount = docsCount;
 
-      console.log(
-        `✅ Completed: Photo=${photoStored ? 'stored' : 'not found'}, Documents=${documentsCount} stored`
+      hrimsLogger.info(
+        ` Completed: Photo=${photoStored ? 'stored' : 'not found'}, Documents=${documentsCount} stored`
       );
     } else {
-      console.log(
-        '⚠️ No payroll number available - skipping photo and documents fetch'
+      hrimsLogger.info(
+        ' No payroll number available - skipping photo and documents fetch'
       );
     }
 
@@ -551,7 +552,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error in HRIMS fetch-employee API:', error);
+    hrimsLogger.error('Error in HRIMS fetch-employee API:', error);
 
     return NextResponse.json(
       {

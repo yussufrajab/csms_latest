@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
 import { validateRequest, notificationQuerySchema } from '@/lib/api-schemas';
+import { logger } from '@/lib/logger';
 
 export const GET = withRateLimit(withAuth(async (request, { auth }) => {
   try {
@@ -30,7 +31,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       data: notifications,
     });
   } catch (error) {
-    console.error('[NOTIFICATIONS_GET]', error);
+    logger.error({ err: error }, 'NOTIFICATIONS GET');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }
@@ -60,7 +61,7 @@ export const POST = withRateLimit(withAuth(async (request, { auth: _auth }) => {
       message: 'Notifications marked as read',
     });
   } catch (error) {
-    console.error('[NOTIFICATIONS_POST]', error);
+    logger.error({ err: error }, 'NOTIFICATIONS POST');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }

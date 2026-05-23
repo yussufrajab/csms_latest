@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 
 interface ReportOutput {
   data: any[];
@@ -679,13 +680,13 @@ export async function GET(req: Request) {
     const institutionId = searchParams.get('institutionId');
     const userRole = searchParams.get('userRole');
 
-    console.log('Reports API called with:', {
+    logger.info({ 
       reportType,
       fromDate,
       toDate,
       institutionId,
       userRole,
-    });
+     }, 'Reports API called with');
 
     if (!reportType) {
       return NextResponse.json(
@@ -1316,7 +1317,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    console.error('[REPORTS_GET]', error);
+    logger.error({ err: error }, 'REPORTS GET');
     return NextResponse.json(
       {
         success: false,

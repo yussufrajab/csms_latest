@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import {
   getHrimsConfig,
   saveHrimsConfig,
@@ -38,7 +39,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error('Error getting HRIMS config:', error);
+    logger.error({ value: error }, 'Error getting HRIMS config');
     return NextResponse.json(
       {
         success: false,
@@ -114,7 +115,7 @@ export async function PUT(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error updating HRIMS config:', error);
+    logger.error({ value: error }, 'Error updating HRIMS config');
     return NextResponse.json(
       {
         success: false,
@@ -163,7 +164,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error testing HRIMS connection:', error);
+    logger.error({ value: error }, 'Error testing HRIMS connection');
     return NextResponse.json(
       {
         success: false,

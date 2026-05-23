@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { logEmployeeAction, getClientIp } from '@/lib/audit-logger';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -30,7 +31,7 @@ function parseAuthStorage(cookieValue: string | undefined): {
       username: state.user?.name || state.user?.username || null,
     };
   } catch (error) {
-    console.error('Failed to parse auth-storage cookie:', error);
+    logger.error({ value: error }, 'Failed to parse auth-storage cookie');
     return { role: null, isAuthenticated: false, userId: null, institutionId: null, username: null };
   }
 }
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     // If institutionId is missing from cookie, fetch it from database
     if (!institutionId) {
-      console.log('[MANUAL-ENTRY] institutionId missing from cookie, fetching from database for user:', userId);
+      logger.info({ value: userId }, '[MANUAL-ENTRY] institutionId missing from cookie, fetching from database for user');
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
       });
 
       if (!user || !user.institutionId) {
-        console.error('[MANUAL-ENTRY] User not found or has no institutionId:', userId);
+        logger.error({ value: userId }, '[MANUAL-ENTRY] User not found or has no institutionId');
         return NextResponse.json(
           { success: false, error: 'User institution not found. Please logout and login again.' },
           { status: 403 }
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
       }
 
       institutionId = user.institutionId;
-      console.log('[MANUAL-ENTRY] Successfully fetched institutionId from database:', institutionId);
+      logger.info({ value: institutionId }, '[MANUAL-ENTRY] Successfully fetched institutionId from database');
     }
 
     // Parse request body
@@ -223,12 +224,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log('Manual employee created:', {
+    logger.info({ 
       employeeId: employee.id,
       name: employee.name,
       institutionId: employee.institutionId,
       createdBy: userId,
-    });
+     }, 'Manual employee created');
 
     // Audit log: employee created via manual entry
     await logEmployeeAction({
@@ -252,7 +253,7 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error('Error creating manual employee:', error);
+    logger.error({ value: error }, 'Error creating manual employee');
     return NextResponse.json(
       { success: false, error: 'Internal Server Error' },
       { status: 500 }

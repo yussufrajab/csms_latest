@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { z } from 'zod';
 import { logInstitutionAction, getClientIp } from '@/lib/audit-logger';
+import { logger } from '@/lib/logger';
 
 const institutionSchema = z.object({
   name: z.string().min(3, {
@@ -141,7 +142,7 @@ export async function PUT(
 
     return NextResponse.json(updatedInstitution);
   } catch (error) {
-    console.error('[INSTITUTION_PUT]', error);
+    logger.error({ err: error }, 'INSTITUTION PUT');
     if (error instanceof z.ZodError) {
       return new NextResponse(JSON.stringify(error.errors), { status: 400 });
     }
@@ -200,7 +201,7 @@ export async function DELETE(
     });
     return new NextResponse(null, { status: 204 });
   } catch (error) {
-    console.error('[INSTITUTION_DELETE]', error);
+    logger.error({ err: error }, 'INSTITUTION DELETE');
     if ((error as any).code === 'P2025') {
       return new NextResponse('Institution not found', { status: 404 });
     }

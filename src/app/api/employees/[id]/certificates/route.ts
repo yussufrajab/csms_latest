@@ -3,6 +3,7 @@ import { uploadFile, generateObjectKey } from '@/lib/minio';
 import { db as prisma } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { validateFileUpload } from '@/lib/file-validation';
+import { logger } from '@/lib/logger';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
 
@@ -186,7 +187,7 @@ export const POST = withRateLimit(withAuth(async (
       },
     });
   } catch (error) {
-    console.error('Employee certificate upload error:', error);
+    logger.error({ err: error }, 'Employee certificate upload error');
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
       { status: 500 }
@@ -255,7 +256,7 @@ export const GET = withRateLimit(withAuth(async (
       },
     });
   } catch (error) {
-    console.error('Employee certificates fetch error:', error);
+    logger.error({ err: error }, 'Employee certificates fetch error');
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
       { status: 500 }
@@ -344,7 +345,7 @@ export const DELETE = withRateLimit(withAuth(async (
       message: 'Certificate deleted successfully',
     });
   } catch (error) {
-    console.error('Employee certificate delete error:', error);
+    logger.error({ err: error }, 'Employee certificate delete error');
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
       { status: 500 }

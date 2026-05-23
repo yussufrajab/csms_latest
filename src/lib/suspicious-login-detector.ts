@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { authLogger } from '@/lib/logger';
 
 /**
  * Suspicious Login Detector
@@ -130,7 +131,7 @@ export async function detectSuspiciousLogin(context: LoginContext): Promise<{
       shouldNotify,
     };
   } catch (error) {
-    console.error('[SUSPICIOUS_LOGIN] Detection failed:', error);
+    authLogger.error({ err: error }, 'Suspicious login detection failed');
     // Fail safe: Don't block login on detection errors
     return { isSuspicious: false, reasons: [], shouldNotify: false };
   }

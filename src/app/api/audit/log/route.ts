@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { logUnauthorizedAccess, getClientIp } from '@/lib/audit-logger';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
       message: 'Audit event logged successfully',
     });
   } catch (error) {
-    console.error('[API] Error logging audit event:', error);
+    logger.error({ value: error }, '[API] Error logging audit event');
     return NextResponse.json(
       {
         success: false,

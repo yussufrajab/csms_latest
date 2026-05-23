@@ -26,6 +26,8 @@ import {
   Server,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'hrims-settings' });
 
 interface HrimsConfig {
   host: string;
@@ -82,7 +84,7 @@ export default function HrimsSettingsPage() {
         });
       }
     } catch (error) {
-      console.error('Error fetching HRIMS config:', error);
+      log.error({ err: error }, 'Error fetching HRIMS config:');
       toast({
         title: 'Error',
         description: 'Failed to load HRIMS configuration',
@@ -131,7 +133,7 @@ export default function HrimsSettingsPage() {
         });
       }
     } catch (error) {
-      console.error('Error saving HRIMS config:', error);
+      log.error({ err: error }, 'Error saving HRIMS config:');
       toast({
         title: 'Error',
         description: 'Failed to save HRIMS configuration',
@@ -174,7 +176,7 @@ export default function HrimsSettingsPage() {
         variant: result.success ? 'default' : 'destructive',
       });
     } catch (error) {
-      console.error('Error testing HRIMS connection:', error);
+      log.error({ err: error }, 'Error testing HRIMS connection:');
       setTestResult({
         success: false,
         message: 'Failed to test connection',

@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { shouldApplyInstitutionFilter, isCSCRole } from '@/lib/role-utils';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { logger } from '@/lib/logger';
 
 // Cache configuration for employee data
 const CACHE_TTL = 60; // 60 seconds cache (employee data changes infrequently)
@@ -24,7 +25,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
     const page = parseInt(searchParams.get('page') || '1');
     const size = parseInt(searchParams.get('size') || '200');
 
-    console.log('Employees API called with params:', {
+    logger.info({ 
       userRole,
       userInstitutionId,
       employeeId,
@@ -38,7 +39,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       institutionIdFilter,
       page,
       size,
-    });
+     }, 'Employees API called with params');
 
     // If a specific employee ID is requested, fetch that employee directly
     if (employeeId) {
@@ -111,14 +112,14 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
     // If no role provided, show all employees (default behavior)
     if (shouldApplyInstitutionFilter(userRole, userInstitutionId)) {
       whereClause.institutionId = userInstitutionId;
-      console.log('Applying institution filter for role:', userRole);
+      logger.info({ value: userRole }, 'Applying institution filter for role');
     } else if (isCSCRole(userRole)) {
-      console.log(
+      logger.info(
         'CSC role detected - showing ALL institutions data for role:',
         userRole
       );
     } else if (!userRole) {
-      console.log(
+      logger.info(
         'No user role provided - showing ALL employees (default behavior)'
       );
     }
@@ -126,7 +127,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
     // If a specific institution ID is provided, filter by that institution
     if (institutionIdFilter) {
       whereClause.institutionId = institutionIdFilter;
-      console.log('Filtering by specific institution:', institutionIdFilter);
+      logger.info({ value: institutionIdFilter }, 'Filtering by specific institution');
     }
 
     // If search query provided, search by name, zanId, payrollNumber, cadre, or institution name
@@ -204,7 +205,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       })
       .catch(() => []);
 
-    console.log(`Found ${employees.length} employees out of ${total} total`);
+    logger.info(`Found ${employees.length} employees out of ${total} total`);
 
     // Map EmployeeCertificate to certificates and Institution to institution to match TypeScript interface
     const mappedEmployees = employees.map((emp) => ({
@@ -236,7 +237,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       { headers }
     );
   } catch (error) {
-    console.error('[EMPLOYEES_GET]', error);
+    logger.error({ err: error }, 'EMPLOYEES GET');
     return NextResponse.json(
       {
         success: false,

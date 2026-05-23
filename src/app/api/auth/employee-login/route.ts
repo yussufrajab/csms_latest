@@ -13,6 +13,7 @@ import { createMfaToken, checkOtpRateLimit, maskEmail } from '@/lib/mfa-utils';
 import { sendMfaEmail } from '@/lib/email';
 import { logLoginAttempt, getClientIp } from '@/lib/audit-logger';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { authLogger } from '@/lib/logger';
 
 const employeeLoginSchema = z.object({
   zanId: z.string().min(1),
@@ -44,11 +45,11 @@ export const POST = withRateLimit(async (request) => {
     const normalizedZssfNumber = zssfNumber.trim().toUpperCase();
     const normalizedPayrollNumber = payrollNumber.trim().toUpperCase();
 
-    console.log('[EMPLOYEE_LOGIN] Search criteria:', {
+    authLogger.info({
       zanId: normalizedZanId,
       zssfNumber: normalizedZssfNumber,
       payrollNumber: normalizedPayrollNumber,
-    });
+    }, 'Employee login search criteria');
 
     // Find employee with matching credentials
     const employee = await db.employee.findFirst({
@@ -77,9 +78,7 @@ export const POST = withRateLimit(async (request) => {
     });
 
     if (!employee) {
-      console.log(
-        '[EMPLOYEE_LOGIN] No employee found with provided credentials'
-      );
+      authLogger.info('No employee found with provided credentials');
 
       // Log failed login attempt
       await logLoginAttempt({
@@ -104,10 +103,7 @@ export const POST = withRateLimit(async (request) => {
     let user = employee.User;
 
     if (!user) {
-      console.log(
-        '[EMPLOYEE_LOGIN] No user account found. Auto-provisioning user account for employee:',
-        employee.name
-      );
+      authLogger.info({ employeeName: employee.name }, 'No user account found, auto-provisioning');
 
       try {
         // Generate username from employee name
@@ -158,17 +154,14 @@ export const POST = withRateLimit(async (request) => {
           },
         });
 
-        console.log(
-          '[EMPLOYEE_LOGIN] User account auto-provisioned successfully:',
-          {
-            username: user.username,
-            employeeId: employee.id,
-          }
+        authLogger.info(
+          { username: user.username, employeeId: employee.id },
+          'User account auto-provisioned successfully'
         );
       } catch (provisionError) {
-        console.error(
-          '[EMPLOYEE_LOGIN] Error auto-provisioning user account:',
-          provisionError
+        authLogger.error(
+          { err: provisionError },
+          'Error auto-provisioning user account'
         );
 
         // Log failed login attempt
@@ -268,7 +261,7 @@ export const POST = withRateLimit(async (request) => {
       const emailResult = await sendMfaEmail(user.email, otpToken, magicLinkUrl, user.name, mfaTokenExpiryMinutes);
 
       if (!emailResult.success) {
-        console.error('[EMPLOYEE_LOGIN] Failed to send MFA email:', emailResult.error);
+        authLogger.error({ err: emailResult.error }, 'Failed to send MFA email');
         return NextResponse.json(
           { success: false, message: 'Failed to send verification email. Please try again.' },
           { status: 500 }
@@ -287,7 +280,7 @@ export const POST = withRateLimit(async (request) => {
     }
 
     // No email on file — skip MFA and complete login directly
-    console.log('[EMPLOYEE_LOGIN] No email on file, skipping MFA for user:', user.username);
+    authLogger.info({ username: user.username }, 'No email on file, skipping MFA');
 
     // Get full user data for completeLogin
     const fullUser = await db.user.findUnique({
@@ -309,7 +302,7 @@ export const POST = withRateLimit(async (request) => {
       deviceInfo,
     });
   } catch (error) {
-    console.error('[EMPLOYEE_LOGIN]', error);
+    authLogger.error({ err: error }, 'Employee login error');
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(

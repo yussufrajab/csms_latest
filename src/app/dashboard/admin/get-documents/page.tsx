@@ -32,6 +32,8 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Pagination } from '@/components/shared/pagination';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'get-documents' });
 
 interface Institution {
   id: string;
@@ -113,7 +115,7 @@ export default function GetDocumentsPage() {
           });
         }
       } catch (error) {
-        console.error('Error fetching institutions:', error);
+        log.error({ err: error }, 'Error fetching institutions:');
         toast({
           title: 'Error',
           description: 'Failed to load institutions',
@@ -242,7 +244,7 @@ export default function GetDocumentsPage() {
         }
       }
     } catch (error) {
-      console.error('Error fetching documents:', error);
+      log.error({ err: error }, 'Error fetching documents:');
       toast({
         title: 'Error',
         description:

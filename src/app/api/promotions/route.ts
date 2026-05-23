@@ -15,6 +15,7 @@ import {
   getClientIp,
 } from '@/lib/audit-logger';
 import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
+import { logger } from '@/lib/logger';
 
 // Cache configuration for promotion requests
 const CACHE_TTL = 30; // 30 seconds cache (request status changes frequently)
@@ -29,28 +30,28 @@ export async function GET(req: Request) {
     const size = parseInt(searchParams.get('size') || '50', 10);
     const status = searchParams.get('status') || 'all';
 
-    console.log('Promotions API called with:', {
+    logger.info({ 
       userId,
       userRole,
       userInstitutionId,
       page,
       size,
       status,
-    });
+     }, 'Promotions API called with');
 
     // Build where clause based on user role and institution
     const whereClause: any = {};
 
     // Apply institution filtering based on role
     if (shouldApplyInstitutionFilter(userRole, userInstitutionId)) {
-      console.log(
+      logger.info(
         `Applying institution filter for role ${userRole} with institutionId ${userInstitutionId}`
       );
       whereClause.Employee = {
         institutionId: userInstitutionId,
       };
     } else {
-      console.log(
+      logger.info(
         `Role ${userRole} is a CSC role - showing all promotion data across institutions`
       );
     }
@@ -116,7 +117,7 @@ export async function GET(req: Request) {
       db.promotionRequest.count({ where: whereClause }),
     ]);
 
-    console.log(`Found ${promotionRequests.length} promotion requests (page ${page} of ${Math.ceil(total / size)})`);
+    logger.info(`Found ${promotionRequests.length} promotion requests (page ${page} of ${Math.ceil(total / size)})`);
 
     // Transform the data to match frontend expectations
     const transformedRequests = promotionRequests.map((req: any) => ({
@@ -137,7 +138,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    console.error('[PROMOTIONS_GET]', error);
+    logger.error({ err: error }, 'PROMOTIONS GET');
     return NextResponse.json(
       {
         success: false,
@@ -152,7 +153,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log('Creating promotion request:', body);
+    logger.info({ value: body }, 'Creating promotion request');
 
     // Basic validation
     if (!body.employeeId || !body.submittedById || !body.promotionType) {
@@ -253,7 +254,7 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log('Created promotion request:', promotionRequest.id);
+    logger.info({ value: promotionRequest.id }, 'Created promotion request');
 
     // Create notification for supervisors/HHRMD
     const notification = NotificationTemplates.promotionSubmitted(
@@ -317,7 +318,7 @@ export async function POST(req: Request) {
       data: transformedRequest,
     });
   } catch (error) {
-    console.error('[PROMOTIONS_POST]', error);
+    logger.error({ err: error }, 'PROMOTIONS POST');
     return NextResponse.json(
       {
         success: false,
@@ -334,7 +335,7 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const { id, ...updateData } = body;
 
-    console.log('🔵 PATCH /api/promotions called with:', { id, updateData });
+    logger.info({  id, updateData  }, '🔵 PATCH /api/promotions called with');
 
     if (!id) {
       return NextResponse.json(
@@ -402,7 +403,7 @@ export async function PATCH(req: Request) {
         where: { id: updatedRequest.Employee.id },
         data: { cadre: newCadre },
       });
-      console.log(
+      logger.info(
         `Employee ${updatedRequest.Employee.name} cadre updated to "${newCadre}" after promotion approval (${updatedRequest.finalCadre ? 'finalCadre' : 'proposedCadre'})`
       );
     }
@@ -421,13 +422,13 @@ export async function PATCH(req: Request) {
           statusLower.includes('approved') && !statusLower.includes('rejected');
         const isRejection = statusLower.includes('rejected');
 
-        console.log('[AUDIT] Promotion status update:', {
+        logger.info({ 
           status: updateData.status,
           isApproval,
           isRejection,
           reviewedById: updateData.reviewedById,
           reviewer: reviewer.username,
-        });
+         }, 'Promotion status update:');
 
         if (isApproval) {
           await logRequestApproval({
@@ -509,7 +510,7 @@ export async function PATCH(req: Request) {
       data: transformedRequest,
     });
   } catch (error) {
-    console.error('[PROMOTIONS_PATCH]', error);
+    logger.error({ err: error }, 'PROMOTIONS PATCH');
     return NextResponse.json(
       {
         success: false,

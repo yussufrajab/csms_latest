@@ -45,6 +45,8 @@ import { FilePreviewModal } from '@/components/ui/file-preview-modal';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/store/auth-store';
 import { EmployeeSearch } from '@/components/shared/employee-search';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'resignation' });
 
 interface ResignationRequest {
   id: string;
@@ -367,7 +369,7 @@ export default function ResignationPage() {
         description: errorMessage,
         variant: 'destructive',
       });
-      console.error('Resignation submission error:', error);
+      log.error({ err: error }, 'Resignation submission error:');
     } finally {
       setIsSubmitting(false);
     }
@@ -590,7 +592,7 @@ export default function ResignationPage() {
     } catch (error) {
       // Revert optimistic update on error and show error feedback
       await fetchRequests();
-      console.error('[RESUBMIT_RESIGNATION]', error);
+      log.error({ err: error }, '');
       toast({
         title: 'Update Failed',
         description: 'Could not update the request.',
@@ -1600,7 +1602,7 @@ export default function ResignationPage() {
                                     });
                                   }
                                 } catch (error) {
-                                  console.error('Download failed:', error);
+                                  log.error({ err: error }, 'Download failed:');
                                   toast({
                                     title: 'Download Failed',
                                     description:

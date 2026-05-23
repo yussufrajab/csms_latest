@@ -8,6 +8,9 @@ import { Search, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from '@/hooks/use-toast';
 import type { Employee } from '@/lib/types';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'employee-search' });
 
 interface EmployeeSearchProps {
   onEmployeeFound: (employee: Employee) => void;
@@ -39,9 +42,7 @@ export function EmployeeSearch({
     setIsSearching(true);
     try {
       const cleanSearchValue = searchValue.trim();
-      console.log(
-        `Searching for employee with identifier: ${cleanSearchValue}`
-      );
+      log.info({ identifier: cleanSearchValue }, 'Searching for employee');
 
       const userParams = `&userRole=${role}&userInstitutionId=${user?.institutionId || ''}`;
       const response = await fetch(
@@ -50,15 +51,12 @@ export function EmployeeSearch({
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(
-          `Search failed with status ${response.status}:`,
-          errorText
-        );
+        log.error({ status: response.status, errorText }, 'Search failed');
         throw new Error(`Search failed: ${response.status}`);
       }
 
       const result = await response.json();
-      console.log('Search result:', result);
+      log.info({ result }, 'Search result');
 
       if (!result.success) {
         throw new Error(result.message || 'Search failed');
@@ -85,7 +83,7 @@ export function EmployeeSearch({
       }
 
       const employee = result.data[0];
-      console.log('Found employee:', employee);
+      log.info({ employeeId: employee.id, employeeName: employee.name }, 'Found employee');
 
       onEmployeeFound(employee);
 
@@ -94,7 +92,7 @@ export function EmployeeSearch({
         description: `Found: ${employee.name}`,
       });
     } catch (error) {
-      console.error('Error searching for employee:', error);
+      log.error({ err: error }, 'Error searching for employee');
       toast({
         title: 'Search Error',
         description:

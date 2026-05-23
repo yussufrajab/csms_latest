@@ -15,6 +15,7 @@ import {
   getClientIp,
 } from '@/lib/audit-logger';
 import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
+import { logger } from '@/lib/logger';
 
 // Cache configuration for LWOP requests
 const CACHE_TTL = 30; // 30 seconds cache (request status changes frequently)
@@ -29,28 +30,28 @@ export async function GET(req: Request) {
     const size = parseInt(searchParams.get('size') || '50', 10);
     const status = searchParams.get('status') || 'all';
 
-    console.log('LWOP API called with:', {
+    logger.info({ 
       userId,
       userRole,
       userInstitutionId,
       page,
       size,
       status,
-    });
+     }, 'LWOP API called with');
 
     // Build where clause based on user role and institution
     const whereClause: any = {};
 
     // Apply institution filtering based on role
     if (shouldApplyInstitutionFilter(userRole, userInstitutionId)) {
-      console.log(
+      logger.info(
         `Applying institution filter for role ${userRole} with institutionId ${userInstitutionId}`
       );
       whereClause.Employee = {
         institutionId: userInstitutionId,
       };
     } else {
-      console.log(
+      logger.info(
         `Role ${userRole} is a CSC role - showing all LWOP data across institutions`
       );
     }
@@ -122,7 +123,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
-    console.error('[LWOP_GET]', error);
+    logger.error({ err: error }, 'LWOP GET');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }
@@ -133,7 +134,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log('Creating LWOP request:', body);
+    logger.info({ value: body }, 'Creating LWOP request');
 
     // Basic validation
     if (
@@ -219,7 +220,7 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log('Created LWOP request:', lwopRequest.id);
+    logger.info({ value: lwopRequest.id }, 'Created LWOP request');
 
     // Create notification for supervisors/HHRMD
     const notification = NotificationTemplates.lwopSubmitted(
@@ -282,7 +283,7 @@ export async function POST(req: Request) {
       data: transformedRequest,
     });
   } catch (error) {
-    console.error('[LWOP_POST]', error);
+    logger.error({ err: error }, 'LWOP POST');
     return NextResponse.json(
       {
         success: false,
@@ -352,7 +353,7 @@ export async function PATCH(req: Request) {
         where: { id: updatedRequest.Employee.id },
         data: { status: 'On LWOP' },
       });
-      console.log(
+      logger.info(
         `Employee ${updatedRequest.Employee.name} status updated to "On LWOP" after LWOP approval`
       );
     }
@@ -370,13 +371,13 @@ export async function PATCH(req: Request) {
           statusLower.includes('approved') && !statusLower.includes('rejected');
         const isRejection = statusLower.includes('rejected');
 
-        console.log('[AUDIT] LWOP status update:', {
+        logger.info({ 
           status: updateData.status,
           isApproval,
           isRejection,
           reviewedById: updateData.reviewedById,
           reviewer: reviewer.username,
-        });
+         }, 'LWOP status update:');
 
         if (isApproval) {
           await logRequestApproval({
@@ -451,7 +452,7 @@ export async function PATCH(req: Request) {
       data: transformedRequest,
     });
   } catch (error) {
-    console.error('[LWOP_PATCH]', error);
+    logger.error({ err: error }, 'LWOP PATCH');
     return NextResponse.json(
       {
         success: false,

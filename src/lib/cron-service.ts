@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import { cronLogger } from '@/lib/logger';
 import { db } from '@/lib/db';
 import { createNotification, NotificationTemplates } from '@/lib/notifications';
 import {
@@ -21,9 +22,7 @@ let cronJobRunning = false;
  */
 export async function checkPasswordExpirations(): Promise<void> {
   if (cronJobRunning) {
-    console.log(
-      '[CRON] Password expiration check already running, skipping...'
-    );
+    cronLogger.info('Password expiration check already running, skipping');
     return;
   }
 
@@ -31,7 +30,7 @@ export async function checkPasswordExpirations(): Promise<void> {
   const startTime = Date.now();
 
   try {
-    console.log('[CRON] Starting password expiration check...');
+    cronLogger.info('Starting password expiration check');
 
     // Get all active users
     const users = await db.user.findMany({
@@ -51,9 +50,7 @@ export async function checkPasswordExpirations(): Promise<void> {
       },
     });
 
-    console.log(
-      `[CRON] Checking ${users.length} active users for password expiration...`
-    );
+    cronLogger.info({ userCount: users.length }, 'Checking active users for password expiration');
 
     let warningsSent = 0;
     let gracePeriodStarted = 0;
@@ -99,9 +96,7 @@ export async function checkPasswordExpirations(): Promise<void> {
           });
 
           accountsLocked++;
-          console.log(
-            `[CRON] Locked account for user ${user.username} - password expired beyond grace period`
-          );
+          cronLogger.info({ username: user.username }, 'Locked account - password expired beyond grace period');
           continue;
         }
 
@@ -153,9 +148,7 @@ export async function checkPasswordExpirations(): Promise<void> {
               });
 
               gracePeriodStarted++;
-              console.log(
-                `[CRON] Started grace period for user ${user.username}`
-              );
+              cronLogger.info({ username: user.username }, 'Started grace period for user');
             }
           }
           continue;
@@ -236,21 +229,17 @@ export async function checkPasswordExpirations(): Promise<void> {
           });
 
           warningsSent++;
-          console.log(
-            `[CRON] Sent ${daysRemaining}-day warning to user ${user.username}`
-          );
+          cronLogger.info({ username: user.username, daysRemaining }, 'Sent password expiration warning');
         }
       } catch (error) {
-        console.error(`[CRON] Error processing user ${user.username}:`, error);
+        cronLogger.error({ err: error, username: user.username }, 'Error processing user');
         // Continue with next user
       }
     }
 
     const duration = Date.now() - startTime;
-    console.log(`[CRON] Password expiration check completed in ${duration}ms`);
-    console.log(
-      `[CRON] Results: ${warningsSent} warnings sent, ${gracePeriodStarted} grace periods started, ${accountsLocked} accounts locked`
-    );
+    cronLogger.info({ duration }, 'Password expiration check completed');
+    cronLogger.info({ warningsSent, gracePeriodStarted, accountsLocked }, 'Password expiration check results');
 
     // Log successful cron execution
     await logAuditEvent({
@@ -271,7 +260,7 @@ export async function checkPasswordExpirations(): Promise<void> {
       },
     });
   } catch (error) {
-    console.error('[CRON] Fatal error in password expiration check:', error);
+    cronLogger.error({ err: error }, 'Fatal error in password expiration check');
 
     // Log failed cron execution
     await logAuditEvent({
@@ -303,39 +292,37 @@ export function startPasswordExpirationCron(): void {
   const schedule = '0 6 * * *';
 
   cron.schedule(schedule, async () => {
-    console.log('[CRON] Triggered password expiration check (scheduled)');
+    cronLogger.info('Triggered password expiration check (scheduled)');
     await checkPasswordExpirations();
   });
 
   // Schedule MFA token cleanup: every hour
   cron.schedule('0 * * * *', async () => {
-    console.log('[CRON] Triggered MFA token cleanup (scheduled)');
+    cronLogger.info('Triggered MFA token cleanup (scheduled)');
     const count = await cleanupExpiredMfaTokens();
     if (count > 0) {
-      console.log(`[CRON] Cleaned up ${count} expired MFA token(s)`);
+      cronLogger.info({ count }, 'Cleaned up expired MFA tokens');
     }
   });
 
-  console.log(`[CRON] Password expiration check scheduled: Daily at 6:00 AM`);
-  console.log(`[CRON] MFA token cleanup scheduled: Every hour`);
+  cronLogger.info('Password expiration check scheduled: Daily at 6:00 AM');
+  cronLogger.info('MFA token cleanup scheduled: Every hour');
 
   // Schedule audit partition creation: 1st of every month at 00:01
   cron.schedule('1 0 1 * *', async () => {
-    console.log('[CRON] Creating future audit log partitions');
+    cronLogger.info('Creating future audit log partitions');
     try {
       await ensurePartitions(3);
     } catch (error) {
-      console.error('[CRON] Error creating audit partitions:', error);
+      cronLogger.error({ err: error }, 'Error creating audit partitions');
     }
   });
-  console.log('[CRON] Audit partition creation scheduled: Monthly on the 1st');
+  cronLogger.info('Audit partition creation scheduled: Monthly on the 1st');
 
   // Run once on startup (optional - can be removed if not desired)
   // Useful for development/testing
   if (process.env.NODE_ENV === 'development') {
-    console.log(
-      '[CRON] Running initial password expiration check (development mode)'
-    );
+    cronLogger.info('Running initial password expiration check (development mode)');
     setTimeout(() => {
       checkPasswordExpirations();
     }, 5000); // Wait 5 seconds after startup
@@ -343,8 +330,8 @@ export function startPasswordExpirationCron(): void {
 
   // Ensure audit partitions exist on startup
   ensurePartitions(3).then(() => {
-    console.log('[CRON] Audit partitions verified');
+    cronLogger.info('Audit partitions verified');
   }).catch((error) => {
-    console.error('[CRON] Error creating audit partitions on startup:', error);
+    cronLogger.error({ err: error }, 'Error creating audit partitions on startup');
   });
 }

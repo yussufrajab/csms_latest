@@ -13,6 +13,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Monitor, Smartphone, AlertTriangle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'device-limit' });
 
 interface ActiveSession {
   id: string;
@@ -48,7 +51,7 @@ export function DeviceLimitDialog({
     try {
       await onForceLogout(selectedSessionId);
     } catch (error) {
-      console.error('Force logout failed:', error);
+      log.error({ err: error }, 'Force logout failed');
     } finally {
       setIsLoggingOut(false);
     }

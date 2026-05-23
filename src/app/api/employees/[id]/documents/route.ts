@@ -3,6 +3,7 @@ import { uploadFile, generateObjectKey } from '@/lib/minio';
 import { db as prisma } from '@/lib/db';
 import { validateFileUpload } from '@/lib/file-validation';
 import { withAuth, AuthContext } from '@/lib/api-auth';
+import { logger } from '@/lib/logger';
 import { withRateLimit } from '@/lib/rate-limiter';
 
 // Document type mapping to database fields
@@ -137,7 +138,7 @@ export const POST = withRateLimit(withAuth(async (
       },
     });
   } catch (error) {
-    console.error('Employee document upload error:', error);
+    logger.error({ err: error }, 'Employee document upload error');
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
       { status: 500 }
@@ -209,7 +210,7 @@ export const GET = withRateLimit(withAuth(async (
       },
     });
   } catch (error) {
-    console.error('Employee documents fetch error:', error);
+    logger.error({ err: error }, 'Employee documents fetch error');
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
       { status: 500 }

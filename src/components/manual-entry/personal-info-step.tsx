@@ -14,6 +14,9 @@ import {
 } from '@/components/ui/select';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'personal-info' });
 
 interface PersonalInfoStepProps {
   data: Record<string, any>;
@@ -139,7 +142,7 @@ export function PersonalInfoStep({
       setValidatingFields({});
       onNext();
     } catch (error) {
-      console.error('Error validating employee data:', error);
+      log.error({ err: error }, 'Error validating employee data');
       setErrors({
         submit: 'Failed to validate employee data. Please try again.',
       });

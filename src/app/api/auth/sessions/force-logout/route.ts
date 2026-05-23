@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { terminateSessionById } from '@/lib/session-manager';
+import { authLogger } from '@/lib/logger';
 
 const forceLogoutSchema = z.object({
   sessionId: z.string().min(1, 'Session ID is required'),
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
       );
     }
 
-    console.error('[FORCE_LOGOUT] Error:', error);
+    authLogger.error({ err: error }, 'Force logout error');
     return NextResponse.json(
       {
         success: false,

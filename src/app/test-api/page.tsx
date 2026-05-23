@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'test-api' });
 
 export default function TestApiPage() {
   const [result, setResult] = useState<string>('');
@@ -9,7 +11,7 @@ export default function TestApiPage() {
   const testLogin = async () => {
     setLoading(true);
     try {
-      console.log('Making request to:', 'http://localhost:8080/api/auth/login');
+      log.info('Making request to http://localhost:8080/api/auth/login');
 
       const response = await fetch('http://localhost:8080/api/auth/login', {
         method: 'POST',
@@ -22,15 +24,15 @@ export default function TestApiPage() {
         }),
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
+      log.info({ status: response.status }, 'Response status');
+      log.info({ headers: response.headers }, 'Response headers');
 
       const data = await response.json();
-      console.log('Response data:', data);
+      log.info({ data }, 'Response data:');
 
       setResult(JSON.stringify(data, null, 2));
     } catch (error) {
-      console.error('Error:', error);
+      log.error({ err: error }, 'Error:');
       setResult(`Error: ${error}`);
     } finally {
       setLoading(false);
@@ -40,10 +42,7 @@ export default function TestApiPage() {
   const testWithCredentials = async () => {
     setLoading(true);
     try {
-      console.log(
-        'Making request WITH credentials to:',
-        'http://localhost:8080/api/auth/login'
-      );
+      log.info('Making request WITH credentials to http://localhost:8080/api/auth/login');
 
       const response = await fetch('http://localhost:8080/api/auth/login', {
         method: 'POST',
@@ -57,11 +56,11 @@ export default function TestApiPage() {
         }),
       });
 
-      console.log('Response status:', response.status);
+      log.info({ status: response.status }, 'Response status');
       const data = await response.json();
       setResult(`WITH CREDENTIALS: ${JSON.stringify(data, null, 2)}`);
     } catch (error) {
-      console.error('Error with credentials:', error);
+      log.error({ err: error }, 'Error with credentials:');
       setResult(`Error with credentials: ${error}`);
     } finally {
       setLoading(false);

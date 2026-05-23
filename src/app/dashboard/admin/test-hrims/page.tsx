@@ -21,6 +21,8 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'test-hrims' });
 
 interface TestResult {
   name: string;
@@ -157,7 +159,7 @@ export default function TestHRIMSPage() {
         throw new Error(result.message || 'Tests failed');
       }
     } catch (error) {
-      console.error('Test execution failed:', error);
+      log.error({ err: error }, 'Test execution failed:');
       toast({
         title: 'Test Execution Failed',
         description:

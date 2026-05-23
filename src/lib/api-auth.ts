@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { authLogger } from '@/lib/logger';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -36,29 +37,40 @@ export interface WithAuthOptions {
 // Constants
 // ---------------------------------------------------------------------------
 
-const UNAUTHENTICATED: AuthResult = {
-  authenticated: false,
-  response: NextResponse.json(
-    { success: false, error: 'Authentication required', errorCode: 'UNAUTHENTICATED' },
-    { status: 401 }
-  ),
-};
+// Factory functions instead of module-level constants.
+// NextResponse bodies are ReadableStreams that can only be consumed once.
+// Reusing a single instance across requests causes the body to be empty after
+// the first request, resulting in "JSON.parse: unexpected end of data" errors
+// on the client.
+function unauthenticated(): AuthResult {
+  return {
+    authenticated: false,
+    response: NextResponse.json(
+      { success: false, error: 'Authentication required', errorCode: 'UNAUTHENTICATED' },
+      { status: 401 }
+    ),
+  };
+}
 
-const INVALID_SESSION: AuthResult = {
-  authenticated: false,
-  response: NextResponse.json(
-    { success: false, error: 'Invalid or expired session', errorCode: 'INVALID_SESSION' },
-    { status: 401 }
-  ),
-};
+function invalidSession(): AuthResult {
+  return {
+    authenticated: false,
+    response: NextResponse.json(
+      { success: false, error: 'Invalid or expired session', errorCode: 'INVALID_SESSION' },
+      { status: 401 }
+    ),
+  };
+}
 
-const FORBIDDEN: AuthResult = {
-  authenticated: false,
-  response: NextResponse.json(
-    { success: false, error: 'Insufficient permissions', errorCode: 'FORBIDDEN' },
-    { status: 403 }
-  ),
-};
+function forbidden(): AuthResult {
+  return {
+    authenticated: false,
+    response: NextResponse.json(
+      { success: false, error: 'Insufficient permissions', errorCode: 'FORBIDDEN' },
+      { status: 403 }
+    ),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // verifyAuth
@@ -90,7 +102,7 @@ export async function verifyAuth(
   }
 
   if (!cookieValue) {
-    return UNAUTHENTICATED;
+    return unauthenticated();
   }
 
   // 2. Parse JSON from cookie ------------------------------------------------
@@ -99,7 +111,7 @@ export async function verifyAuth(
     const decoded = decodeURIComponent(cookieValue);
     parsed = JSON.parse(decoded);
   } catch {
-    return INVALID_SESSION;
+    return invalidSession();
   }
 
   const state = parsed.state || parsed;
@@ -111,7 +123,7 @@ export async function verifyAuth(
   const username: string | undefined = state.user?.username;
 
   if (!userId || !role) {
-    return INVALID_SESSION;
+    return invalidSession();
   }
 
   // 4. Verify user exists and is active in database --------------------------
@@ -123,11 +135,11 @@ export async function verifyAuth(
     });
 
     if (!user || !user.active) {
-      return INVALID_SESSION;
+      return invalidSession();
     }
   } catch (error) {
-    console.error('[API-AUTH] Database error during auth verification:', error);
-    return INVALID_SESSION;
+    authLogger.error({ err: error }, 'Database error during auth verification');
+    return invalidSession();
   }
 
   // 5. Success ---------------------------------------------------------------
@@ -182,10 +194,13 @@ export function withAuth(
       return authResult.response!;
     }
 
-    // Role check
+    // Role check (case-insensitive to handle casing mismatches between
+    // ROLES constants and allowedRoles arrays)
     if (options?.allowedRoles?.length) {
-      if (!options.allowedRoles.includes(authResult.context!.role)) {
-        return FORBIDDEN.response!;
+      const roleUpper = authResult.context!.role.toUpperCase();
+      const allowedUpper = options.allowedRoles.map(r => r.toUpperCase());
+      if (!allowedUpper.includes(roleUpper)) {
+        return forbidden().response!;
       }
     }
 

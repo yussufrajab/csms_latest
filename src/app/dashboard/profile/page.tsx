@@ -52,6 +52,8 @@ import {
 import { Pagination } from '@/components/shared/pagination';
 import { Badge } from '@/components/ui/badge';
 import { useSearchParams } from 'next/navigation';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'profile' });
 
 // Standard certificate types to display for upload
 const STANDARD_CERTIFICATE_TYPES = [
@@ -99,9 +101,9 @@ async function getEmployeesList() {
 async function loadExternalEmployees() {
   try {
     const data = await getEmployeesList();
-    console.log('External Employees API Response:', data);
+    log.info({ data }, 'External Employees API Response:');
   } catch (error) {
-    console.error('Error fetching employees:', error);
+    log.error({ err: error }, 'Error fetching employees:');
   }
 }
 
@@ -198,7 +200,7 @@ const EmployeeDetailsCard = ({
         setIsFetchingPhoto(true);
 
         try {
-          console.log(`Fetching photo from HRIMS for employee ${emp.name}...`);
+          log.info(`Fetching photo from HRIMS for employee ${emp.name}...`);
 
           const response = await fetch(`/api/employees/${emp.id}/fetch-photo`, {
             method: 'POST',
@@ -217,12 +219,12 @@ const EmployeeDetailsCard = ({
               });
             }
           } else if (response.status === 404) {
-            console.log('No photo available in HRIMS for this employee');
+            log.info('No photo available in HRIMS for this employee');
           } else {
-            console.error('Failed to fetch photo:', result.message);
+            log.error({ message: result.message }, 'Failed to fetch photo');
           }
         } catch (error) {
-          console.error('Error fetching photo from HRIMS:', error);
+          log.error({ err: error }, 'Error fetching photo from HRIMS:');
         } finally {
           setIsFetchingPhoto(false);
         }
@@ -259,9 +261,7 @@ const EmployeeDetailsCard = ({
         setIsFetchingDocuments(true);
 
         try {
-          console.log(
-            `Fetching documents from HRIMS for employee ${emp.name}...`
-          );
+          log.info(`Fetching documents from HRIMS for employee ${emp.name}...`);
 
           const response = await fetch(
             `/api/employees/${emp.id}/fetch-documents`,
@@ -327,12 +327,12 @@ const EmployeeDetailsCard = ({
               });
             }
           } else if (response.status === 404) {
-            console.log('No documents available in HRIMS for this employee');
+            log.info('No documents available in HRIMS for this employee');
           } else {
-            console.error('Failed to fetch documents:', result.message);
+            log.error({ message: result.message }, 'Failed to fetch documents');
           }
         } catch (error) {
-          console.error('Error fetching documents from HRIMS:', error);
+          log.error({ err: error }, 'Error fetching documents from HRIMS:');
         } finally {
           setIsFetchingDocuments(false);
         }

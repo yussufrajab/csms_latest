@@ -18,6 +18,9 @@ import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { apiClient } from '@/lib/api-client';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'notification-bell' });
 
 interface Notification {
   id: string;
@@ -39,9 +42,7 @@ export function NotificationBell() {
 
   const fetchNotifications = useCallback(async () => {
     if (!isAuthenticated || !user || !user.id) {
-      console.log(
-        'Skipping notifications fetch - no authenticated user or user ID'
-      );
+      log.info('Skipping notifications fetch - no authenticated user or user ID');
       return;
     }
     try {
@@ -50,7 +51,7 @@ export function NotificationBell() {
         setNotifications(Array.isArray(response.data) ? response.data : []);
       }
     } catch (error) {
-      console.error('Notifications fetch error:', error);
+      log.error({ err: error }, 'Notifications fetch error');
       setNotifications([]);
       // Silently fail to avoid spamming user with toasts
     }

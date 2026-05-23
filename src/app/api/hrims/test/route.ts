@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getHrimsApiConfig } from '@/lib/hrims-config';
+import { hrimsLogger } from '@/lib/logger';
 
 // Utility function to add delay between tests
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -56,14 +57,14 @@ export async function POST(request: NextRequest) {
     tests: [] as any[],
   };
 
-  console.log(`🧪 Running selected tests: ${selectedTests.join(', ')}`);
+  hrimsLogger.info(` Running selected tests: ${selectedTests.join(', ')}`);
 
   // Test 1: Get information about a single employee by PayrollNumber
   if (selectedTests.includes('test1')) {
-    console.log(
-      '🔍 Testing HRIMS API - Get single employee by PayrollNumber...'
+    hrimsLogger.info(
+      ' Testing HRIMS API - Get single employee by PayrollNumber...'
     );
-    console.log(`Parameters: PayrollNumber=${payrollNumber}`);
+    hrimsLogger.info(`Parameters: PayrollNumber=${payrollNumber}`);
 
     const specificEmployeePayload = {
       RequestId: '202',
@@ -86,8 +87,8 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      console.log(
-        '📤 Sending specific employee request:',
+      hrimsLogger.info(
+        ' Sending specific employee request:',
         specificEmployeePayload
       );
 
@@ -102,13 +103,13 @@ export async function POST(request: NextRequest) {
         signal: AbortSignal.timeout(30000),
       });
 
-      console.log(
-        `📥 Response status: ${response.status} ${response.statusText}`
+      hrimsLogger.info(
+        ` Response status: ${response.status} ${response.statusText}`
       );
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Specific employee fetch successful');
+        hrimsLogger.info(' Specific employee fetch successful');
 
         testResults.tests[0] = {
           ...testResults.tests[0],
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
         };
       } else {
         const errorText = await response.text();
-        console.error('❌ Specific employee API error:', errorText);
+        hrimsLogger.error(' Specific employee API error:', errorText);
 
         testResults.tests[0] = {
           ...testResults.tests[0],
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest) {
         };
       }
     } catch (error) {
-      console.error('🚨 Specific employee connection failed:', error);
+      hrimsLogger.error(' Specific employee connection failed:', error);
 
       testResults.tests[0] = {
         ...testResults.tests[0],
@@ -164,15 +165,15 @@ export async function POST(request: NextRequest) {
         ['test2', 'test3', 'test4', 'test5'].includes(t)
       ).length > 0
     ) {
-      console.log('⏳ Waiting 2 seconds before next test...');
+      hrimsLogger.info(' Waiting 2 seconds before next test...');
       await delay(2000);
     }
   } // End test1
 
   // Test 2: Get employee photo
   if (selectedTests.includes('test2')) {
-    console.log('🔍 Testing HRIMS API - Get employee photo...');
-    console.log(`Parameters: SearchCriteria=${photoSearchCriteria}`);
+    hrimsLogger.info(' Testing HRIMS API - Get employee photo...');
+    hrimsLogger.info(`Parameters: SearchCriteria=${photoSearchCriteria}`);
 
     const photoPayload = {
       RequestId: '203',
@@ -193,7 +194,7 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      console.log('📤 Sending photo request:', photoPayload);
+      hrimsLogger.info(' Sending photo request:', photoPayload);
 
       const response = await fetch(`${HRIMS_CONFIG.BASE_URL}/Employees`, {
         method: 'POST',
@@ -206,13 +207,13 @@ export async function POST(request: NextRequest) {
         signal: AbortSignal.timeout(30000),
       });
 
-      console.log(
-        `📥 Response status: ${response.status} ${response.statusText}`
+      hrimsLogger.info(
+        ` Response status: ${response.status} ${response.statusText}`
       );
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Photo fetch successful');
+        hrimsLogger.info(' Photo fetch successful');
 
         testResults.tests[1] = {
           ...testResults.tests[1],
@@ -238,7 +239,7 @@ export async function POST(request: NextRequest) {
         };
       } else {
         const errorText = await response.text();
-        console.error('❌ Photo API error:', errorText);
+        hrimsLogger.error(' Photo API error:', errorText);
 
         testResults.tests[1] = {
           ...testResults.tests[1],
@@ -253,7 +254,7 @@ export async function POST(request: NextRequest) {
         };
       }
     } catch (error) {
-      console.error('🚨 Photo fetch connection failed:', error);
+      hrimsLogger.error(' Photo fetch connection failed:', error);
 
       testResults.tests[1] = {
         ...testResults.tests[1],
@@ -272,15 +273,15 @@ export async function POST(request: NextRequest) {
       selectedTests.filter((t) => ['test3', 'test4', 'test5'].includes(t))
         .length > 0
     ) {
-      console.log('⏳ Waiting 2 seconds before next test...');
+      hrimsLogger.info(' Waiting 2 seconds before next test...');
       await delay(2000);
     }
   } // End test2
 
   // Test 3: Get employees by Vote Code (with pagination)
   if (selectedTests.includes('test3')) {
-    console.log('🔍 Testing HRIMS API - Get employees by Vote Code...');
-    console.log(
+    hrimsLogger.info(' Testing HRIMS API - Get employees by Vote Code...');
+    hrimsLogger.info(
       `Parameters: VoteCode=${voteCode}, PageNumber=${pageNumber}, PageSize=${pageSize}`
     );
 
@@ -307,7 +308,7 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      console.log('📤 Sending vote code request:', voteCodePayload);
+      hrimsLogger.info(' Sending vote code request:', voteCodePayload);
 
       const response = await fetch(`${HRIMS_CONFIG.BASE_URL}/Employees`, {
         method: 'POST',
@@ -320,13 +321,13 @@ export async function POST(request: NextRequest) {
         signal: AbortSignal.timeout(120000), // 2 minute timeout for paginated requests
       });
 
-      console.log(
-        `📥 Response status: ${response.status} ${response.statusText}`
+      hrimsLogger.info(
+        ` Response status: ${response.status} ${response.statusText}`
       );
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Vote code fetch successful');
+        hrimsLogger.info(' Vote code fetch successful');
 
         testResults.tests[2] = {
           ...testResults.tests[2],
@@ -353,7 +354,7 @@ export async function POST(request: NextRequest) {
         };
       } else {
         const errorText = await response.text();
-        console.error('❌ Vote code API error:', errorText);
+        hrimsLogger.error(' Vote code API error:', errorText);
 
         testResults.tests[2] = {
           ...testResults.tests[2],
@@ -368,7 +369,7 @@ export async function POST(request: NextRequest) {
         };
       }
     } catch (error) {
-      console.error('🚨 Vote code fetch connection failed:', error);
+      hrimsLogger.error(' Vote code fetch connection failed:', error);
 
       testResults.tests[2] = {
         ...testResults.tests[2],
@@ -386,8 +387,8 @@ export async function POST(request: NextRequest) {
     if (
       selectedTests.filter((t) => ['test4', 'test5'].includes(t)).length > 0
     ) {
-      console.log(
-        '⏳ Waiting 3 seconds before next test (after heavy paginated query)...'
+      hrimsLogger.info(
+        ' Waiting 3 seconds before next test (after heavy paginated query)...'
       );
       await delay(3000);
     }
@@ -395,8 +396,8 @@ export async function POST(request: NextRequest) {
 
   // Test 4: Get employees by TIN Number (with pagination)
   if (selectedTests.includes('test4')) {
-    console.log('🔍 Testing HRIMS API - Get employees by TIN Number...');
-    console.log(
+    hrimsLogger.info(' Testing HRIMS API - Get employees by TIN Number...');
+    hrimsLogger.info(
       `Parameters: TINNumber=${tinNumber}, PageNumber=${pageNumber}, PageSize=${pageSize}`
     );
 
@@ -423,7 +424,7 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      console.log('📤 Sending TIN request:', tinPayload);
+      hrimsLogger.info(' Sending TIN request:', tinPayload);
 
       const response = await fetch(`${HRIMS_CONFIG.BASE_URL}/Employees`, {
         method: 'POST',
@@ -436,13 +437,13 @@ export async function POST(request: NextRequest) {
         signal: AbortSignal.timeout(120000), // 2 minute timeout for paginated requests
       });
 
-      console.log(
-        `📥 Response status: ${response.status} ${response.statusText}`
+      hrimsLogger.info(
+        ` Response status: ${response.status} ${response.statusText}`
       );
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ TIN fetch successful');
+        hrimsLogger.info(' TIN fetch successful');
 
         testResults.tests[3] = {
           ...testResults.tests[3],
@@ -469,7 +470,7 @@ export async function POST(request: NextRequest) {
         };
       } else {
         const errorText = await response.text();
-        console.error('❌ TIN API error:', errorText);
+        hrimsLogger.error(' TIN API error:', errorText);
 
         testResults.tests[3] = {
           ...testResults.tests[3],
@@ -484,7 +485,7 @@ export async function POST(request: NextRequest) {
         };
       }
     } catch (error) {
-      console.error('🚨 TIN fetch connection failed:', error);
+      hrimsLogger.error(' TIN fetch connection failed:', error);
 
       testResults.tests[3] = {
         ...testResults.tests[3],
@@ -500,8 +501,8 @@ export async function POST(request: NextRequest) {
 
     // Wait longer after heavy paginated query before testing documents if test5 is selected
     if (selectedTests.includes('test5')) {
-      console.log(
-        '⏳ Waiting 5 seconds before document test (critical - let HRIMS server fully recover)...'
+      hrimsLogger.info(
+        ' Waiting 5 seconds before document test (critical - let HRIMS server fully recover)...'
       );
       await delay(5000);
     }
@@ -509,14 +510,14 @@ export async function POST(request: NextRequest) {
 
   // Test 5: Get employee documents by PayrollNumber (Direct HRIMS API call with multiple document types)
   if (selectedTests.includes('test5')) {
-    console.log(
-      '🔍 Testing HRIMS API - Get employee documents (Direct API call with multiple document types)...'
+    hrimsLogger.info(
+      ' Testing HRIMS API - Get employee documents (Direct API call with multiple document types)...'
     );
-    console.log(
+    hrimsLogger.info(
       `Parameters: SearchCriteria=${documentsSearchCriteria}, Document Types: ${selectedDocumentTypes.join(', ')}`
     );
-    console.log(
-      `⚠️ NOTE: This test calls HRIMS directly (no cache). HRIMS now splits by document type to reduce payload.`
+    hrimsLogger.info(
+      ` NOTE: This test calls HRIMS directly (no cache). HRIMS now splits by document type to reduce payload.`
     );
 
     // Document type mapping for display
@@ -533,8 +534,8 @@ export async function POST(request: NextRequest) {
       const docType = selectedDocumentTypes[i];
       const docTypeName = documentTypeNames[docType] || `Unknown (${docType})`;
 
-      console.log(
-        `\n📄 Fetching document type: ${docTypeName} (RequestBody: ${docType})...`
+      hrimsLogger.info(
+        `\n Fetching document type: ${docTypeName} (RequestBody: ${docType})...`
       );
 
       const documentsPayload = {
@@ -562,11 +563,11 @@ export async function POST(request: NextRequest) {
       });
 
       try {
-        console.log(
-          '📤 Sending employee documents request to HRIMS:',
+        hrimsLogger.info(
+          ' Sending employee documents request to HRIMS:',
           documentsPayload
         );
-        console.log('⏱️ Waiting up to 120 seconds for HRIMS response...');
+        hrimsLogger.info(' Waiting up to 120 seconds for HRIMS response...');
 
         const response = await fetch(`${HRIMS_CONFIG.BASE_URL}/Employees`, {
           method: 'POST',
@@ -579,8 +580,8 @@ export async function POST(request: NextRequest) {
           signal: AbortSignal.timeout(120000), // 120 second timeout
         });
 
-        console.log(
-          `📥 Response status: ${response.status} ${response.statusText}`
+        hrimsLogger.info(
+          ` Response status: ${response.status} ${response.statusText}`
         );
 
         if (response.ok) {
@@ -588,7 +589,7 @@ export async function POST(request: NextRequest) {
 
           // Check if HRIMS returned an error in the response body
           if (data.code === 500 || data.status === 'Failure') {
-            console.error('❌ HRIMS internal error:', data.message);
+            hrimsLogger.error(' HRIMS internal error:', data.message);
 
             // Check if it's a timeout error from HRIMS
             const isTimeoutError =
@@ -616,8 +617,8 @@ export async function POST(request: NextRequest) {
               },
             };
           } else {
-            console.log(
-              `✅ Employee documents API responded successfully for ${docTypeName}`
+            hrimsLogger.info(
+              ` Employee documents API responded successfully for ${docTypeName}`
             );
 
             // Count documents in response
@@ -649,8 +650,8 @@ export async function POST(request: NextRequest) {
           }
         } else {
           const errorText = await response.text();
-          console.error(
-            `❌ Employee documents API error for ${docTypeName}:`,
+          hrimsLogger.error(
+            ` Employee documents API error for ${docTypeName}:`,
             errorText
           );
 
@@ -669,8 +670,8 @@ export async function POST(request: NextRequest) {
           };
         }
       } catch (error) {
-        console.error(
-          `🚨 Employee documents fetch connection failed for ${docTypeName}:`,
+        hrimsLogger.error(
+          ` Employee documents fetch connection failed for ${docTypeName}:`,
           error
         );
 
@@ -690,19 +691,19 @@ export async function POST(request: NextRequest) {
 
       // Add delay between document type requests if there are more to fetch
       if (i < selectedDocumentTypes.length - 1) {
-        console.log(
-          '⏳ Waiting 2 seconds before next document type request...'
+        hrimsLogger.info(
+          ' Waiting 2 seconds before next document type request...'
         );
         await delay(2000);
       }
     }
 
-    console.log(
-      `✅ Completed fetching ${selectedDocumentTypes.length} document type(s)`
+    hrimsLogger.info(
+      ` Completed fetching ${selectedDocumentTypes.length} document type(s)`
     );
   } // End test5
 
-  console.log(`🏁 Completed ${testResults.tests.length} HRIMS API test(s)`);
+  hrimsLogger.info(` Completed ${testResults.tests.length} HRIMS API test(s)`);
 
   return NextResponse.json({
     success: true,

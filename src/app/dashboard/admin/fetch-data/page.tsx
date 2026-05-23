@@ -51,6 +51,8 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Pagination } from '@/components/shared/pagination';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'fetch-data' });
 
 export interface Institution {
   id: string;
@@ -373,7 +375,7 @@ export default function FetchDataPage() {
             continue;
           } else if (eventType === 'status') {
             // Initial status event - ignore or log
-            console.log('Job status:', data.state);
+            log.info({ state: data.state }, 'Job status');
           }
         }
       }

@@ -43,6 +43,8 @@ import {
 import { format, parseISO } from 'date-fns';
 import { Pagination } from '@/components/shared/pagination';
 import { FilePreviewModal } from '@/components/ui/file-preview-modal';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'lwop' });
 
 interface LWOPRequest {
   id: string;
@@ -240,7 +242,7 @@ export default function LwopPage() {
         });
         if (!response.ok) throw new Error('Failed to fetch LWOP requests');
         const result = await response.json();
-        console.log('[LWOP_FRONTEND] Data received from API:', result);
+        log.info({ result }, 'Data received from API:');
 
         // Handle both array and paginated object responses
         let requests = [];
@@ -323,7 +325,7 @@ export default function LwopPage() {
   };
 
   const handleEmployeeFound = (employee: Employee) => {
-    console.log(`[LWOP] Found employee: ${employee.name}`);
+    log.info(`Found employee: ${employee.name}`);
 
     // Reset form fields when new employee is selected
     resetForm();
@@ -1528,7 +1530,7 @@ export default function LwopPage() {
                                         });
                                       }
                                     } catch (error) {
-                                      console.error('Download error:', error);
+                                      log.error({ err: error }, 'Download error:');
                                       toast({
                                         title: 'Download Failed',
                                         description:

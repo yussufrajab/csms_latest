@@ -4,6 +4,7 @@ import { logFileAction, getClientIp } from '@/lib/audit-logger';
 import { validateFileUpload } from '@/lib/file-validation';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { logger } from '@/lib/logger';
 
 export const POST = withRateLimit(withAuth(async (request, { auth }) => {
   try {
@@ -73,7 +74,7 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
       },
     });
   } catch (error) {
-    console.error('File upload error:', error);
+    logger.error({ value: error }, 'File upload error');
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
       { status: 500 }

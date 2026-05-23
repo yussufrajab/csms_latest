@@ -53,6 +53,8 @@ import { loadPdfExporter, loadExcelExporter } from '@/lib/export-utils';
 import { toast } from '@/hooks/use-toast';
 import { Pagination } from '@/components/shared/pagination';
 import { apiClient } from '@/lib/api-client';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'admin-institutions' });
 
 // Augment jsPDF with autoTable
 declare module 'jspdf' {
@@ -328,7 +330,7 @@ export default function InstitutionManagementPage() {
         description: 'Institutions list exported to PDF successfully.',
       });
     } catch (error) {
-      console.error('PDF export error:', error);
+      log.error({ err: error }, 'PDF export error:');
       toast({
         title: 'Export Error',
         description: 'Failed to export PDF. Please try again.',
@@ -392,7 +394,7 @@ export default function InstitutionManagementPage() {
         description: 'Institutions list exported to Excel successfully.',
       });
     } catch (error) {
-      console.error('Excel export error:', error);
+      log.error({ err: error }, 'Excel export error:');
       toast({
         title: 'Export Error',
         description: 'Failed to export Excel. Please try again.',

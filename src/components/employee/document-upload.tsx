@@ -24,6 +24,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { FilePreviewModal } from '@/components/ui/file-preview-modal';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'document-upload' });
 
 interface DocumentUploadProps {
   employeeId: string;
@@ -128,7 +131,7 @@ export function DocumentUpload({
         onUploadSuccess(result.data.documentUrl);
       }
     } catch (error) {
-      console.error('Upload error:', error);
+      log.error({ err: error }, 'Upload error');
       toast({
         title: 'Upload failed',
         description:

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { downloadFile, getFileMetadata } from '@/lib/minio';
 import { Readable } from 'stream';
+import { logger } from '@/lib/logger';
 
 export async function GET(
   request: NextRequest,
@@ -13,11 +14,11 @@ export async function GET(
     // Reconstruct the object key from the dynamic route segments
     const objectKey = decodeURIComponent(resolvedParams.objectKey.join('/'));
 
-    console.log(
+    logger.info(
       'Download API - Object key segments:',
       resolvedParams.objectKey
     );
-    console.log('Download API - Reconstructed object key:', objectKey);
+    logger.info({ value: objectKey }, 'Download API - Reconstructed object key');
 
     // Get file metadata first to validate existence
     const metadata = await getFileMetadata(objectKey);
@@ -56,7 +57,7 @@ export async function GET(
       headers,
     });
   } catch (error) {
-    console.error('File download error:', error);
+    logger.error({ value: error }, 'File download error');
     return NextResponse.json(
       { success: false, message: 'File not found or internal server error' },
       { status: 404 }

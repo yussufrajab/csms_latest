@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { downloadFile } from '@/lib/minio';
+import { logger } from '@/lib/logger';
 
 /**
  * API endpoint to serve employee photos from MinIO storage
@@ -32,7 +33,7 @@ export async function GET(
     try {
       fileStream = await downloadFile(filePath);
     } catch (downloadError) {
-      console.error(
+      logger.error(
         `Failed to download file from MinIO: ${filePath}`,
         downloadError
       );
@@ -71,7 +72,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('Error serving employee photo:', error);
+    logger.error({ value: error }, 'Error serving employee photo');
     return NextResponse.json(
       {
         success: false,

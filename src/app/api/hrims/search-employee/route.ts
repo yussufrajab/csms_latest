@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { z } from 'zod';
+import { hrimsLogger } from '@/lib/logger';
 
 // Validation schema for employee search request
 const employeeSearchSchema = z
@@ -31,7 +32,7 @@ export async function GET(req: Request) {
     // Validate request parameters
     const validatedRequest = employeeSearchSchema.parse(requestData);
 
-    console.log('Employee search request:', {
+    hrimsLogger.info('Employee search request:', {
       ...validatedRequest,
       timestamp: new Date().toISOString(),
     });
@@ -167,7 +168,7 @@ export async function GET(req: Request) {
         : undefined,
     };
 
-    console.log(`Employee found: ${employee.name} (${employee.zanId})`);
+    hrimsLogger.info(`Employee found: ${employee.name} (${employee.zanId})`);
 
     return NextResponse.json(
       {
@@ -178,7 +179,7 @@ export async function GET(req: Request) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('[EMPLOYEE_SEARCH_ERROR]', error);
+    hrimsLogger.error('[EMPLOYEE_SEARCH_ERROR]', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -209,7 +210,7 @@ export async function POST(req: Request) {
     // Validate request payload
     const validatedRequest = employeeSearchSchema.parse(body);
 
-    console.log('Employee search request (POST):', {
+    hrimsLogger.info('Employee search request (POST):', {
       ...validatedRequest,
       timestamp: new Date().toISOString(),
     });
@@ -345,7 +346,7 @@ export async function POST(req: Request) {
         : undefined,
     };
 
-    console.log(`Employee found: ${employee.name} (${employee.zanId})`);
+    hrimsLogger.info(`Employee found: ${employee.name} (${employee.zanId})`);
 
     return NextResponse.json(
       {
@@ -356,7 +357,7 @@ export async function POST(req: Request) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('[EMPLOYEE_SEARCH_POST_ERROR]', error);
+    hrimsLogger.error('[EMPLOYEE_SEARCH_POST_ERROR]', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(

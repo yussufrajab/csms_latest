@@ -15,6 +15,7 @@ import {
   MAX_PASSWORD_CHANGE_ATTEMPTS,
 } from '@/lib/password-utils';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { authLogger } from '@/lib/logger';
 
 const changePasswordSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
@@ -28,7 +29,7 @@ export const POST = withRateLimit(async (request) => {
     const { userId, currentPassword, newPassword } =
       changePasswordSchema.parse(body);
 
-    console.log('Password change attempt for user ID:', userId);
+    authLogger.info({ userId }, 'Password change attempt');
 
     // Find user in database
     const user = await db.user.findUnique({
@@ -36,7 +37,7 @@ export const POST = withRateLimit(async (request) => {
     });
 
     if (!user) {
-      console.log('User not found:', userId);
+      authLogger.info({ userId }, 'User not found');
       return NextResponse.json(
         { success: false, message: 'User not found' },
         { status: 404 }
@@ -44,7 +45,7 @@ export const POST = withRateLimit(async (request) => {
     }
 
     if (!user.active) {
-      console.log('User account is inactive:', userId);
+      authLogger.info({ userId }, 'User account is inactive');
       return NextResponse.json(
         { success: false, message: 'Account is inactive' },
         { status: 401 }
@@ -56,9 +57,7 @@ export const POST = withRateLimit(async (request) => {
       const remainingMinutes = getRemainingLockoutTime(
         user.passwordChangeLockoutUntil
       );
-      console.log(
-        `User ${userId} is locked out. ${remainingMinutes} minutes remaining.`
-      );
+      authLogger.info({ userId, remainingMinutes }, 'User locked out');
       return NextResponse.json(
         {
           success: false,
@@ -75,7 +74,7 @@ export const POST = withRateLimit(async (request) => {
     );
 
     if (!isPasswordValid) {
-      console.log('Invalid current password for user:', userId);
+      authLogger.info({ userId }, 'Invalid current password');
 
       // Increment failed attempts
       const newAttempts = (user.failedPasswordChangeAttempts || 0) + 1;
@@ -89,9 +88,7 @@ export const POST = withRateLimit(async (request) => {
       // Lock account if max attempts reached
       if (newAttempts >= MAX_PASSWORD_CHANGE_ATTEMPTS) {
         updateData.passwordChangeLockoutUntil = calculateLockoutExpiry();
-        console.log(
-          `User ${userId} locked out after ${newAttempts} failed attempts`
-        );
+        authLogger.info({ userId, attempts: newAttempts }, 'User locked out after failed password change attempts');
       }
 
       await db.user.update({
@@ -223,7 +220,7 @@ export const POST = withRateLimit(async (request) => {
       },
     });
 
-    console.log('Password changed successfully for user:', userId);
+    authLogger.info({ userId }, 'Password changed successfully');
 
     return NextResponse.json({
       success: true,
@@ -236,7 +233,7 @@ export const POST = withRateLimit(async (request) => {
         { status: 400 }
       );
     }
-    console.error('[CHANGE_PASSWORD_POST]', error);
+    authLogger.error({ err: error }, 'Change password POST error');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }

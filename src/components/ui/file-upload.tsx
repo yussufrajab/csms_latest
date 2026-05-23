@@ -9,6 +9,9 @@ import { toast } from '@/hooks/use-toast';
 import { Upload, X, FileText, Eye, Download, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'file-upload' });
 
 interface FileUploadProps {
   label?: string;
@@ -220,7 +223,7 @@ export function FileUpload({
               xhr.withCredentials = true; // Include cookies for session-based auth
               xhr.send(formData);
             } catch (error: any) {
-              console.error(`Upload error for ${file.name}:`, error);
+              log.error({ err: error, fileName: file.name }, 'Upload error');
               resolve({
                 success: false,
                 error: error.message,
@@ -276,7 +279,7 @@ export function FileUpload({
           );
         }
       } catch (error: any) {
-        console.error('Upload error:', error);
+        log.error({ err: error }, 'Upload error');
         toast({
           title: 'Upload Error',
           description: error.message || 'Failed to upload file',

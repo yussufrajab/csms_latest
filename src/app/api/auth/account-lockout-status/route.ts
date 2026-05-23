@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { getAccountLockoutStatus } from '@/lib/account-lockout-utils';
+import { authLogger } from '@/lib/logger';
 
 const lockoutStatusSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    console.error('[ACCOUNT_LOCKOUT_STATUS]', error);
+    authLogger.error({ err: error }, 'Account lockout status error');
     return NextResponse.json(
       { success: false, message: 'Internal Server Error' },
       { status: 500 }

@@ -24,6 +24,8 @@ import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, useMemo } from 'react';
+import { clientLogger } from '@/lib/logger-client';
+const log = clientLogger.child({ component: 'institutions' });
 
 // TypeScript interfaces
 interface Institution {
@@ -99,7 +101,7 @@ export default function InstitutionsPage() {
           });
         }
       } catch (error) {
-        console.error('Error fetching institutions:', error);
+        log.error({ err: error }, 'Error fetching institutions:');
         toast({
           title: 'Error',
           description: 'Failed to load institutions',
@@ -152,7 +154,7 @@ export default function InstitutionsPage() {
           });
         }
       } catch (error) {
-        console.error('Error fetching employees:', error);
+        log.error({ err: error }, 'Error fetching employees:');
         toast({
           title: 'Error',
           description: 'Failed to load employees',

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
       zssfNumberExists,
     });
   } catch (error) {
-    console.error('Error validating employee:', error);
+    logger.error({ value: error }, 'Error validating employee');
     return NextResponse.json(
       { success: false, error: 'Internal Server Error' },
       { status: 500 }

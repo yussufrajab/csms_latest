@@ -3,6 +3,7 @@
  * Handles all communication with the Spring Boot backend APIs
  */
 
+import { logger } from '@/lib/logger';
 import { getDeviceInfoHeader } from './device-info';
 
 export interface ApiResponse<T = any> {
@@ -194,10 +195,9 @@ class ApiClient {
       if (csrfToken) {
         headers['x-csrf-token'] = csrfToken;
       } else {
-        console.warn(
-          '[API Client] CSRF token not found for state-changing request:',
-          method,
-          endpoint
+        logger.warn(
+          { method, endpoint },
+          'CSRF token not found for state-changing request'
         );
       }
     }
@@ -221,9 +221,9 @@ class ApiClient {
         endpoint !== '/auth/refresh' &&
         endpoint !== '/auth/login'
       ) {
-        console.log(
-          '401 Unauthorized, attempting token refresh for endpoint:',
-          endpoint
+        logger.info(
+          { endpoint },
+          '401 Unauthorized, attempting token refresh'
         );
 
         const refreshToken =
@@ -232,11 +232,11 @@ class ApiClient {
             : null;
         if (refreshToken) {
           try {
-            console.log('Attempting to refresh token...');
+            logger.info('Attempting to refresh token');
             const refreshResponse = await this.refreshToken(refreshToken);
 
             if (refreshResponse.success && refreshResponse.data) {
-              console.log('Token refresh successful');
+              logger.info('Token refresh successful');
               const newAccessToken = refreshResponse.data.token;
               const newRefreshToken = refreshResponse.data.refreshToken;
 
@@ -256,16 +256,16 @@ class ApiClient {
               }
 
               // Retry the original request with new token
-              console.log('Retrying original request with new token');
+              logger.info('Retrying original request with new token');
               return this.request<T>(endpoint, options, retryCount + 1);
             }
           } catch (refreshError) {
-            console.error('Token refresh failed:', refreshError);
+            logger.error({ err: refreshError }, 'Token refresh failed');
           }
         }
 
         // If refresh failed or no refresh token, clear auth and redirect
-        console.log('Token refresh failed, clearing authentication');
+        logger.info('Token refresh failed, clearing authentication');
         this.clearToken();
         if (typeof window !== 'undefined') {
           // Import auth store dynamically to logout user
@@ -316,7 +316,7 @@ class ApiClient {
         code: data.code,
       };
     } catch (error) {
-      console.error('API Request failed:', error);
+      logger.error({ err: error }, 'API Request failed');
       return {
         success: false,
         message: error instanceof Error ? error.message : 'Network error',
@@ -363,27 +363,23 @@ class ApiClient {
         };
 
         useAuthStore.getState().setUserManually(user);
-        console.log('Development user set in auth store:', user.name);
+        logger.info({ userName: user.name }, 'Development user set in auth store');
       });
     }
   }
 
   // Authentication APIs
   async login(username: string, password: string): Promise<ApiResponse<any>> {
-    console.log('ApiClient.login called with:', {
-      username,
-      passwordLength: password?.length,
-    });
+    logger.info({ username, passwordLength: password?.length }, 'ApiClient.login called');
     const requestBody = { username, password };
-    console.log('ApiClient.login request body:', requestBody);
-    console.log('Making request to:', `${this.baseURL}/auth/login`);
+    logger.info('Making request to /auth/login');
 
     const result = await this.request<any>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(requestBody),
     });
 
-    console.log('ApiClient.login result:', result);
+    logger.info({ success: result.success }, 'ApiClient.login result');
     return result;
   }
 

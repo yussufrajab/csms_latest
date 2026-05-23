@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
+import { hrimsLogger } from '@/lib/logger';
 
 // Validation schema for the HRIMS sync request
 const hrimsRequestSchema = z
@@ -69,10 +70,7 @@ const hrimsEmployeeResponseSchema = z.object({
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log('HRIMS sync request received:', {
-      ...body,
-      hrimsApiKey: '[REDACTED]',
-    });
+    hrimsLogger.info({ ...body, hrimsApiKey: '[REDACTED]' }, 'HRIMS sync request received');
 
     // Validate request payload
     const validatedRequest = hrimsRequestSchema.parse(body);
@@ -116,7 +114,7 @@ export async function POST(req: Request) {
       institution.id
     );
 
-    console.log('Employee synced successfully:', savedEmployee.id);
+    hrimsLogger.info({ employeeId: savedEmployee.id }, 'Employee synced successfully');
 
     const documentStats = validatedHrimsData.data.Employee.documentStats;
 
@@ -146,7 +144,7 @@ export async function POST(req: Request) {
     // Start background tasks without waiting for them to complete
     if (backgroundTasks.length > 0) {
       Promise.all(backgroundTasks).catch((error) => {
-        console.error('Background sync error:', error);
+        hrimsLogger.error({ err: error }, 'Background sync error');
         // Background tasks failing shouldn't affect the main response
       });
     }
@@ -173,7 +171,7 @@ export async function POST(req: Request) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('[HRIMS_SYNC_ERROR]', error);
+    hrimsLogger.error({ err: error }, 'HRIMS sync error');
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -229,24 +227,25 @@ async function fetchEmployeeFromHRIMS(
     );
 
     if (!response.ok) {
-      console.error(
-        `HRIMS API error: ${response.status} ${response.statusText}`
+      hrimsLogger.error(
+        { status: response.status, statusText: response.statusText },
+        'HRIMS API error'
       );
       return null;
     }
 
     const data = await response.json();
-    console.log('HRIMS API response received');
+    hrimsLogger.info('HRIMS API response received');
     return data;
   } catch (error) {
-    console.error('Error fetching from HRIMS:', error);
+    hrimsLogger.error({ err: error }, 'Error fetching from HRIMS');
 
     // For development/demo - return mock data
     if (
       process.env.NODE_ENV === 'development' ||
       process.env.HRIMS_MOCK_MODE === 'true'
     ) {
-      console.log('Using mock HRIMS data for development');
+      hrimsLogger.info('Using mock HRIMS data for development');
       return getMockHRIMSData(request);
     }
 
@@ -381,7 +380,7 @@ async function triggerBackgroundDocumentsSync(
   zanId: string
 ) {
   try {
-    console.log(`Starting background documents sync for Employee: ${zanId}`);
+    hrimsLogger.info({ zanId }, 'Starting background documents sync');
 
     const syncPayload = {
       zanId: zanId,
@@ -401,17 +400,17 @@ async function triggerBackgroundDocumentsSync(
     });
 
     if (response.ok) {
-      console.log(`Documents sync completed for Employee: ${zanId}`);
+      hrimsLogger.info({ zanId }, 'Documents sync completed');
     } else {
-      console.error(
-        `Documents sync failed for Employee: ${zanId}`,
-        response.statusText
+      hrimsLogger.error(
+        { zanId, statusText: response.statusText },
+        'Documents sync failed'
       );
     }
   } catch (error) {
-    console.error(
-      `Error in background documents sync for employee ${zanId}:`,
-      error
+    hrimsLogger.error(
+      { err: error, zanId },
+      'Error in background documents sync'
     );
   }
 }
@@ -421,7 +420,7 @@ async function triggerBackgroundCertificatesSync(
   zanId: string
 ) {
   try {
-    console.log(`Starting background certificates sync for Employee: ${zanId}`);
+    hrimsLogger.info({ zanId }, 'Starting background certificates sync');
 
     const syncPayload = {
       zanId: zanId,
@@ -441,17 +440,17 @@ async function triggerBackgroundCertificatesSync(
     });
 
     if (response.ok) {
-      console.log(`Certificates sync completed for Employee: ${zanId}`);
+      hrimsLogger.info({ zanId }, 'Certificates sync completed');
     } else {
-      console.error(
-        `Certificates sync failed for Employee: ${zanId}`,
-        response.statusText
+      hrimsLogger.error(
+        { zanId, statusText: response.statusText },
+        'Certificates sync failed'
       );
     }
   } catch (error) {
-    console.error(
-      `Error in background certificates sync for employee ${zanId}:`,
-      error
+    hrimsLogger.error(
+      { err: error, zanId },
+      'Error in background certificates sync'
     );
   }
 }

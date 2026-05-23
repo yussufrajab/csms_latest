@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { hrimsLogger } from '@/lib/logger';
 import {
   getJobStatus,
   getQueueEvents,
@@ -160,7 +161,7 @@ export async function GET(
           controller.close();
         });
       } catch (error) {
-        console.error('SSE stream error:', error);
+        hrimsLogger.error({ err: error }, 'SSE stream error');
         sendEvent('error', {
           jobId,
           error:

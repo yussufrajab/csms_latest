@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { DebugLogger } from '@/lib/debug-logger';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'debug-panel' });
 
 export function DebugPanel() {
   const [isOpen, setIsOpen] = useState(false);
@@ -29,14 +32,14 @@ export function DebugPanel() {
 
   const showLogs = () => {
     const logs = DebugLogger.getLogs();
-    console.log('=== PERSISTENT AUTH DEBUG LOGS ===');
-    logs.forEach((log: any) => {
-      console.log(
-        `${log.timestamp}: ${log.message}`,
-        log.data ? JSON.parse(log.data) : ''
+    log.info('=== PERSISTENT AUTH DEBUG LOGS ===');
+    logs.forEach((entry: any) => {
+      log.info(
+        { timestamp: entry.timestamp, data: entry.data ? JSON.parse(entry.data) : undefined },
+        entry.message
       );
     });
-    console.log('=== END PERSISTENT DEBUG LOGS ===');
+    log.info('=== END PERSISTENT DEBUG LOGS ===');
     alert('Check console for logs');
   };
 

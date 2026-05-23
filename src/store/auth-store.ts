@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { User, Role } from '@/lib/types';
 import { apiClient, LoginResponse } from '@/lib/api-client';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'auth-store' });
 
 /**
  * Helper function to set a cookie for middleware authentication
@@ -76,10 +79,10 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (username: string, password: string) => {
         try {
-          console.log('=== LOGIN START ===');
-          console.log('Attempting login for user:', username);
+          log.info('Login start');
+          log.info({ username }, 'Attempting login');
           const response = await apiClient.login(username, password);
-          console.log('API login response received:', response);
+          log.info({ hasData: !!response.data, code: response.code }, 'API login response received');
 
           // Check if it's a session limit error
           if (response.code === 'SESSION_LIMIT_REACHED') {
@@ -98,29 +101,20 @@ export const useAuthStore = create<AuthState>()(
           }
 
           if (!response.success || !response.data) {
-            console.error('Login failed:', response.message);
+            log.error({ message: response.message }, 'Login failed');
             // Throw error with the server's message so the form can display it
             throw new Error(response.message || 'Login failed');
           }
 
-          console.log('Full login response:', response);
-          console.log('Response success:', response.success);
-          console.log('Response data exists:', !!response.data);
+          log.info({ success: response.success, hasData: !!response.data }, 'Full login response');
 
           // The API client response structure is now { success: true, data: backendResponse }
           // The backend response is { success: true, data: authData, message: string }
           const backendResponse = response.data;
-          console.log('Backend response structure:', backendResponse);
+          log.info({ keys: backendResponse ? Object.keys(backendResponse) : [] }, 'Backend response structure');
 
           // The Spring Boot response wraps auth data in another data property
-          // Let's log all possible structures to find the correct one
-          console.log('Checking different data structures:');
-          console.log('1. backendResponse:', backendResponse);
-          console.log('2. backendResponse.data:', backendResponse?.data);
-          console.log(
-            '3. backendResponse keys:',
-            backendResponse ? Object.keys(backendResponse) : 'none'
-          );
+          log.debug({ backendResponseKeys: backendResponse ? Object.keys(backendResponse) : 'none' }, 'Checking backend response structure');
 
           // The backend wraps AuthResponse in { success, message, data }
           // So we need to extract the AuthResponse from data property
@@ -132,84 +126,45 @@ export const useAuthStore = create<AuthState>()(
           if (backendResponse?.data?.data) {
             // Handle deeply nested structure
             authData = backendResponse.data.data;
-            console.log(
-              'Found authData in backendResponse.data.data (deeply nested)'
-            );
+            log.info('Found authData in backendResponse.data.data (deeply nested)');
           } else if (
             backendResponse?.data &&
             (backendResponse.data.token || backendResponse.data.user)
           ) {
             // Handle single nested structure
             authData = backendResponse.data;
-            console.log('Found authData in backendResponse.data');
+            log.info('Found authData in backendResponse.data');
           } else if (backendResponse?.token || backendResponse?.user) {
             // Fallback: if the response is already the AuthResponse
             authData = backendResponse;
-            console.log('Using backendResponse directly as authData');
+            log.info('Using backendResponse directly as authData');
           } else {
-            console.error('Could not find auth data in response');
+            log.error('Could not find auth data in response');
             return null;
           }
 
-          console.log('Final authData:', authData);
-          console.log(
-            'authData keys:',
-            authData ? Object.keys(authData) : 'none'
-          );
+          log.info({ authDataKeys: authData ? Object.keys(authData) : [] }, 'Final authData');
 
           // SpringBoot AuthResponse format: { token, refreshToken, tokenType, expiresIn, user: {...} }
           const token = authData?.token;
           const refreshToken = authData?.refreshToken;
           const userData = authData?.user;
 
-          console.log('Extracted Spring Boot AuthResponse:', authData);
-          console.log('Extracted token:', token ? 'present' : 'missing');
-          console.log(
-            'Extracted refreshToken:',
-            refreshToken ? 'present' : 'missing'
-          );
-          console.log('Extracted user:', userData);
-
-          console.log('Login response token:', token ? 'present' : 'missing');
-          console.log(
-            'Login response refreshToken:',
-            refreshToken ? 'present' : 'missing'
-          );
-          if (token) {
-            console.log('Token preview:', token.substring(0, 50) + '...');
-          }
-          console.log('Login response userData:', userData);
-          console.log('userData type:', typeof userData);
-          console.log(
-            'userData keys:',
-            userData ? Object.keys(userData) : 'none'
-          );
+          log.info({ hasToken: !!token, hasRefreshToken: !!refreshToken }, 'Extracted Spring Boot AuthResponse');
+          log.info({ userData }, 'Extracted user data');
 
           // Convert backend user format to frontend user format
           // Validate that we have user data
           if (!userData) {
-            console.error('No user data in auth response');
+            log.error('No user data in auth response');
             return null;
           }
 
-          console.log(
-            'Raw role from backend:',
-            userData.role,
-            'type:',
-            typeof userData.role
-          );
-          console.log('All userData properties:');
-          for (const [key, value] of Object.entries(userData)) {
-            console.log(`  ${key}:`, value, `(${typeof value})`);
-          }
+          log.info({ role: userData.role, roleType: typeof userData.role }, 'Raw role from backend');
 
           // Ensure we have required fields
           if (!userData.id || !userData.username || !userData.role) {
-            console.error('Missing required user fields:', {
-              hasId: !!userData.id,
-              hasUsername: !!userData.username,
-              hasRole: !!userData.role,
-            });
+            log.error({ hasId: !!userData.id, hasUsername: !!userData.username, hasRole: !!userData.role }, 'Missing required user fields');
             return null;
           }
 
@@ -254,32 +209,18 @@ export const useAuthStore = create<AuthState>()(
               : null,
           };
 
-          console.log('Constructed user object:');
-          for (const [key, value] of Object.entries(user)) {
-            console.log(`  ${key}:`, value, `(${typeof value})`);
-          }
+          log.info({ role: user.role, roleType: typeof user.role }, 'Constructed user object');
 
-          console.log(
-            'User role after casting:',
-            user.role,
-            'type:',
-            typeof user.role
-          );
-
-          console.log('Converted user object:', user);
-
-          console.log('Setting auth state with role:', user.role);
+          log.info('Setting auth state with role: ' + String(user.role));
 
           // Validate role before setting
           if (!user.role) {
-            console.error(
-              'Warning: User role is null/undefined, this should not happen'
-            );
+            log.error('Warning: User role is null/undefined, this should not happen');
           }
 
           // Ensure role is properly set - extract it directly to avoid any reference issues
           const userRole = user.role;
-          console.log('Setting auth state - user role extracted:', userRole);
+          log.info({ userRole }, 'Setting auth state - user role extracted');
 
           // Update API client with the token
           if (token) {
@@ -292,17 +233,11 @@ export const useAuthStore = create<AuthState>()(
             backendResponse?.data?.sessionToken ||
             (response as any).sessionToken ||
             null;
-          console.log('Session token:', sessionToken ? 'present' : 'missing');
-          if (sessionToken) {
-            console.log(
-              'Session token preview:',
-              sessionToken.substring(0, 15) + '...'
-            );
-          }
+          log.info({ hasSessionToken: !!sessionToken }, 'Session token extracted');
 
           // Extract CSRF token from backend response
           const csrfToken = backendResponse?.csrfToken || null;
-          console.log('CSRF token:', csrfToken ? 'present' : 'missing');
+          log.info({ hasCsrfToken: !!csrfToken }, 'CSRF token extracted');
 
           set({
             user,
@@ -319,19 +254,11 @@ export const useAuthStore = create<AuthState>()(
 
           // Verify the state was set correctly
           const newState = get();
-          console.log('Auth state after setting:', {
-            userId: newState.user?.id,
-            role: newState.role,
-            isAuthenticated: newState.isAuthenticated,
-            hasAccessToken: !!newState.accessToken,
-            tokenPreview: newState.accessToken
-              ? newState.accessToken.substring(0, 50) + '...'
-              : 'none',
-          });
+          log.info({ userId: newState.user?.id, role: newState.role, isAuthenticated: newState.isAuthenticated, hasAccessToken: !!newState.accessToken }, 'Auth state after setting');
 
           return user;
         } catch (error) {
-          console.error('Login error:', error);
+          log.error({ err: error }, 'Login error');
           // Re-throw the error so the login form can display it
           throw error;
         }
@@ -346,7 +273,7 @@ export const useAuthStore = create<AuthState>()(
           // Call backend logout endpoint with userId and sessionToken
           await apiClient.logout(currentUserId, currentSessionToken);
         } catch (error) {
-          console.error('Logout error:', error);
+          log.error({ err: error }, 'Logout error');
         } finally {
           // Clear tokens from API client
           apiClient.clearToken();
@@ -414,7 +341,7 @@ export const useAuthStore = create<AuthState>()(
 
           return true;
         } catch (error) {
-          console.error('Token refresh error:', error);
+          log.error({ err: error }, 'Token refresh error');
           get().logout();
           return false;
         }
@@ -427,22 +354,14 @@ export const useAuthStore = create<AuthState>()(
       initializeAuth: () => {
         // For session-based auth, just check if user data is persisted
         const currentState = get();
-        console.log('initializeAuth - current state:', {
-          hasUser: !!currentState.user,
-          role: currentState.role,
-          userRole: currentState.user?.role,
-          isAuthenticated: currentState.isAuthenticated,
-          username: currentState.user?.username,
-        });
+        log.info({ hasUser: !!currentState.user, role: currentState.role, userRole: currentState.user?.role, isAuthenticated: currentState.isAuthenticated, username: currentState.user?.username }, 'initializeAuth - current state');
 
         // Clear inconsistent auth state - if authenticated but no user data
         if (
           currentState.isAuthenticated &&
           (!currentState.user || !currentState.role)
         ) {
-          console.log(
-            'Clearing inconsistent auth state - authenticated but no user/role data'
-          );
+          log.info('Clearing inconsistent auth state - authenticated but no user/role data');
           clearAuthCookie();
           set({ user: null, role: null, isAuthenticated: false });
           if (typeof window !== 'undefined') {
@@ -454,7 +373,7 @@ export const useAuthStore = create<AuthState>()(
 
         // Clear stale development data
         if (currentState.user?.name === 'System Administrator') {
-          console.log('Clearing stale development user data');
+          log.info('Clearing stale development user data');
           clearAuthCookie();
           set({ user: null, role: null, isAuthenticated: false });
           return;
@@ -466,15 +385,12 @@ export const useAuthStore = create<AuthState>()(
           currentState.user.role &&
           currentState.role !== currentState.user.role
         ) {
-          console.log('initializeAuth: Fixing role mismatch', {
-            stateRole: currentState.role,
-            userRole: currentState.user.role,
-          });
+          log.info({ stateRole: currentState.role, userRole: currentState.user.role }, 'initializeAuth: Fixing role mismatch');
           set({ role: currentState.user.role });
         }
 
         if (currentState.user && !currentState.isAuthenticated) {
-          console.log('Setting isAuthenticated to true');
+          log.info('Setting isAuthenticated to true');
           set({ isAuthenticated: true });
         }
 
@@ -508,7 +424,7 @@ export const useAuthStore = create<AuthState>()(
       // Refresh user data from database
       refreshUserData: async () => {
         try {
-          console.log('[AUTH] Refreshing user data from database...');
+          log.info('Refreshing user data from database');
           const response = await fetch(`/api/auth/refresh-user-data?t=${Date.now()}`, {
             cache: 'no-store',
             headers: {
@@ -518,14 +434,14 @@ export const useAuthStore = create<AuthState>()(
           });
 
           if (!response.ok) {
-            console.error('[AUTH] Failed to refresh user data:', response.status);
+            log.error({ status: response.status }, 'Failed to refresh user data');
             return false;
           }
 
           const result = await response.json();
 
           if (result.success && result.data) {
-            console.log('[AUTH] User data refreshed successfully');
+            log.info('User data refreshed successfully');
 
             // Update the store with fresh user data
             set({
@@ -552,10 +468,10 @@ export const useAuthStore = create<AuthState>()(
             return true;
           }
 
-          console.error('[AUTH] Invalid response from refresh endpoint');
+          log.error('Invalid response from refresh endpoint');
           return false;
         } catch (error) {
-          console.error('[AUTH] Error refreshing user data:', error);
+          log.error({ err: error }, 'Error refreshing user data');
           return false;
         }
       },
@@ -565,13 +481,7 @@ export const useAuthStore = create<AuthState>()(
       storage: createJSONStorage(() => localStorage),
       // Persist user authentication state including role
       partialize: (state) => {
-        console.log('Partializing state for persistence:', {
-          hasUser: !!state.user,
-          role: state.role,
-          userRole: state.user?.role,
-          isAuthenticated: state.isAuthenticated,
-          username: state.user?.username,
-        });
+        log.info({ hasUser: !!state.user, role: state.role, userRole: state.user?.role, isAuthenticated: state.isAuthenticated, username: state.user?.username }, 'Partializing state for persistence');
 
         // Ensure the user object is properly serializable by converting Dates to ISO strings
         const serializableUser = state.user
@@ -616,24 +526,15 @@ export const useAuthStore = create<AuthState>()(
           csrfToken: state.csrfToken,
         };
 
-        console.log('State being persisted:', persistedState);
+        log.info({ hasUser: !!persistedState.user, role: persistedState.role, isAuthenticated: persistedState.isAuthenticated }, 'State being persisted');
         return persistedState;
       },
       onRehydrateStorage: () => {
         return (state, error) => {
           if (error) {
-            console.error('Auth store rehydration error:', error);
+            log.error({ err: error }, 'Auth store rehydration error');
           } else if (state) {
-            console.log('Auth store rehydrated successfully:', {
-              hasUser: !!state.user,
-              role: state.role,
-              userRole: state.user?.role,
-              isAuthenticated: state.isAuthenticated,
-              userId: state.user?.id,
-              username: state.user?.username,
-              hasAccessToken: !!state.accessToken,
-              hasRefreshToken: !!state.refreshToken,
-            });
+            log.info({ hasUser: !!state.user, role: state.role, userRole: state.user?.role, isAuthenticated: state.isAuthenticated, userId: state.user?.id, username: state.user?.username, hasAccessToken: !!state.accessToken, hasRefreshToken: !!state.refreshToken }, 'Auth store rehydrated successfully');
 
             // Restore Date objects from strings after rehydration
             if (state.user) {
@@ -664,18 +565,14 @@ export const useAuthStore = create<AuthState>()(
             // Restore token to API client after rehydration
             if (state.accessToken) {
               apiClient.setToken(state.accessToken);
-              console.log('Restored access token to API client');
+              log.info('Restored access token to API client');
             }
 
             // Check for role mismatch between state.role and state.user.role
             if (state.user && state.role !== state.user.role) {
-              console.warn('ROLE MISMATCH DETECTED:', {
-                stateRole: state.role,
-                userRole: state.user.role,
-                username: state.user.username,
-              });
+              log.warn({ stateRole: state.role, userRole: state.user.role, username: state.user.username }, 'ROLE MISMATCH DETECTED');
               // Fix the role mismatch by using the user's role
-              console.log('Fixing role mismatch...');
+              log.info('Fixing role mismatch');
               state.role = state.user.role;
             }
           }

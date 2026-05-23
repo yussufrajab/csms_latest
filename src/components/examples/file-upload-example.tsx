@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/button';
 import { FileUpload } from '@/components/ui/file-upload';
 import { FilePreviewModal } from '@/components/ui/file-preview-modal';
 import { toast } from '@/hooks/use-toast';
+import { clientLogger } from '@/lib/logger-client';
+
+const log = clientLogger.child({ component: 'file-upload-example' });
 
 export function FileUploadExample() {
   const [singleFile, setSingleFile] = useState<string>('');
@@ -19,8 +22,7 @@ export function FileUploadExample() {
   };
 
   const handleSubmit = () => {
-    console.log('Single file:', singleFile);
-    console.log('Multiple files:', multipleFiles);
+    log.info({ singleFile, multipleFiles }, 'Submit clicked');
 
     toast({
       title: 'Success',
