@@ -1,7 +1,12 @@
 import { PrismaClient } from '@prisma/client';
+import { dbLogger } from '@/lib/logger';
 
 const prismaClientSingleton = () => {
-  return new PrismaClient();
+  return new PrismaClient({
+    log: [
+      { emit: 'event', level: 'error' },
+    ],
+  });
 };
 
 declare global {
@@ -10,6 +15,10 @@ declare global {
 }
 
 const db = globalThis.prisma ?? prismaClientSingleton();
+
+db.$on('error', (e) => {
+  dbLogger.error({ err: e }, 'Prisma error');
+});
 
 export { db };
 
