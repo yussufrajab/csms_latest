@@ -1,0 +1,11 @@
+/var/log/csms/app/*.log
+/var/log/csms/workers/*.log
+{
+    daily
+    rotate 30
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
