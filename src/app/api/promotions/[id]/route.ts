@@ -21,6 +21,8 @@ const updateSchema = z.object({
   promotionType: z.enum(['Experience', 'EducationAdvancement']).optional(),
   documents: z.array(z.string()).optional(),
   studiedOutsideCountry: z.boolean().optional(),
+  hrrpReviewedById: z.string().optional(),
+  hrrpReviewedAt: z.string().datetime().optional(),
 });
 
 async function handleUpdate(
@@ -74,6 +76,9 @@ async function handleUpdate(
             },
             User_PromotionRequest_reviewedByIdToUser: {
               select: { name: true, role: true },
+            },
+            User_PromotionRequest_hrrpReviewedByToUser: {
+              select: { id: true, name: true, username: true },
             },
           },
         });
@@ -159,6 +164,9 @@ async function handleUpdate(
           },
           User_PromotionRequest_reviewedByIdToUser: {
             select: { name: true, role: true },
+          },
+          User_PromotionRequest_hrrpReviewedByToUser: {
+            select: { id: true, name: true, username: true },
           },
         },
       });
