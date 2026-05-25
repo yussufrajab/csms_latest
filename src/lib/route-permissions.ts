@@ -34,7 +34,7 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   {
     pattern: '/dashboard/confirmation',
     allowedRoles: [ROLES.HRO, ROLES.HHRMD, ROLES.HRMO, ROLES.CSCS, ROLES.HRRP],
-    description: 'Employee confirmation - HRO submits, HHRMD/HRMO approve',
+    description: 'Employee confirmation - HRO submits to HRRP, HRRP approves and forwards to Commission (HHRMD/HRMO)',
   },
   {
     pattern: '/dashboard/lwop',
