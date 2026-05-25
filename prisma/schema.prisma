@@ -23,14 +23,18 @@ model CadreChangeRequest {
   createdAt                                   DateTime @default(now())
   updatedAt                                   DateTime
   originalCadre                               String?
+  hrrpReviewedById                            String?
+  hrrpReviewedAt                              DateTime?
   Employee                                    Employee @relation(fields: [employeeId], references: [id])
   User_CadreChangeRequest_reviewedByIdToUser  User?    @relation("CadreChangeRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
   User_CadreChangeRequest_submittedByIdToUser User     @relation("CadreChangeRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_CadreChangeRequest_hrrpReviewedByToUser User?    @relation("CadreChangeRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
   @@index([createdAt(sort: Desc)])
+  @@index([hrrpReviewedById])
 }
 
 model Complaint {
@@ -361,6 +365,7 @@ model User {
   lastActivity                                                        DateTime?
   CadreChangeRequest_CadreChangeRequest_reviewedByIdToUser            CadreChangeRequest[]      @relation("CadreChangeRequest_reviewedByIdToUser")
   CadreChangeRequest_CadreChangeRequest_submittedByIdToUser           CadreChangeRequest[]      @relation("CadreChangeRequest_submittedByIdToUser")
+  CadreChangeRequest_hrrpReviewedByToUser                            CadreChangeRequest[]      @relation("CadreChangeRequest_hrrpReviewedByToUser")
   Complaint_Complaint_complainantIdToUser                             Complaint[]               @relation("Complaint_complainantIdToUser")
   Complaint_Complaint_reviewedByIdToUser                              Complaint[]               @relation("Complaint_reviewedByIdToUser")
   ConfirmationRequest_ConfirmationRequest_reviewedByIdToUser          ConfirmationRequest[]     @relation("ConfirmationRequest_reviewedByIdToUser")
