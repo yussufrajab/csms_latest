@@ -10,7 +10,7 @@ import {
   getClientIp,
 } from '@/lib/audit-logger';
 import { ROLES } from '@/lib/constants';
-import { createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
+import { createNotification, createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
 import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
 import { logger } from '@/lib/logger';
 
@@ -210,15 +210,28 @@ export async function POST(req: Request) {
       );
     }
 
+    const isHRRP = body.userRole === 'HRRP';
+    const initialStatus = isHRRP
+      ? 'Approved by HRRP - Awaiting Commission Review'
+      : 'Pending HRRP Review';
+    const initialReviewStage = isHRRP ? 'hrrp_review' : 'initial';
+    const hrrpData = isHRRP
+      ? {
+          hrrpReviewedById: body.submittedById,
+          hrrpReviewedAt: new Date(),
+        }
+      : {};
+
     const confirmationRequest = await db.confirmationRequest.create({
       data: {
         id: uuidv4(),
         employeeId: body.employeeId,
         submittedById: body.submittedById,
-        status: body.status || 'Pending',
-        reviewStage: body.reviewStage || 'initial',
+        status: initialStatus,
+        reviewStage: initialReviewStage,
         documents: body.documents || [],
         updatedAt: new Date(),
+        ...hrrpData,
       },
       include: {
         Employee: {
@@ -239,32 +252,47 @@ export async function POST(req: Request) {
         User_ConfirmationRequest_submittedByIdToUser: {
           select: { id: true, name: true, username: true },
         },
+        User_ConfirmationRequest_hrrpReviewedByToUser: isHRRP
+          ? { select: { id: true, name: true, username: true } }
+          : false,
       },
     });
 
     logger.info({ value: confirmationRequest.id }, 'Created confirmation request');
 
-    // Create notification for CSC reviewers
-    const notification = NotificationTemplates.confirmationSubmitted(
-      confirmationRequest.Employee.name,
-      confirmationRequest.id
-    );
-
-    await createNotificationForRole(
-      ROLES.HHRMD || 'HHRMD',
-      notification.message,
-      notification.link
-    );
-    await createNotificationForRole(
-      ROLES.HRMO || 'HRMO',
-      notification.message,
-      notification.link
-    );
-    await createNotificationForRole(
-      ROLES.DO || 'DO',
-      notification.message,
-      notification.link
-    );
+    // Create notification - target depends on who submitted
+    if (isHRRP) {
+      // HRRP submitted directly: notify commission (HHRMD/HRMO)
+      const notification = NotificationTemplates.confirmationSubmitted(
+        confirmationRequest.Employee.name,
+        confirmationRequest.id
+      );
+      await createNotificationForRole(ROLES.HHRMD!, notification.message, notification.link);
+      await createNotificationForRole(ROLES.HRMO!, notification.message, notification.link);
+    } else {
+      // HRO submitted: notify HRRP at the same institution
+      const notification = NotificationTemplates.confirmationSubmitted(
+        confirmationRequest.Employee.name,
+        confirmationRequest.id
+      );
+      const employee = await db.employee.findUnique({
+        where: { id: body.employeeId },
+        select: { institutionId: true },
+      });
+      if (employee?.institutionId) {
+        const hrrpUsers = await db.user.findMany({
+          where: { role: ROLES.HRRP!, active: true, institutionId: employee.institutionId },
+          select: { id: true },
+        });
+        for (const hrrpUser of hrrpUsers) {
+          await createNotification({
+            message: notification.message,
+            link: notification.link,
+            userId: hrrpUser.id,
+          });
+        }
+      }
+    }
 
     // Send email notifications to CSC reviewers
     await sendRequestSubmissionEmails({
