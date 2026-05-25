@@ -49,7 +49,7 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   {
     pattern: '/dashboard/cadre-change',
     allowedRoles: [ROLES.HRO, ROLES.HHRMD, ROLES.HRMO, ROLES.CSCS, ROLES.HRRP],
-    description: 'Change of cadre - HRO submits, HHRMD/HRMO approve',
+    description: 'Change of cadre - HRO submits to HRRP, HRRP approves and forwards to Commission (HHRMD/HRMO)',
   },
   {
     pattern: '/dashboard/retirement',
