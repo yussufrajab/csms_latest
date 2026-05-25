@@ -17,6 +17,8 @@ const updateSchema = z.object({
   reviewedById: z.string().optional(),
   decisionDate: z.string().datetime().optional(),
   commissionDecisionDate: z.string().datetime().optional(),
+  hrrpReviewedById: z.string().optional(),
+  hrrpReviewedAt: z.string().datetime().optional(),
 });
 
 async function handleUpdate(
@@ -38,6 +40,9 @@ async function handleUpdate(
       data: validatedData,
       include: {
         Employee: { select: { name: true, zanId: true } },
+        User_ConfirmationRequest_hrrpReviewedByToUser: {
+          select: { id: true, name: true, username: true },
+        },
       },
     });
 
