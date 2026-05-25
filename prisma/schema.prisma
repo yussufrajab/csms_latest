@@ -70,15 +70,19 @@ model ConfirmationRequest {
   reviewedById                                 String?
   decisionDate                                 DateTime?
   commissionDecisionDate                       DateTime?
+  hrrpReviewedById                             String?
+  hrrpReviewedAt                               DateTime?
   createdAt                                    DateTime  @default(now())
   updatedAt                                    DateTime
   Employee                                     Employee  @relation(fields: [employeeId], references: [id])
   User_ConfirmationRequest_reviewedByIdToUser  User?     @relation("ConfirmationRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
   User_ConfirmationRequest_submittedByIdToUser User      @relation("ConfirmationRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_ConfirmationRequest_hrrpReviewedByToUser User?     @relation("ConfirmationRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
+  @@index([hrrpReviewedById])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -353,6 +357,7 @@ model User {
   Complaint_Complaint_reviewedByIdToUser                              Complaint[]               @relation("Complaint_reviewedByIdToUser")
   ConfirmationRequest_ConfirmationRequest_reviewedByIdToUser          ConfirmationRequest[]     @relation("ConfirmationRequest_reviewedByIdToUser")
   ConfirmationRequest_ConfirmationRequest_submittedByIdToUser         ConfirmationRequest[]     @relation("ConfirmationRequest_submittedByIdToUser")
+  ConfirmationRequest_hrrpReviewedByToUser                            ConfirmationRequest[]     @relation("ConfirmationRequest_hrrpReviewedByToUser")
   LwopRequest_LwopRequest_reviewedByIdToUser                          LwopRequest[]             @relation("LwopRequest_reviewedByIdToUser")
   LwopRequest_LwopRequest_submittedByIdToUser                         LwopRequest[]             @relation("LwopRequest_submittedByIdToUser")
   Notification                                                        Notification[]
