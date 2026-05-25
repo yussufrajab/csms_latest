@@ -15,6 +15,8 @@ const updateSchema = z.object({
   reviewStage: z.string().optional(),
   rejectionReason: z.string().optional(),
   reviewedById: z.string().optional(),
+  hrrpReviewedById: z.string().optional(),
+  hrrpReviewedAt: z.string().datetime().optional(),
 });
 
 async function handleUpdate(
@@ -53,6 +55,9 @@ async function handleUpdate(
         },
         User_LwopRequest_reviewedByIdToUser: {
           select: { name: true, role: true },
+        },
+        User_LwopRequest_hrrpReviewedByToUser: {
+          select: { id: true, name: true, username: true },
         },
       },
     });
