@@ -19,6 +19,8 @@ const updateSchema = z.object({
   reason: z.string().optional(),
   studiedOutsideCountry: z.boolean().optional(),
   documents: z.array(z.string()).optional(),
+  hrrpReviewedById: z.string().optional(),
+  hrrpReviewedAt: z.string().datetime().optional(),
 });
 
 async function handleUpdate(
@@ -60,6 +62,9 @@ async function handleUpdate(
         },
         User_CadreChangeRequest_reviewedByIdToUser: {
           select: { id: true, name: true, username: true, role: true },
+        },
+        User_CadreChangeRequest_hrrpReviewedByToUser: {
+          select: { id: true, name: true, username: true },
         },
       },
     });
@@ -225,6 +230,9 @@ export async function GET(
         },
         User_CadreChangeRequest_reviewedByIdToUser: {
           select: { id: true, name: true, username: true, role: true },
+        },
+        User_CadreChangeRequest_hrrpReviewedByToUser: {
+          select: { id: true, name: true, username: true },
         },
       },
     });
