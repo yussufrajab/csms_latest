@@ -112,6 +112,9 @@ export async function GET(req: Request) {
           User_CadreChangeRequest_reviewedByIdToUser: {
             select: { id: true, name: true, username: true },
           },
+          User_CadreChangeRequest_hrrpReviewedByToUser: {
+            select: { id: true, name: true, username: true },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * size,
@@ -127,8 +130,10 @@ export async function GET(req: Request) {
       ...req,
       submittedBy: req.User_CadreChangeRequest_submittedByIdToUser,
       reviewedBy: req.User_CadreChangeRequest_reviewedByIdToUser,
+      hrrpReviewedBy: req.User_CadreChangeRequest_hrrpReviewedByToUser,
       User_CadreChangeRequest_submittedByIdToUser: undefined,
       User_CadreChangeRequest_reviewedByIdToUser: undefined,
+      User_CadreChangeRequest_hrrpReviewedByToUser: undefined,
     }));
 
     return NextResponse.json({
