@@ -54,24 +54,24 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   {
     pattern: '/dashboard/retirement',
     allowedRoles: [ROLES.HRO, ROLES.HHRMD, ROLES.HRMO, ROLES.CSCS, ROLES.HRRP],
-    description: 'Retirement - HRO submits, HHRMD/HRMO approve',
+    description: 'Retirement - HRO submits to HRRP, HRRP approves and forwards to Commission (HHRMD/HRMO)',
   },
   {
     pattern: '/dashboard/resignation',
     allowedRoles: [ROLES.HRO, ROLES.HHRMD, ROLES.HRMO, ROLES.CSCS, ROLES.HRRP],
-    description: 'Resignation - HRO submits, HHRMD/HRMO approve',
+    description: 'Resignation - HRO submits to HRRP, HRRP approves and forwards to Commission (HHRMD/HRMO)',
   },
   {
     pattern: '/dashboard/service-extension',
     allowedRoles: [ROLES.HRO, ROLES.HHRMD, ROLES.HRMO, ROLES.CSCS, ROLES.HRRP],
-    description: 'Service extension - HRO submits, HHRMD/HRMO approve',
+    description: 'Service extension - HRO submits to HRRP, HRRP approves and forwards to Commission (HHRMD/HRMO)',
   },
 
   // Disciplinary actions - HHRMD and DO only, NOT HRMO
   {
     pattern: '/dashboard/termination',
-    allowedRoles: [ROLES.HRO, ROLES.DO, ROLES.HHRMD, ROLES.CSCS],
-    description: 'Termination - HRO submits, DO/HHRMD approve',
+    allowedRoles: [ROLES.HRO, ROLES.DO, ROLES.HHRMD, ROLES.CSCS, ROLES.HRRP],
+    description: 'Termination - HRO submits to HRRP, HRRP approves and forwards to Commission (DO/HHRMD)',
   },
   {
     pattern: '/dashboard/dismissal',

@@ -187,6 +187,21 @@ export const NotificationTemplates = {
     link: `/dashboard/retirement`,
   }),
 
+  retirementHrrpApproved: (employeeName: string, requestId: string) => ({
+    message: `Retirement request for ${employeeName} (${requestId}) has been approved by HRRP and forwarded to the Commission for review.`,
+    link: `/dashboard/retirement`,
+  }),
+
+  retirementHrrpRejected: (employeeName: string, requestId: string, reason: string) => ({
+    message: `Retirement request for ${employeeName} (${requestId}) has been rejected by HRRP. Reason: ${reason}`,
+    link: `/dashboard/retirement`,
+  }),
+
+  retirementPendingHrrpReview: (employeeName: string, requestId: string) => ({
+    message: `New retirement request for ${employeeName} (${requestId}) is pending your HRRP review.`,
+    link: `/dashboard/retirement`,
+  }),
+
   // Service Extension Request Notifications (English)
   serviceExtensionSubmitted: (employeeName: string, requestId: string) => ({
     message: `New service extension request submitted by ${employeeName} (${requestId}). Requires your review.`,
@@ -200,6 +215,21 @@ export const NotificationTemplates = {
 
   serviceExtensionRejected: (requestId: string, reason: string) => ({
     message: `Your service extension request (${requestId}) has been rejected. Reason: ${reason}`,
+    link: `/dashboard/service-extension`,
+  }),
+
+  serviceExtensionHrrpApproved: (employeeName: string, requestId: string) => ({
+    message: `Service extension request for ${employeeName} (${requestId}) has been approved by HRRP and forwarded to the Commission for review.`,
+    link: `/dashboard/service-extension`,
+  }),
+
+  serviceExtensionHrrpRejected: (employeeName: string, requestId: string, reason: string) => ({
+    message: `Service extension request for ${employeeName} (${requestId}) has been rejected by HRRP. Reason: ${reason}`,
+    link: `/dashboard/service-extension`,
+  }),
+
+  serviceExtensionPendingHrrpReview: (employeeName: string, requestId: string) => ({
+    message: `New service extension request for ${employeeName} (${requestId}) is pending your HRRP review.`,
     link: `/dashboard/service-extension`,
   }),
 
@@ -250,6 +280,21 @@ export const NotificationTemplates = {
     link: `/dashboard/termination`,
   }),
 
+  terminationHrrpApproved: (employeeName: string, requestId: string) => ({
+    message: `Termination request for ${employeeName} (${requestId}) has been approved by HRRP and forwarded to the Commission for review.`,
+    link: `/dashboard/termination`,
+  }),
+
+  terminationHrrpRejected: (employeeName: string, requestId: string, reason: string) => ({
+    message: `Termination request for ${employeeName} (${requestId}) has been rejected by HRRP. Reason: ${reason}`,
+    link: `/dashboard/termination`,
+  }),
+
+  terminationPendingHrrpReview: (employeeName: string, requestId: string) => ({
+    message: `New termination request for ${employeeName} (${requestId}) is pending your HRRP review.`,
+    link: `/dashboard/termination`,
+  }),
+
   // Resignation Request Notifications (English)
   resignationSubmitted: (employeeName: string, requestId: string) => ({
     message: `New resignation request submitted by ${employeeName} (${requestId}). Requires your review.`,
@@ -263,6 +308,21 @@ export const NotificationTemplates = {
 
   resignationRejected: (requestId: string, reason: string) => ({
     message: `Your resignation request (${requestId}) has been rejected. Reason: ${reason}`,
+    link: `/dashboard/resignation`,
+  }),
+
+  resignationHrrpApproved: (employeeName: string, requestId: string) => ({
+    message: `Resignation request for ${employeeName} (${requestId}) has been approved by HRRP and forwarded to the Commission for review.`,
+    link: `/dashboard/resignation`,
+  }),
+
+  resignationHrrpRejected: (employeeName: string, requestId: string, reason: string) => ({
+    message: `Resignation request for ${employeeName} (${requestId}) has been rejected by HRRP. Reason: ${reason}`,
+    link: `/dashboard/resignation`,
+  }),
+
+  resignationPendingHrrpReview: (employeeName: string, requestId: string) => ({
+    message: `New resignation request for ${employeeName} (${requestId}) is pending your HRRP review.`,
     link: `/dashboard/resignation`,
   }),
 

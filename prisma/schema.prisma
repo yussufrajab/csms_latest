@@ -250,12 +250,16 @@ model ResignationRequest {
   createdAt                                   DateTime @default(now())
   updatedAt                                   DateTime
   Employee                                    Employee @relation(fields: [employeeId], references: [id])
-  User_ResignationRequest_reviewedByIdToUser  User?    @relation("ResignationRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
-  User_ResignationRequest_submittedByIdToUser User     @relation("ResignationRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  hrrpReviewedById                                String?
+  hrrpReviewedAt                                  DateTime?
+  User_ResignationRequest_reviewedByIdToUser      User?    @relation("ResignationRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
+  User_ResignationRequest_submittedByIdToUser     User     @relation("ResignationRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_ResignationRequest_hrrpReviewedByToUser    User?    @relation("ResignationRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
+  @@index([hrrpReviewedById])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -275,12 +279,16 @@ model RetirementRequest {
   createdAt                                  DateTime @default(now())
   updatedAt                                  DateTime
   Employee                                   Employee @relation(fields: [employeeId], references: [id])
-  User_RetirementRequest_reviewedByIdToUser  User?    @relation("RetirementRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
-  User_RetirementRequest_submittedByIdToUser User     @relation("RetirementRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  hrrpReviewedById                                String?
+  hrrpReviewedAt                                 DateTime?
+  User_RetirementRequest_reviewedByIdToUser      User?    @relation("RetirementRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
+  User_RetirementRequest_submittedByIdToUser     User     @relation("RetirementRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_RetirementRequest_hrrpReviewedByToUser    User?    @relation("RetirementRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
+  @@index([hrrpReviewedById])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -298,12 +306,16 @@ model SeparationRequest {
   createdAt                                  DateTime @default(now())
   updatedAt                                  DateTime
   Employee                                   Employee @relation(fields: [employeeId], references: [id])
-  User_SeparationRequest_reviewedByIdToUser  User?    @relation("SeparationRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
-  User_SeparationRequest_submittedByIdToUser User     @relation("SeparationRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  hrrpReviewedById                               String?
+  hrrpReviewedAt                                DateTime?
+  User_SeparationRequest_reviewedByIdToUser      User?    @relation("SeparationRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
+  User_SeparationRequest_submittedByIdToUser     User     @relation("SeparationRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_SeparationRequest_hrrpReviewedByToUser    User?    @relation("SeparationRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
+  @@index([hrrpReviewedById])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -322,12 +334,16 @@ model ServiceExtensionRequest {
   createdAt                                        DateTime @default(now())
   updatedAt                                        DateTime
   Employee                                         Employee @relation(fields: [employeeId], references: [id])
-  User_ServiceExtensionRequest_reviewedByIdToUser  User?    @relation("ServiceExtensionRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
-  User_ServiceExtensionRequest_submittedByIdToUser User     @relation("ServiceExtensionRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  hrrpReviewedById                                      String?
+  hrrpReviewedAt                                       DateTime?
+  User_ServiceExtensionRequest_reviewedByIdToUser        User?    @relation("ServiceExtensionRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
+  User_ServiceExtensionRequest_submittedByIdToUser       User     @relation("ServiceExtensionRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_ServiceExtensionRequest_hrrpReviewedByToUser      User?    @relation("ServiceExtensionRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
+  @@index([hrrpReviewedById])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -380,12 +396,16 @@ model User {
   PromotionRequest_hrrpReviewedByToUser                              PromotionRequest[]        @relation("PromotionRequest_hrrpReviewedByToUser")
   ResignationRequest_ResignationRequest_reviewedByIdToUser            ResignationRequest[]      @relation("ResignationRequest_reviewedByIdToUser")
   ResignationRequest_ResignationRequest_submittedByIdToUser           ResignationRequest[]      @relation("ResignationRequest_submittedByIdToUser")
+  ResignationRequest_hrrpReviewedByToUser                              ResignationRequest[]      @relation("ResignationRequest_hrrpReviewedByToUser")
   RetirementRequest_RetirementRequest_reviewedByIdToUser              RetirementRequest[]       @relation("RetirementRequest_reviewedByIdToUser")
   RetirementRequest_RetirementRequest_submittedByIdToUser             RetirementRequest[]       @relation("RetirementRequest_submittedByIdToUser")
+  RetirementRequest_hrrpReviewedByToUser                              RetirementRequest[]       @relation("RetirementRequest_hrrpReviewedByToUser")
   SeparationRequest_SeparationRequest_reviewedByIdToUser              SeparationRequest[]       @relation("SeparationRequest_reviewedByIdToUser")
   SeparationRequest_SeparationRequest_submittedByIdToUser             SeparationRequest[]       @relation("SeparationRequest_submittedByIdToUser")
+  SeparationRequest_hrrpReviewedByToUser                              SeparationRequest[]       @relation("SeparationRequest_hrrpReviewedByToUser")
   ServiceExtensionRequest_ServiceExtensionRequest_reviewedByIdToUser  ServiceExtensionRequest[] @relation("ServiceExtensionRequest_reviewedByIdToUser")
   ServiceExtensionRequest_ServiceExtensionRequest_submittedByIdToUser ServiceExtensionRequest[] @relation("ServiceExtensionRequest_submittedByIdToUser")
+  ServiceExtensionRequest_hrrpReviewedByToUser                        ServiceExtensionRequest[] @relation("ServiceExtensionRequest_hrrpReviewedByToUser")
   Session                                                             Session[]
   MfaToken                                                            MfaToken[]
   Employee                                                            Employee?                 @relation(fields: [employeeId], references: [id])
