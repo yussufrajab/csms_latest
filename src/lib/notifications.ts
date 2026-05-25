@@ -219,6 +219,21 @@ export const NotificationTemplates = {
     link: `/dashboard/cadre-change`,
   }),
 
+  cadreChangeHrrpApproved: (employeeName: string, requestId: string) => ({
+    message: `Cadre change request for ${employeeName} (${requestId}) has been approved by HRRP and forwarded to the Commission for review.`,
+    link: `/dashboard/cadre-change`,
+  }),
+
+  cadreChangeHrrpRejected: (employeeName: string, requestId: string, reason: string) => ({
+    message: `Cadre change request for ${employeeName} (${requestId}) has been rejected by HRRP. Reason: ${reason}`,
+    link: `/dashboard/cadre-change`,
+  }),
+
+  cadreChangePendingHrrpReview: (employeeName: string, requestId: string) => ({
+    message: `New cadre change request for ${employeeName} (${requestId}) is pending your HRRP review.`,
+    link: `/dashboard/cadre-change`,
+  }),
+
   // Termination Request Notifications (English)
   terminationSubmitted: (employeeName: string, requestId: string) => ({
     message: `New termination request submitted by ${employeeName} (${requestId}). Requires your review.`,
