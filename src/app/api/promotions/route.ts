@@ -129,6 +129,13 @@ export async function GET(req: Request) {
               username: true,
             },
           },
+          User_PromotionRequest_hrrpReviewedByToUser: {
+            select: {
+              id: true,
+              name: true,
+              username: true,
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * size,
@@ -144,8 +151,10 @@ export async function GET(req: Request) {
       ...req,
       submittedBy: req.User_PromotionRequest_submittedByIdToUser,
       reviewedBy: req.User_PromotionRequest_reviewedByIdToUser,
+      hrrpReviewedBy: req.User_PromotionRequest_hrrpReviewedByToUser,
       User_PromotionRequest_submittedByIdToUser: undefined,
       User_PromotionRequest_reviewedByIdToUser: undefined,
+      User_PromotionRequest_hrrpReviewedByToUser: undefined,
     }));
 
     return NextResponse.json({
