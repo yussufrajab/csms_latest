@@ -55,6 +55,9 @@ interface LWOPRequest {
   employee?: Partial<Employee & User & { institution: { name: string } }>; // Keep for compatibility
   submittedBy: Partial<User>;
   reviewedBy?: Partial<User> | null;
+  hrrpReviewedBy?: Partial<User> | null;
+  hrrpReviewedAt?: string | null;
+  decisionDate?: string | null;
   status: string;
   reviewStage: string;
   rejectionReason?: string | null;
@@ -140,14 +143,21 @@ export default function LwopPage() {
   const isEmployeeOnLWOP =
     employeeDetails?.status === 'On LWOP' || employeeDetails?.status === 'LWOP';
 
+  const pendingStatuses = [
+    'Pending HRRP Review',
+    'Pending HRMO/HHRMD Review',
+    'Approved by HRRP - Awaiting Commission Review',
+    'Request Received – Awaiting Commission Decision',
+    'Pending DO/HHRMD Review',
+  ];
+
   // Check for existing pending LWOP requests for this employee
   const hasPendingLWOPRequest = employeeDetails
     ? pendingRequests.some((request) => {
         const employeeId = request.Employee?.id || request.employee?.id;
         return (
           employeeId === employeeDetails.id &&
-          (request.status.includes('Pending') ||
-            request.status.includes('Awaiting'))
+          pendingStatuses.includes(request.status)
         );
       })
     : false;
@@ -411,7 +421,7 @@ export default function LwopPage() {
       req.id === request.id
         ? {
             ...req,
-            status: 'Pending HRMO/HHRMD Review',
+            status: 'Pending HRRP Review',
             reviewStage: 'initial',
             rejectionReason: null,
             duration: correctedDuration,
@@ -430,7 +440,7 @@ export default function LwopPage() {
     const employeeData = getEmployeeFromRequest(request);
     toast({
       title: 'Request Corrected & Resubmitted',
-      description: `LWOP request for ${employeeData?.name || 'Employee'} has been corrected and resubmitted. Status: Pending HRMO/HHRMD Review`,
+      description: `LWOP request for ${employeeData?.name || 'Employee'} has been corrected and resubmitted. Status: Pending HRRP Review`,
       duration: 4000,
     });
 
@@ -446,7 +456,8 @@ export default function LwopPage() {
         },
         body: JSON.stringify({
           id: request.id,
-          status: 'Pending HRMO/HHRMD Review', // Both roles can review in parallel after correction
+          userRole: role,
+          status: 'Pending HRRP Review', // Resubmitted requests go to HRRP review
           reviewStage: 'initial',
           duration: correctedDuration, // Update duration
           reason: correctedReason, // Update reason
@@ -576,8 +587,13 @@ export default function LwopPage() {
     const payload = {
       employeeId: employeeDetails.id,
       submittedById: user.id,
+      userRole: role,
       documents: documentsList,
-      status: 'Pending HRMO/HHRMD Review', // Both roles can review in parallel
+      // HRO submissions go to HRRP review first; HRRP submissions auto-approve
+      status: role === ROLES.HRRP
+        ? 'Approved by HRRP - Awaiting Commission Review'
+        : 'Pending HRRP Review',
+      reviewStage: role === ROLES.HRRP ? 'hrrp_review' : 'initial',
       startDate,
       endDate,
       duration: durationStr,
@@ -644,6 +660,7 @@ export default function LwopPage() {
           id: requestId,
           ...payload,
           reviewedById: user?.id,
+          userRole: role,
         }),
       });
       if (!response.ok) throw new Error('Failed to update request');
@@ -676,10 +693,13 @@ export default function LwopPage() {
       setRejectionReasonInput('');
       setIsRejectionModalOpen(true);
     } else if (action === 'forward') {
-      // Both HRMO and HHRMD forward directly to Commission (parallel workflow)
+      // HRMO/HHRMD approval forwards to Commission
+      const roleName = role === ROLES.HRMO ? 'HRMO' : 'HHRMD';
       const payload = {
-        status: 'Request Received – Awaiting Commission Decision',
+        status: `Approved by ${roleName} – Awaiting Commission Decision`,
         reviewStage: 'commission_review',
+        decisionDate: new Date().toISOString(),
+        reviewedById: user?.id,
       };
 
       await handleUpdateRequest(
@@ -693,10 +713,19 @@ export default function LwopPage() {
   const handleRejectionSubmit = async () => {
     if (!currentRequestToAction || !rejectionReasonInput.trim() || !user)
       return;
+
+    let rejectionStatus: string;
+    if (role === ROLES.HRRP) {
+      rejectionStatus = 'Rejected by HRRP - Awaiting HRO Correction';
+    } else {
+      rejectionStatus = `Rejected by ${role} - Awaiting HRO Correction`;
+    }
+
     const payload = {
-      status: `Rejected by ${role} - Awaiting HRO Correction`,
+      status: rejectionStatus,
       rejectionReason: rejectionReasonInput,
       reviewStage: 'initial',
+      decisionDate: new Date().toISOString(),
     };
     const success = await handleUpdateRequest(
       currentRequestToAction.id,
@@ -707,6 +736,34 @@ export default function LwopPage() {
       setIsRejectionModalOpen(false);
       setCurrentRequestToAction(null);
       setRejectionReasonInput('');
+    }
+  };
+
+  const handleHrrpAction = async (
+    requestId: string,
+    action: 'forward' | 'reject'
+  ) => {
+    const request = pendingRequests.find((req) => req.id === requestId);
+    if (!request) return;
+
+    if (action === 'reject') {
+      setCurrentRequestToAction(request);
+      setRejectionReasonInput('');
+      setIsRejectionModalOpen(true);
+    } else if (action === 'forward') {
+      const payload = {
+        status: 'Approved by HRRP - Awaiting Commission Review',
+        reviewStage: 'hrrp_review',
+        hrrpReviewedById: user?.id,
+        hrrpReviewedAt: new Date().toISOString(),
+        decisionDate: new Date().toISOString(),
+      };
+
+      await handleUpdateRequest(
+        requestId,
+        payload,
+        'Request approved by HRRP and forwarded to Commission'
+      );
     }
   };
 
@@ -990,9 +1047,19 @@ export default function LwopPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Review LWOP Requests</CardTitle>
+                <CardTitle>
+                  {role === ROLES.HRO
+                    ? 'My LWOP Requests'
+                    : role === ROLES.HRRP
+                      ? 'Review LWOP Requests'
+                      : 'Review LWOP Requests'}
+                </CardTitle>
                 <CardDescription>
-                  Review, approve, or reject pending LWOP requests.
+                  {role === ROLES.HRO
+                    ? 'View and manage your submitted LWOP requests.'
+                    : role === ROLES.HRRP
+                      ? 'Review HRO-submitted requests and forward approved ones to the Commission.'
+                      : 'Review, approve, or reject pending LWOP requests.'}
                 </CardDescription>
               </div>
               <Button
@@ -1103,21 +1170,40 @@ export default function LwopPage() {
                         : 'N/A'}{' '}
                       by {request.submittedBy?.name || 'N/A'}
                     </p>
+                    {request.reviewedBy && (
+                      <p className="text-sm text-muted-foreground">
+                        Reviewed by: {request.reviewedBy.name || 'N/A'} (
+                        {request.reviewedBy.username || 'N/A'})
+                      </p>
+                    )}
+                    {request.hrrpReviewedBy && (
+                      <p className="text-sm text-muted-foreground">
+                        HRRP Reviewed by: {request.hrrpReviewedBy.name || 'N/A'} (
+                        {request.hrrpReviewedBy.username || 'N/A'})
+                      </p>
+                    )}
                     <div className="flex items-center space-x-2">
                       <p className="text-sm">
                         <span className="font-medium">Status:</span>
                       </p>
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          request.status.includes('Approved')
+                          request.status.includes('Approved by Commission')
                             ? 'bg-green-100 text-green-800'
-                            : request.status.includes('Rejected')
+                            : request.status.includes('Rejected by Commission')
                               ? 'bg-red-100 text-red-800'
                               : request.status.includes('Awaiting Commission')
                                 ? 'bg-blue-100 text-blue-800'
-                                : request.status.includes('Correction')
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-gray-100 text-gray-800'
+                                : request.status === 'Approved by HRRP - Awaiting Commission Review'
+                                  ? 'bg-indigo-100 text-indigo-800'
+                                  : request.status === 'Pending HRRP Review'
+                                    ? 'bg-purple-100 text-purple-800'
+                                    : request.status.includes('Pending HRMO/HHRMD')
+                                      ? 'bg-orange-100 text-orange-800'
+                                      : request.status.includes('Awaiting HRO') ||
+                                        request.status.includes('Correction')
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : 'bg-gray-100 text-gray-800'
                         }`}
                       >
                         {request.status}
@@ -1130,12 +1216,7 @@ export default function LwopPage() {
                         <div className="flex items-center space-x-1">
                           <div
                             className={`w-2 h-2 rounded-full ${
-                              [
-                                'Pending HRMO/HHRMD Review',
-                                'Request Received – Awaiting Commission Decision',
-                                'Approved by Commission',
-                                'Rejected by Commission - Request Concluded',
-                              ].includes(request.status)
+                              request.status !== 'Pending'
                                 ? 'bg-green-500'
                                 : 'bg-gray-300'
                             }`}
@@ -1144,34 +1225,52 @@ export default function LwopPage() {
                           <div className="w-3 h-px bg-gray-300"></div>
                           <div
                             className={`w-2 h-2 rounded-full ${
-                              [
-                                'Request Received – Awaiting Commission Decision',
-                                'Approved by Commission',
-                                'Rejected by Commission - Request Concluded',
-                              ].includes(request.status)
+                              request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                              request.status.includes('Awaiting Commission') ||
+                              request.status.includes('Approved by Commission') ||
+                              request.status.includes('Rejected by Commission')
                                 ? 'bg-green-500'
-                                : request.status.includes('Pending HRMO/HHRMD')
-                                  ? 'bg-orange-500'
-                                  : 'bg-gray-300'
+                                : request.status === 'Pending HRRP Review'
+                                  ? 'bg-purple-500'
+                                  : request.status === 'Rejected by HRRP - Awaiting HRO Correction'
+                                    ? 'bg-red-500'
+                                    : 'bg-gray-300'
                             }`}
                           ></div>
-                          <span className="text-[10px]">HRMO/HHRMD Review</span>
+                          <span className="text-[10px]">HRRP Review</span>
                           <div className="w-3 h-px bg-gray-300"></div>
                           <div
                             className={`w-2 h-2 rounded-full ${
-                              [
-                                'Approved by Commission',
-                                'Rejected by Commission - Request Concluded',
-                              ].includes(request.status)
+                              request.status.includes('Approved by HRMO')
                                 ? 'bg-green-500'
-                                : request.status.includes('Awaiting Commission')
+                                : request.status.includes('Approved by HHRMD')
+                                  ? 'bg-green-500'
+                                  : request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                                    request.status === 'Pending HRMO/HHRMD Review'
+                                    ? 'bg-orange-500'
+                                    : request.status.includes('Awaiting Commission Decision')
+                                      ? 'bg-blue-500'
+                                      : 'bg-gray-300'
+                            }`}
+                          ></div>
+                          <span className="text-[10px]">
+                            {request.status.includes('Approved by HRMO')
+                              ? 'HRMO ✓'
+                              : request.status.includes('Approved by HHRMD')
+                                ? 'HHRMD ✓'
+                                : 'HRMO/HHRMD Review'}
+                          </span>
+                          <div className="w-3 h-px bg-gray-300"></div>
+                          <div
+                            className={`w-2 h-2 rounded-full ${
+                              ['Approved by Commission', 'Rejected by Commission - Request Concluded'].includes(request.status)
+                                ? 'bg-green-500'
+                                : request.status.includes('Awaiting Commission Decision')
                                   ? 'bg-blue-500'
                                   : 'bg-gray-300'
                             }`}
                           ></div>
-                          <span className="text-[10px]">
-                            Commission Decision
-                          </span>
+                          <span className="text-[10px]">Commission Decision</span>
                         </div>
                       </div>
                     </div>
@@ -1192,62 +1291,86 @@ export default function LwopPage() {
                       >
                         View Details
                       </Button>
-                      {/* HRMO/HHRMD Parallel Review Actions */}
-                      {(role === ROLES.HRMO || role === ROLES.HHRMD) &&
-                        request.status === 'Pending HRMO/HHRMD Review' && (
-                          <>
-                            <Button
-                              size="sm"
-                              onClick={() =>
-                                handleInitialAction(request.id, 'forward')
-                              }
-                            >
-                              Verify &amp; Forward to Commission
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() =>
-                                handleInitialAction(request.id, 'reject')
-                              }
-                            >
-                              Reject &amp; Return to HRO
-                            </Button>
-                          </>
-                        )}
-                      {(role === ROLES.HRMO || role === ROLES.HHRMD) &&
-                        request.reviewStage === 'commission_review' &&
-                        request.status ===
-                          'Request Received – Awaiting Commission Decision' && (
-                          <>
-                            <Button
-                              size="sm"
-                              className="bg-green-600 hover:bg-green-700 text-white"
-                              onClick={() =>
-                                handleCommissionDecision(request.id, 'approved')
-                              }
-                            >
-                              Approved by Commission
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() =>
-                                handleCommissionDecision(request.id, 'rejected')
-                              }
-                            >
-                              Rejected by Commission
-                            </Button>
-                          </>
-                        )}
-
-                      {role === ROLES.HRO &&
-                        (request.status ===
-                          'Rejected by HHRMD - Awaiting HRO Correction' ||
-                          request.status ===
-                            'Rejected by HRMO - Awaiting HRO Correction') && (
+                      {/* HRRP Review Actions */}
+                      {role === ROLES.HRRP && request.status === 'Pending HRRP Review' && (
+                        <>
                           <Button
                             size="sm"
+                            onClick={() => handleHrrpAction(request.id, 'forward')}
+                          >
+                            Verify &amp; Forward to Commission
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleHrrpAction(request.id, 'reject')}
+                          >
+                            Reject &amp; Return to HRO
+                          </Button>
+                        </>
+                      )}
+                      {/* HRMO/HHRMD Commission Review Actions */}
+                      {(role === ROLES.HHRMD || role === ROLES.HRMO) && (
+                        <>
+                          {/* Commission initial review - for HRRP-approved and legacy requests */}
+                          {(role === ROLES.HRMO || role === ROLES.HHRMD) &&
+                            (request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                             request.status === 'Pending HRMO/HHRMD Review') && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  onClick={() =>
+                                    handleInitialAction(request.id, 'forward')
+                                  }
+                                >
+                                  Verify &amp; Forward to Commission
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() =>
+                                    handleInitialAction(request.id, 'reject')
+                                  }
+                                >
+                                  Reject &amp; Return to HRO
+                                </Button>
+                              </>
+                            )}
+                          {/* Commission decision */}
+                          {(role === ROLES.HHRMD || role === ROLES.HRMO) &&
+                            request.reviewStage === 'commission_review' &&
+                            request.status.includes('Awaiting Commission Decision') && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                  onClick={() =>
+                                    handleCommissionDecision(request.id, 'approved')
+                                  }
+                                >
+                                  Approved by Commission
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() =>
+                                    handleCommissionDecision(request.id, 'rejected')
+                                  }
+                                >
+                                  Rejected by Commission
+                                </Button>
+                              </>
+                            )}
+                        </>
+                      )}
+                      {/* HRO Correction Actions */}
+                      {role === ROLES.HRO &&
+                        (request.status === 'Rejected by HRMO - Awaiting HRO Correction' ||
+                         request.status === 'Rejected by HHRMD - Awaiting HRO Correction' ||
+                         request.status === 'Rejected by HRRP - Awaiting HRO Correction') && (
+                          <Button
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
                             onClick={() => handleResubmit(request)}
                           >
                             Correct and Resubmit
@@ -1432,6 +1555,38 @@ export default function LwopPage() {
                         by {selectedRequest.submittedBy?.name || 'N/A'}
                       </p>
                     </div>
+                    {selectedRequest.reviewedBy && (
+                      <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
+                        <Label className="text-right font-semibold">
+                          Reviewed By:
+                        </Label>
+                        <p className="col-span-2">
+                          {selectedRequest.reviewedBy.name || 'N/A'} (
+                          {selectedRequest.reviewedBy.username || 'N/A'})
+                        </p>
+                      </div>
+                    )}
+                    {selectedRequest.hrrpReviewedBy && (
+                      <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
+                        <Label className="text-right font-semibold">
+                          HRRP Reviewed By:
+                        </Label>
+                        <p className="col-span-2">
+                          {selectedRequest.hrrpReviewedBy.name || 'N/A'} (
+                          {selectedRequest.hrrpReviewedBy.username || 'N/A'})
+                        </p>
+                      </div>
+                    )}
+                    {selectedRequest.decisionDate && (
+                      <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
+                        <Label className="text-right font-semibold">
+                          Initial Review:
+                        </Label>
+                        <p className="col-span-2">
+                          {format(parseISO(selectedRequest.decisionDate), 'PPP')}
+                        </p>
+                      </div>
+                    )}
                     <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
                       <Label className="text-right font-semibold">
                         Status:
