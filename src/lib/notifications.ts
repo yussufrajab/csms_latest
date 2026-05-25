@@ -126,6 +126,21 @@ export const NotificationTemplates = {
     link: `/dashboard/confirmation`,
   }),
 
+  confirmationHrrpApproved: (employeeName: string, requestId: string) => ({
+    message: `Confirmation request for ${employeeName} (${requestId}) has been approved by HRRP and forwarded to the Commission for review.`,
+    link: `/dashboard/confirmation`,
+  }),
+
+  confirmationHrrpRejected: (employeeName: string, requestId: string, reason: string) => ({
+    message: `Confirmation request for ${employeeName} (${requestId}) has been rejected by HRRP. Reason: ${reason}`,
+    link: `/dashboard/confirmation`,
+  }),
+
+  confirmationPendingHrrpReview: (employeeName: string, requestId: string) => ({
+    message: `New confirmation request for ${employeeName} (${requestId}) is pending your HRRP review.`,
+    link: `/dashboard/confirmation`,
+  }),
+
   // Retirement Request Notifications (English)
   retirementSubmitted: (employeeName: string, requestId: string) => ({
     message: `New retirement request submitted by ${employeeName} (${requestId}). Requires your review.`,
