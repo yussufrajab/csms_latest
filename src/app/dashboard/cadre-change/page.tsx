@@ -57,6 +57,8 @@ interface CadreChangeRequest {
   submittedBy: Partial<User>;
   submittedById?: string;
   reviewedBy?: Partial<User> | null;
+  hrrpReviewedBy?: Partial<User> | null;
+  hrrpReviewedAt?: string | null;
   status: string;
   reviewStage: string;
   rejectionReason?: string | null;
@@ -297,7 +299,9 @@ export default function CadreChangePage() {
 
     // Check for pending cadre change request
     const pendingStatuses = [
+      'Pending HRRP Review',
       'Pending HRMO/HHRMD Review',
+      'Approved by HRRP - Awaiting Commission Review',
       'Pending DO/HHRMD Review',
       'Request Received – Awaiting Commission Decision',
     ];
@@ -374,7 +378,12 @@ export default function CadreChangePage() {
     const payload = {
       employeeId: employeeDetails.id,
       submittedById: user.id,
-      status: 'Pending HRMO/HHRMD Review',
+      userRole: role,
+      // HRO submissions go to HRRP review first; HRRP submissions auto-approve
+      status: role === ROLES.HRRP
+        ? 'Approved by HRRP - Awaiting Commission Review'
+        : 'Pending HRRP Review',
+      reviewStage: role === ROLES.HRRP ? 'hrrp_review' : 'initial',
       newCadre,
       reason: reasonCadreChange,
       documents: documents, // Store actual file object keys
@@ -441,6 +450,7 @@ export default function CadreChangePage() {
           id: requestId,
           ...payload,
           reviewedById: user?.id,
+          userRole: role,
         }),
       });
       if (!response.ok) throw new Error('Failed to update request');
@@ -492,8 +502,16 @@ export default function CadreChangePage() {
   const handleRejectionSubmit = async () => {
     if (!currentRequestToAction || !rejectionReasonInput.trim() || !user)
       return;
+
+    let rejectionStatus: string;
+    if (role === ROLES.HRRP) {
+      rejectionStatus = 'Rejected by HRRP - Awaiting HRO Correction';
+    } else {
+      rejectionStatus = `Rejected by ${role} - Awaiting HRO Correction`;
+    }
+
     const payload = {
-      status: `Rejected by ${role} - Awaiting HRO Correction`,
+      status: rejectionStatus,
       rejectionReason: rejectionReasonInput,
       reviewStage: 'initial',
     };
@@ -508,6 +526,33 @@ export default function CadreChangePage() {
       setIsRejectionModalOpen(false);
       setCurrentRequestToAction(null);
       setRejectionReasonInput('');
+    }
+  };
+
+  const handleHrrpAction = async (
+    requestId: string,
+    action: 'forward' | 'reject'
+  ) => {
+    const request = pendingRequests.find((req: any) => req.id === requestId);
+    if (!request) return;
+
+    if (action === 'reject') {
+      setCurrentRequestToAction(request);
+      setRejectionReasonInput('');
+      setIsRejectionModalOpen(true);
+    } else if (action === 'forward') {
+      const payload = {
+        status: 'Approved by HRRP - Awaiting Commission Review',
+        reviewStage: 'hrrp_review',
+        hrrpReviewedById: user?.id,
+        hrrpReviewedAt: new Date().toISOString(),
+        decisionDate: new Date().toISOString(),
+      };
+      await handleUpdateRequest(
+        requestId,
+        payload,
+        'Request approved by HRRP and forwarded to Commission'
+      );
     }
   };
 
@@ -566,13 +611,14 @@ export default function CadreChangePage() {
       documents.push(correctedTcuFormFile);
 
     const payload = {
-      status: 'Pending HRMO/HHRMD Review',
+      status: 'Pending HRRP Review',
       reviewStage: 'initial',
       newCadre: correctedNewCadre,
       reason: correctedReasonCadreChange,
       studiedOutsideCountry: correctedStudiedOutsideCountry,
       documents: documents,
       rejectionReason: null,
+      userRole: role,
     };
 
     // Use the optimistic update pattern
@@ -1003,15 +1049,19 @@ export default function CadreChangePage() {
                             ? 'bg-green-100 text-green-800'
                             : request.status.includes('Rejected by Commission')
                               ? 'bg-red-100 text-red-800'
-                              : request.status.includes('Awaiting Commission')
-                                ? 'bg-blue-100 text-blue-800'
-                                : request.status.includes('Pending HRMO/HHRMD')
-                                  ? 'bg-orange-100 text-orange-800'
-                                  : request.status.includes('Awaiting HRO')
-                                    ? 'bg-yellow-100 text-yellow-800'
-                                    : request.status.includes('Correction')
-                                      ? 'bg-yellow-100 text-yellow-800'
-                                      : 'bg-gray-100 text-gray-800'
+                              : request.status === 'Approved by HRRP - Awaiting Commission Review'
+                                ? 'bg-indigo-100 text-indigo-800'
+                                : request.status === 'Pending HRRP Review'
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : request.status.includes('Awaiting Commission')
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : request.status.includes('Pending HRMO/HHRMD')
+                                      ? 'bg-orange-100 text-orange-800'
+                                      : request.status.includes('Awaiting HRO')
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : request.status.includes('Correction')
+                                          ? 'bg-yellow-100 text-yellow-800'
+                                          : 'bg-gray-100 text-gray-800'
                         }`}
                       >
                         {request.status}
@@ -1024,12 +1074,7 @@ export default function CadreChangePage() {
                         <div className="flex items-center space-x-1">
                           <div
                             className={`w-2 h-2 rounded-full ${
-                              [
-                                'Pending HRMO/HHRMD Review',
-                                'Request Received – Awaiting Commission Decision',
-                                'Approved by Commission',
-                                'Rejected by Commission - Request Concluded',
-                              ].includes(request.status)
+                              request.status !== 'Pending'
                                 ? 'bg-green-500'
                                 : 'bg-gray-300'
                             }`}
@@ -1038,25 +1083,38 @@ export default function CadreChangePage() {
                           <div className="w-3 h-px bg-gray-300"></div>
                           <div
                             className={`w-2 h-2 rounded-full ${
-                              [
-                                'Request Received – Awaiting Commission Decision',
-                                'Approved by Commission',
-                                'Rejected by Commission - Request Concluded',
-                              ].includes(request.status)
+                              request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                              request.status.includes('Awaiting Commission') ||
+                              request.status.includes('Approved by Commission') ||
+                              request.status.includes('Rejected by Commission')
                                 ? 'bg-green-500'
-                                : request.status.includes('Pending HRMO/HHRMD')
-                                  ? 'bg-orange-500'
-                                  : 'bg-gray-300'
+                                : request.status === 'Pending HRRP Review'
+                                  ? 'bg-purple-500'
+                                  : request.status === 'Rejected by HRRP - Awaiting HRO Correction'
+                                    ? 'bg-red-500'
+                                    : 'bg-gray-300'
+                            }`}
+                          ></div>
+                          <span className="text-[10px]">HRRP Review</span>
+                          <div className="w-3 h-px bg-gray-300"></div>
+                          <div
+                            className={`w-2 h-2 rounded-full ${
+                              request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                              request.status === 'Pending HRMO/HHRMD Review'
+                                ? 'bg-orange-500'
+                                : request.status.includes('Awaiting Commission Decision')
+                                  ? 'bg-blue-500'
+                                  : request.status.includes('Approved by Commission') ||
+                                    request.status.includes('Rejected by Commission')
+                                    ? 'bg-green-500'
+                                    : 'bg-gray-300'
                             }`}
                           ></div>
                           <span className="text-[10px]">HRMO/HHRMD Review</span>
                           <div className="w-3 h-px bg-gray-300"></div>
                           <div
                             className={`w-2 h-2 rounded-full ${
-                              [
-                                'Approved by Commission',
-                                'Rejected by Commission - Request Concluded',
-                              ].includes(request.status)
+                              ['Approved by Commission', 'Rejected by Commission - Request Concluded'].includes(request.status)
                                 ? 'bg-green-500'
                                 : request.status.includes('Awaiting Commission')
                                   ? 'bg-blue-500'
@@ -1069,6 +1127,12 @@ export default function CadreChangePage() {
                         </div>
                       </div>
                     </div>
+                    {request.hrrpReviewedBy && (
+                      <p className="text-sm text-muted-foreground">
+                        HRRP Reviewed by: {request.hrrpReviewedBy.name || 'N/A'} (
+                        {request.hrrpReviewedBy.username || 'N/A'})
+                      </p>
+                    )}
                     {request.rejectionReason && (
                       <p className="text-sm text-destructive">
                         <span className="font-medium">Rejection Reason:</span>{' '}
@@ -1090,7 +1154,9 @@ export default function CadreChangePage() {
                         (request.status ===
                           'Rejected by HRMO - Awaiting HRO Correction' ||
                           request.status ===
-                            'Rejected by HHRMD - Awaiting HRO Correction') && (
+                            'Rejected by HHRMD - Awaiting HRO Correction' ||
+                          request.status ===
+                            'Rejected by HRRP - Awaiting HRO Correction') && (
                           <Button
                             size="sm"
                             className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -1119,9 +1185,19 @@ export default function CadreChangePage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Review Cadre Change Requests</CardTitle>
+                <CardTitle>
+                  {role === ROLES.HRO
+                    ? 'Your Submitted Cadre Change Requests'
+                    : role === ROLES.HRRP
+                      ? 'Review Cadre Change Requests'
+                      : 'Review Cadre Change Requests'}
+                </CardTitle>
                 <CardDescription>
-                  Review, approve, or reject pending cadre change requests.
+                  {role === ROLES.HRO
+                    ? 'View and manage your submitted cadre change requests.'
+                    : role === ROLES.HRRP
+                      ? 'Review HRO-submitted requests and forward approved ones to the Commission.'
+                      : 'Review, approve, or reject pending cadre change requests.'}
                 </CardDescription>
               </div>
               <Button
@@ -1247,15 +1323,19 @@ export default function CadreChangePage() {
                             ? 'bg-green-100 text-green-800'
                             : request.status.includes('Rejected by Commission')
                               ? 'bg-red-100 text-red-800'
-                              : request.status.includes('Awaiting Commission')
-                                ? 'bg-blue-100 text-blue-800'
-                                : request.status.includes('Pending HRMO/HHRMD')
-                                  ? 'bg-orange-100 text-orange-800'
-                                  : request.status.includes('Awaiting HRO')
-                                    ? 'bg-yellow-100 text-yellow-800'
-                                    : request.status.includes('Correction')
-                                      ? 'bg-yellow-100 text-yellow-800'
-                                      : 'bg-gray-100 text-gray-800'
+                              : request.status === 'Approved by HRRP - Awaiting Commission Review'
+                                ? 'bg-indigo-100 text-indigo-800'
+                                : request.status === 'Pending HRRP Review'
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : request.status.includes('Awaiting Commission')
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : request.status.includes('Pending HRMO/HHRMD')
+                                      ? 'bg-orange-100 text-orange-800'
+                                      : request.status.includes('Awaiting HRO')
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : request.status.includes('Correction')
+                                          ? 'bg-yellow-100 text-yellow-800'
+                                          : 'bg-gray-100 text-gray-800'
                         }`}
                       >
                         {request.status}
@@ -1268,12 +1348,7 @@ export default function CadreChangePage() {
                         <div className="flex items-center space-x-1">
                           <div
                             className={`w-2 h-2 rounded-full ${
-                              [
-                                'Pending HRMO/HHRMD Review',
-                                'Request Received – Awaiting Commission Decision',
-                                'Approved by Commission',
-                                'Rejected by Commission - Request Concluded',
-                              ].includes(request.status)
+                              request.status !== 'Pending'
                                 ? 'bg-green-500'
                                 : 'bg-gray-300'
                             }`}
@@ -1282,25 +1357,38 @@ export default function CadreChangePage() {
                           <div className="w-3 h-px bg-gray-300"></div>
                           <div
                             className={`w-2 h-2 rounded-full ${
-                              [
-                                'Request Received – Awaiting Commission Decision',
-                                'Approved by Commission',
-                                'Rejected by Commission - Request Concluded',
-                              ].includes(request.status)
+                              request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                              request.status.includes('Awaiting Commission') ||
+                              request.status.includes('Approved by Commission') ||
+                              request.status.includes('Rejected by Commission')
                                 ? 'bg-green-500'
-                                : request.status.includes('Pending HRMO/HHRMD')
-                                  ? 'bg-orange-500'
-                                  : 'bg-gray-300'
+                                : request.status === 'Pending HRRP Review'
+                                  ? 'bg-purple-500'
+                                  : request.status === 'Rejected by HRRP - Awaiting HRO Correction'
+                                    ? 'bg-red-500'
+                                    : 'bg-gray-300'
+                            }`}
+                          ></div>
+                          <span className="text-[10px]">HRRP Review</span>
+                          <div className="w-3 h-px bg-gray-300"></div>
+                          <div
+                            className={`w-2 h-2 rounded-full ${
+                              request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                              request.status === 'Pending HRMO/HHRMD Review'
+                                ? 'bg-orange-500'
+                                : request.status.includes('Awaiting Commission Decision')
+                                  ? 'bg-blue-500'
+                                  : request.status.includes('Approved by Commission') ||
+                                    request.status.includes('Rejected by Commission')
+                                    ? 'bg-green-500'
+                                    : 'bg-gray-300'
                             }`}
                           ></div>
                           <span className="text-[10px]">HRMO/HHRMD Review</span>
                           <div className="w-3 h-px bg-gray-300"></div>
                           <div
                             className={`w-2 h-2 rounded-full ${
-                              [
-                                'Approved by Commission',
-                                'Rejected by Commission - Request Concluded',
-                              ].includes(request.status)
+                              ['Approved by Commission', 'Rejected by Commission - Request Concluded'].includes(request.status)
                                 ? 'bg-green-500'
                                 : request.status.includes('Awaiting Commission')
                                   ? 'bg-blue-500'
@@ -1313,6 +1401,12 @@ export default function CadreChangePage() {
                         </div>
                       </div>
                     </div>
+                    {request.hrrpReviewedBy && (
+                      <p className="text-sm text-muted-foreground">
+                        HRRP Reviewed by: {request.hrrpReviewedBy.name || 'N/A'} (
+                        {request.hrrpReviewedBy.username || 'N/A'})
+                      </p>
+                    )}
                     {request.rejectionReason && (
                       <p className="text-sm text-destructive">
                         <span className="font-medium">Rejection Reason:</span>{' '}
@@ -1330,13 +1424,32 @@ export default function CadreChangePage() {
                       >
                         View Details
                       </Button>
+                      {/* HRRP Review Actions */}
+                      {role === ROLES.HRRP && request.status === 'Pending HRRP Review' && (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => handleHrrpAction(request.id, 'forward')}
+                          >
+                            Verify &amp; Forward to Commission
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleHrrpAction(request.id, 'reject')}
+                          >
+                            Reject &amp; Return to HRO
+                          </Button>
+                        </>
+                      )}
                       {(role === ROLES.HHRMD ||
                         role === ROLES.HRMO ||
                         role === ROLES.CSCS) && (
                         <>
-                          {/* HRMO/HHRMD Parallel Review Actions */}
+                          {/* HRMO/HHRMD Commission Review - for HRRP-approved and legacy requests */}
                           {(role === ROLES.HRMO || role === ROLES.HHRMD) &&
-                            request.status === 'Pending HRMO/HHRMD Review' && (
+                            (request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                             request.status === 'Pending HRMO/HHRMD Review') && (
                               <>
                                 <Button
                                   size="sm"
@@ -1344,7 +1457,7 @@ export default function CadreChangePage() {
                                     handleInitialAction(request.id, 'forward')
                                   }
                                 >
-                                  Verify & Forward to Commission
+                                  Verify &amp; Forward to Commission
                                 </Button>
                                 <Button
                                   size="sm"
@@ -1353,7 +1466,7 @@ export default function CadreChangePage() {
                                     handleInitialAction(request.id, 'reject')
                                   }
                                 >
-                                  Reject & Return to HRO
+                                  Reject &amp; Return to HRO
                                 </Button>
                               </>
                             )}
@@ -1382,6 +1495,19 @@ export default function CadreChangePage() {
                               Rejected by Commission
                             </Button>
                           </>
+                        )}
+                      {/* HRO Correction Actions */}
+                      {role === ROLES.HRO &&
+                        (request.status === 'Rejected by HRMO - Awaiting HRO Correction' ||
+                         request.status === 'Rejected by HHRMD - Awaiting HRO Correction' ||
+                         request.status === 'Rejected by HRRP - Awaiting HRO Correction') && (
+                          <Button
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={() => handleResubmit(request)}
+                          >
+                            Correct and Resubmit
+                          </Button>
                         )}
                     </div>
                   </div>
