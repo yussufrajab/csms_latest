@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { shouldApplyInstitutionFilter } from '@/lib/role-utils';
 import { validateEmployeeStatusForRequest } from '@/lib/employee-status-validation';
 import {
+  createNotification,
   createNotificationForRole,
   NotificationTemplates,
 } from '@/lib/notifications';
@@ -19,6 +20,25 @@ import { logger } from '@/lib/logger';
 
 // Cache configuration for promotion requests
 const CACHE_TTL = 30; // 30 seconds cache (request status changes frequently)
+
+// Role-based authorization helper
+function checkRoleAuthorization(
+  userRole: string | null,
+  allowedRoles: readonly string[]
+): { authorized: boolean; message?: string } {
+  if (!userRole) {
+    return { authorized: false, message: 'User role is required' };
+  }
+
+  if (!allowedRoles.includes(userRole)) {
+    return {
+      authorized: false,
+      message: `Unauthorized: ${userRole} cannot perform this action. Allowed roles: ${allowedRoles.join(', ')}`,
+    };
+  }
+
+  return { authorized: true };
+}
 
 export async function GET(req: Request) {
   try {
@@ -210,6 +230,18 @@ export async function POST(req: Request) {
       );
     }
 
+    const isHRRP = body.userRole === 'HRRP';
+    const initialStatus = isHRRP
+      ? 'Approved by HRRP - Awaiting Commission Review'
+      : 'Pending HRRP Review';
+    const initialReviewStage = isHRRP ? 'hrrp_review' : 'initial';
+    const hrrpData = isHRRP
+      ? {
+          hrrpReviewedById: body.submittedById,
+          hrrpReviewedAt: new Date(),
+        }
+      : {};
+
     const promotionRequest = await db.promotionRequest.create({
       data: {
         id: uuidv4(),
@@ -218,11 +250,12 @@ export async function POST(req: Request) {
         promotionType: body.promotionType,
         proposedCadre: body.proposedCadre || '', // Default to empty string for education-based promotions
         studiedOutsideCountry: body.studiedOutsideCountry || false,
-        status: 'Pending HRMO/HHRMD Review',
-        reviewStage: 'initial',
+        status: initialStatus,
+        reviewStage: initialReviewStage,
         documents: body.documents || [],
         commissionDecisionReason: body.commissionDecisionReason || null,
         updatedAt: new Date(),
+        ...hrrpData,
       },
       include: {
         Employee: {
@@ -251,32 +284,47 @@ export async function POST(req: Request) {
             username: true,
           },
         },
+        User_PromotionRequest_hrrpReviewedByToUser: isHRRP
+          ? { select: { id: true, name: true, username: true } }
+          : false,
       },
     });
 
     logger.info({ value: promotionRequest.id }, 'Created promotion request');
 
-    // Create notification for supervisors/HHRMD
-    const notification = NotificationTemplates.promotionSubmitted(
-      promotionRequest.Employee.name,
-      promotionRequest.id
-    );
-
-    await createNotificationForRole(
-      ROLES.HHRMD || 'HHRMD',
-      notification.message,
-      notification.link
-    );
-    await createNotificationForRole(
-      ROLES.HRMO || 'HRMO',
-      notification.message,
-      notification.link
-    );
-    await createNotificationForRole(
-      ROLES.DO || 'DO',
-      notification.message,
-      notification.link
-    );
+    // Create notification - target depends on who submitted
+    if (isHRRP) {
+      // HRRP submitted directly: notify commission (HHRMD/HRMO)
+      const notification = NotificationTemplates.promotionSubmitted(
+        promotionRequest.Employee.name,
+        promotionRequest.id
+      );
+      await createNotificationForRole(ROLES.HHRMD!, notification.message, notification.link);
+      await createNotificationForRole(ROLES.HRMO!, notification.message, notification.link);
+    } else {
+      // HRO submitted: notify HRRP at the same institution
+      const notification = NotificationTemplates.promotionSubmitted(
+        promotionRequest.Employee.name,
+        promotionRequest.id
+      );
+      const employee = await db.employee.findUnique({
+        where: { id: body.employeeId },
+        select: { institutionId: true },
+      });
+      if (employee?.institutionId) {
+        const hrrpUsers = await db.user.findMany({
+          where: { role: ROLES.HRRP!, active: true, institutionId: employee.institutionId },
+          select: { id: true },
+        });
+        for (const hrrpUser of hrrpUsers) {
+          await createNotification({
+            message: notification.message,
+            link: notification.link,
+            userId: hrrpUser.id,
+          });
+        }
+      }
+    }
 
     // Send email notifications to CSC reviewers
     await sendRequestSubmissionEmails({
@@ -310,7 +358,9 @@ export async function POST(req: Request) {
       ...promotionRequest,
       submittedBy: (promotionRequest as any)
         .User_PromotionRequest_submittedByIdToUser,
+      hrrpReviewedBy: isHRRP ? (promotionRequest as any).User_PromotionRequest_hrrpReviewedByToUser : undefined,
       User_PromotionRequest_submittedByIdToUser: undefined,
+      User_PromotionRequest_hrrpReviewedByToUser: undefined,
     };
 
     return NextResponse.json({
