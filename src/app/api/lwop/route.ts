@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { shouldApplyInstitutionFilter } from '@/lib/role-utils';
 import { validateEmployeeStatusForRequest } from '@/lib/employee-status-validation';
 import {
+  createNotification,
   createNotificationForRole,
   NotificationTemplates,
 } from '@/lib/notifications';
@@ -19,6 +20,25 @@ import { logger } from '@/lib/logger';
 
 // Cache configuration for LWOP requests
 const CACHE_TTL = 30; // 30 seconds cache (request status changes frequently)
+
+// Role-based authorization helper
+function checkRoleAuthorization(
+  userRole: string | null,
+  allowedRoles: readonly string[]
+): { authorized: boolean; message?: string } {
+  if (!userRole) {
+    return { authorized: false, message: 'User role is required' };
+  }
+
+  if (!allowedRoles.includes(userRole)) {
+    return {
+      authorized: false,
+      message: `Unauthorized: ${userRole} cannot perform this action. Allowed roles: ${allowedRoles.join(', ')}`,
+    };
+  }
+
+  return { authorized: true };
+}
 
 export async function GET(req: Request) {
   try {
@@ -184,6 +204,33 @@ export async function POST(req: Request) {
       );
     }
 
+    // Authorization: Only HRO and HRRP can create LWOP requests
+    const authCheck = checkRoleAuthorization(body.userRole, [
+      'HRO' as const,
+      'HRRP' as const,
+    ]);
+    if (!authCheck.authorized) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: authCheck.message,
+        },
+        { status: 403 }
+      );
+    }
+
+    const isHRRP = body.userRole === 'HRRP';
+    const initialStatus = isHRRP
+      ? 'Approved by HRRP - Awaiting Commission Review'
+      : 'Pending HRRP Review';
+    const initialReviewStage = isHRRP ? 'hrrp_review' : 'initial';
+    const hrrpData = isHRRP
+      ? {
+          hrrpReviewedById: body.submittedById,
+          hrrpReviewedAt: new Date(),
+        }
+      : {};
+
     const lwopRequest = await db.lwopRequest.create({
       data: {
         id: uuidv4(),
@@ -194,10 +241,11 @@ export async function POST(req: Request) {
         duration: body.duration,
         reason: body.reason,
         documents: body.documents || [],
-        status: body.status || 'Pending',
-        reviewStage: body.reviewStage || 'initial',
+        status: initialStatus,
+        reviewStage: initialReviewStage,
         rejectionReason: body.rejectionReason,
         updatedAt: new Date(),
+        ...hrrpData,
       },
       include: {
         Employee: {
@@ -217,32 +265,47 @@ export async function POST(req: Request) {
         User_LwopRequest_submittedByIdToUser: {
           select: { id: true, name: true, username: true },
         },
+        User_LwopRequest_hrrpReviewedByToUser: isHRRP
+          ? { select: { id: true, name: true, username: true } }
+          : false,
       },
     });
 
     logger.info({ value: lwopRequest.id }, 'Created LWOP request');
 
-    // Create notification for supervisors/HHRMD
-    const notification = NotificationTemplates.lwopSubmitted(
-      lwopRequest.Employee.name,
-      lwopRequest.id
-    );
-
-    await createNotificationForRole(
-      ROLES.HHRMD || 'HHRMD',
-      notification.message,
-      notification.link
-    );
-    await createNotificationForRole(
-      ROLES.HRMO || 'HRMO',
-      notification.message,
-      notification.link
-    );
-    await createNotificationForRole(
-      ROLES.DO || 'DO',
-      notification.message,
-      notification.link
-    );
+    // Create notification - target depends on who submitted
+    if (isHRRP) {
+      // HRRP submitted directly: notify commission (HHRMD/HRMO)
+      const notification = NotificationTemplates.lwopSubmitted(
+        lwopRequest.Employee.name,
+        lwopRequest.id
+      );
+      await createNotificationForRole(ROLES.HHRMD!, notification.message, notification.link);
+      await createNotificationForRole(ROLES.HRMO!, notification.message, notification.link);
+    } else {
+      // HRO submitted: notify HRRP at the same institution
+      const notification = NotificationTemplates.lwopSubmitted(
+        lwopRequest.Employee.name,
+        lwopRequest.id
+      );
+      const hrrpEmployee = await db.employee.findUnique({
+        where: { id: body.employeeId },
+        select: { institutionId: true },
+      });
+      if (hrrpEmployee?.institutionId) {
+        const hrrpUsers = await db.user.findMany({
+          where: { role: ROLES.HRRP!, active: true, institutionId: hrrpEmployee.institutionId },
+          select: { id: true },
+        });
+        for (const hrrpUser of hrrpUsers) {
+          await createNotification({
+            message: notification.message,
+            link: notification.link,
+            userId: hrrpUser.id,
+          });
+        }
+      }
+    }
 
     // Send email notifications to CSC reviewers
     await sendRequestSubmissionEmails({
@@ -275,7 +338,9 @@ export async function POST(req: Request) {
     const transformedRequest = {
       ...lwopRequest,
       submittedBy: (lwopRequest as any).User_LwopRequest_submittedByIdToUser,
+      hrrpReviewedBy: isHRRP ? (lwopRequest as any).User_LwopRequest_hrrpReviewedByToUser : undefined,
       User_LwopRequest_submittedByIdToUser: undefined,
+      User_LwopRequest_hrrpReviewedByToUser: undefined,
     };
 
     return NextResponse.json({
