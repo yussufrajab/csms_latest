@@ -178,13 +178,17 @@ model LwopRequest {
   updatedAt                            DateTime
   endDate                              DateTime?
   startDate                            DateTime?
+  hrrpReviewedById                     String?
+  hrrpReviewedAt                       DateTime?
   Employee                             Employee  @relation(fields: [employeeId], references: [id])
   User_LwopRequest_reviewedByIdToUser  User?     @relation("LwopRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
   User_LwopRequest_submittedByIdToUser User      @relation("LwopRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_LwopRequest_hrrpReviewedByToUser User?    @relation("LwopRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
+  @@index([hrrpReviewedById])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -360,6 +364,7 @@ model User {
   ConfirmationRequest_hrrpReviewedByToUser                            ConfirmationRequest[]     @relation("ConfirmationRequest_hrrpReviewedByToUser")
   LwopRequest_LwopRequest_reviewedByIdToUser                          LwopRequest[]             @relation("LwopRequest_reviewedByIdToUser")
   LwopRequest_LwopRequest_submittedByIdToUser                         LwopRequest[]             @relation("LwopRequest_submittedByIdToUser")
+  LwopRequest_hrrpReviewedByToUser                                     LwopRequest[]             @relation("LwopRequest_hrrpReviewedByToUser")
   Notification                                                        Notification[]
   PromotionRequest_PromotionRequest_reviewedByIdToUser                PromotionRequest[]        @relation("PromotionRequest_reviewedByIdToUser")
   PromotionRequest_PromotionRequest_submittedByIdToUser               PromotionRequest[]        @relation("PromotionRequest_submittedByIdToUser")
