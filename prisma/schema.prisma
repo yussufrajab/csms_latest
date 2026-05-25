@@ -218,14 +218,18 @@ model PromotionRequest {
   updatedAt                                 DateTime
   commissionDecisionReason                  String?
   finalCadre                                String?
+  hrrpReviewedById                          String?
+  hrrpReviewedAt                            DateTime?
   Employee                                  Employee @relation(fields: [employeeId], references: [id])
   User_PromotionRequest_reviewedByIdToUser  User?    @relation("PromotionRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
   User_PromotionRequest_submittedByIdToUser User     @relation("PromotionRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_PromotionRequest_hrrpReviewedByToUser User?    @relation("PromotionRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
   @@index([createdAt(sort: Desc)])
+  @@index([hrrpReviewedById])
 }
 
 model ResignationRequest {
@@ -368,6 +372,7 @@ model User {
   Notification                                                        Notification[]
   PromotionRequest_PromotionRequest_reviewedByIdToUser                PromotionRequest[]        @relation("PromotionRequest_reviewedByIdToUser")
   PromotionRequest_PromotionRequest_submittedByIdToUser               PromotionRequest[]        @relation("PromotionRequest_submittedByIdToUser")
+  PromotionRequest_hrrpReviewedByToUser                              PromotionRequest[]        @relation("PromotionRequest_hrrpReviewedByToUser")
   ResignationRequest_ResignationRequest_reviewedByIdToUser            ResignationRequest[]      @relation("ResignationRequest_reviewedByIdToUser")
   ResignationRequest_ResignationRequest_submittedByIdToUser           ResignationRequest[]      @relation("ResignationRequest_submittedByIdToUser")
   RetirementRequest_RetirementRequest_reviewedByIdToUser              RetirementRequest[]       @relation("RetirementRequest_reviewedByIdToUser")
