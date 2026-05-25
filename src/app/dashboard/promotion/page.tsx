@@ -77,6 +77,8 @@ interface PromotionRequest {
   reviewStage: string;
   rejectionReason?: string | null;
   reviewedById?: string | null;
+  hrrpReviewedBy?: Partial<User> | null;
+  hrrpReviewedAt?: string | null;
   commissionDecisionDate?: string | null;
   commissionDecisionReason?: string | null;
   createdAt: string;
@@ -414,7 +416,9 @@ export default function PromotionPage() {
 
     // Check for pending promotion request
     const pendingStatuses = [
+      'Pending HRRP Review',
       'Pending HRMO/HHRMD Review',
+      'Approved by HRRP - Awaiting Commission Review',
       'Pending DO/HHRMD Review',
       'Request Received – Awaiting Commission Decision',
     ];
@@ -488,8 +492,11 @@ export default function PromotionPage() {
       ...(isEditingExistingRequest && { id: selectedRequest?.id }),
       employeeId: employeeDetails.id,
       submittedById: user.id,
-      status: 'Pending HRMO/HHRMD Review', // Both roles can review in parallel
-      reviewStage: 'initial',
+      // HRO submissions go to HRRP review first; HRRP submissions auto-approve
+      status: role === ROLES.HRRP
+        ? 'Approved by HRRP - Awaiting Commission Review'
+        : 'Pending HRRP Review',
+      reviewStage: role === ROLES.HRRP ? 'hrrp_review' : 'initial',
       proposedCadre,
       promotionType:
         promotionRequestType === 'experience'
@@ -670,9 +677,16 @@ export default function PromotionPage() {
       };
       actionDescription = 'Promotion request rejected by Commission';
     } else {
-      // HRMO/HHRMD rejection - allows HRO correction
+      // HRRP or HRMO/HHRMD rejection - allows HRO correction
+      let rejectionStatus: string;
+      if (role === ROLES.HRRP) {
+        rejectionStatus = 'Rejected by HRRP - Awaiting HRO Correction';
+      } else {
+        rejectionStatus = `Rejected by ${role} - Awaiting HRO Correction`;
+      }
+
       payload = {
-        status: `Rejected by ${role} - Awaiting HRO Correction`,
+        status: rejectionStatus,
         rejectionReason: rejectionReasonInput,
         reviewStage: 'initial',
       };
@@ -689,6 +703,34 @@ export default function PromotionPage() {
       setCurrentRequestToAction(null);
       setRejectionReasonInput('');
       setIsCommissionRejection(false);
+    }
+  };
+
+  const handleHrrpAction = async (
+    requestId: string,
+    action: 'forward' | 'reject'
+  ) => {
+    const request = pendingRequests.find((req: any) => req.id === requestId);
+    if (!request) return;
+
+    if (action === 'reject') {
+      setCurrentRequestToAction(request);
+      setRejectionReasonInput('');
+      setIsRejectionModalOpen(true);
+    } else if (action === 'forward') {
+      const payload = {
+        status: 'Approved by HRRP - Awaiting Commission Review',
+        reviewStage: 'hrrp_review',
+        hrrpReviewedById: user?.id,
+        hrrpReviewedAt: new Date().toISOString(),
+        decisionDate: new Date().toISOString(),
+      };
+
+      await handleUpdateRequest(
+        requestId,
+        payload,
+        'Request approved by HRRP and forwarded to Commission'
+      );
     }
   };
 
@@ -851,7 +893,7 @@ export default function PromotionPage() {
       req.id === request.id
         ? {
             ...req,
-            status: 'Pending HRMO/HHRMD Review',
+            status: 'Pending HRRP Review',
             reviewStage: 'initial',
             proposedCadre: correctedProposedCadre,
             rejectionReason: null,
@@ -864,7 +906,7 @@ export default function PromotionPage() {
     // Show immediate success feedback
     toast({
       title: 'Request Corrected & Resubmitted',
-      description: `Promotion request for ${request.Employee?.name || 'employee'} has been corrected and resubmitted. Status: Pending HRMO/HHRMD Review`,
+      description: `Promotion request for ${request.Employee?.name || 'employee'} has been corrected and resubmitted. Status: Pending HRRP Review`,
       duration: 4000,
     });
 
@@ -878,7 +920,8 @@ export default function PromotionPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: request.id,
-          status: 'Pending HRMO/HHRMD Review',
+          userRole: role,
+          status: 'Pending HRRP Review', // Resubmitted requests go to HRRP review
           reviewStage: 'initial',
           proposedCadre: correctedProposedCadre,
           promotionType:
@@ -1422,9 +1465,19 @@ export default function PromotionPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Pending Promotion Requests</CardTitle>
+              <CardTitle>
+                {role === ROLES.HRO
+                  ? 'My Promotion Requests'
+                  : role === ROLES.HRRP
+                    ? 'Review Promotion Requests'
+                    : 'Review Promotion Requests'}
+              </CardTitle>
               <CardDescription>
-                {pendingRequests.length} request(s) found.
+                {role === ROLES.HRO
+                  ? 'View and manage your submitted promotion requests.'
+                  : role === ROLES.HRRP
+                    ? 'Review HRO-submitted requests and forward approved ones to the Commission.'
+                    : 'Review, approve, or reject pending employee promotion requests.'}
               </CardDescription>
             </div>
             <Button
@@ -1549,13 +1602,17 @@ export default function PromotionPage() {
                           ? 'bg-red-100 text-red-800'
                           : request.status.includes('Awaiting Commission')
                             ? 'bg-blue-100 text-blue-800'
-                            : request.status.includes('Pending HRMO/HHRMD')
-                              ? 'bg-orange-100 text-orange-800'
-                              : request.status.includes('Awaiting HRO')
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : request.status.includes('Correction')
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-gray-100 text-gray-800'
+                            : request.status === 'Approved by HRRP - Awaiting Commission Review'
+                              ? 'bg-indigo-100 text-indigo-800'
+                              : request.status === 'Pending HRRP Review'
+                                ? 'bg-purple-100 text-purple-800'
+                                : request.status.includes('Pending HRMO/HHRMD')
+                                  ? 'bg-orange-100 text-orange-800'
+                                  : request.status.includes('Awaiting HRO')
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : request.status.includes('Correction')
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : 'bg-gray-100 text-gray-800'
                     }`}
                   >
                     {request.status}
@@ -1568,12 +1625,7 @@ export default function PromotionPage() {
                     <div className="flex items-center space-x-1">
                       <div
                         className={`w-2 h-2 rounded-full ${
-                          [
-                            'Pending HRMO/HHRMD Review',
-                            'Request Received – Awaiting Commission Decision',
-                            'Approved by Commission',
-                            'Rejected by Commission - Request Concluded',
-                          ].includes(request.status)
+                          request.status !== 'Pending'
                             ? 'bg-green-500'
                             : 'bg-gray-300'
                         }`}
@@ -1582,27 +1634,47 @@ export default function PromotionPage() {
                       <div className="w-3 h-px bg-gray-300"></div>
                       <div
                         className={`w-2 h-2 rounded-full ${
-                          [
-                            'Request Received – Awaiting Commission Decision',
-                            'Approved by Commission',
-                            'Rejected by Commission - Request Concluded',
-                          ].includes(request.status)
+                          request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                          request.status.includes('Awaiting Commission') ||
+                          request.status.includes('Approved by Commission') ||
+                          request.status.includes('Rejected by Commission')
                             ? 'bg-green-500'
-                            : request.status.includes('Pending HRMO/HHRMD')
-                              ? 'bg-orange-500'
-                              : 'bg-gray-300'
+                            : request.status === 'Pending HRRP Review'
+                              ? 'bg-purple-500'
+                              : request.status === 'Rejected by HRRP - Awaiting HRO Correction'
+                                ? 'bg-red-500'
+                                : 'bg-gray-300'
                         }`}
                       ></div>
-                      <span className="text-[10px]">HRMO/HHRMD Review</span>
+                      <span className="text-[10px]">HRRP Review</span>
                       <div className="w-3 h-px bg-gray-300"></div>
                       <div
                         className={`w-2 h-2 rounded-full ${
-                          [
-                            'Approved by Commission',
-                            'Rejected by Commission - Request Concluded',
-                          ].includes(request.status)
+                          request.status.includes('Approved by HRMO')
                             ? 'bg-green-500'
-                            : request.status.includes('Awaiting Commission')
+                            : request.status.includes('Approved by HHRMD')
+                              ? 'bg-green-500'
+                              : request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                                request.status === 'Pending HRMO/HHRMD Review'
+                                ? 'bg-orange-500'
+                                : request.status.includes('Awaiting Commission Decision')
+                                  ? 'bg-blue-500'
+                                  : 'bg-gray-300'
+                        }`}
+                      ></div>
+                      <span className="text-[10px]">
+                        {request.status.includes('Approved by HRMO')
+                          ? 'HRMO ✓'
+                          : request.status.includes('Approved by HHRMD')
+                            ? 'HHRMD ✓'
+                            : 'HRMO/HHRMD Review'}
+                      </span>
+                      <div className="w-3 h-px bg-gray-300"></div>
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          ['Approved by Commission', 'Rejected by Commission - Request Concluded'].includes(request.status)
+                            ? 'bg-green-500'
+                            : request.status.includes('Awaiting Commission Decision')
                               ? 'bg-blue-500'
                               : 'bg-gray-300'
                         }`}
@@ -1611,6 +1683,18 @@ export default function PromotionPage() {
                     </div>
                   </div>
                 </div>
+                {request.reviewedBy && (
+                  <p className="text-sm text-muted-foreground">
+                    Reviewed by: {request.reviewedBy.name || 'N/A'} (
+                    {request.reviewedBy.username || 'N/A'})
+                  </p>
+                )}
+                {request.hrrpReviewedBy && (
+                  <p className="text-sm text-muted-foreground">
+                    HRRP Reviewed by: {request.hrrpReviewedBy.name || 'N/A'} (
+                    {request.hrrpReviewedBy.username || 'N/A'})
+                  </p>
+                )}
                 {request.rejectionReason && (
                   <p className="text-sm text-destructive">
                     <span className="font-medium">Rejection Reason:</span>{' '}
@@ -1628,61 +1712,87 @@ export default function PromotionPage() {
                   >
                     View Details
                   </Button>
-                  {/* HRMO/HHRMD Parallel Review Actions */}
-                  {(role === ROLES.HRMO || role === ROLES.HHRMD) &&
-                    request.status === 'Pending HRMO/HHRMD Review' && (
-                      <>
-                        <Button
-                          size="sm"
-                          onClick={() =>
-                            handleInitialAction(request.id, 'forward')
-                          }
-                        >
-                          Verify & Forward to Commission
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() =>
-                            handleInitialAction(request.id, 'reject')
-                          }
-                        >
-                          Reject & Return to HRO
-                        </Button>
-                      </>
-                    )}
-
-                  {/* Commission Decision Actions */}
-                  {(role === ROLES.HRMO || role === ROLES.HHRMD) &&
-                    request.reviewStage === 'commission_review' &&
-                    request.status ===
-                      'Request Received – Awaiting Commission Decision' && (
-                      <>
-                        <Button
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                          onClick={() =>
-                            handleCommissionDecision(request.id, 'approved')
-                          }
-                        >
-                          Approved by Commission
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() =>
-                            handleCommissionDecision(request.id, 'rejected')
-                          }
-                        >
-                          Rejected by Commission
-                        </Button>
-                      </>
-                    )}
+                  {/* HRRP Review Actions */}
+                  {role === ROLES.HRRP && request.status === 'Pending HRRP Review' && (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={() => handleHrrpAction(request.id, 'forward')}
+                      >
+                        Verify &amp; Forward to Commission
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleHrrpAction(request.id, 'reject')}
+                      >
+                        Reject &amp; Return to HRO
+                      </Button>
+                    </>
+                  )}
+                  {/* HRMO/HHRMD Commission Review Actions */}
+                  {(role === ROLES.HHRMD || role === ROLES.HRMO) && (
+                    <>
+                      {/* Commission initial review - for HRRP-approved and legacy requests */}
+                      {(role === ROLES.HRMO || role === ROLES.HHRMD) &&
+                        (request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                         request.status === 'Pending HRMO/HHRMD Review') && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                handleInitialAction(request.id, 'forward')
+                              }
+                            >
+                              Verify &amp; Forward to Commission
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() =>
+                                handleInitialAction(request.id, 'reject')
+                              }
+                            >
+                              Reject &amp; Return to HRO
+                            </Button>
+                          </>
+                        )}
+                      {/* Commission decision */}
+                      {(role === ROLES.HHRMD || role === ROLES.HRMO) &&
+                        request.reviewStage === 'commission_review' &&
+                        request.status ===
+                          'Request Received – Awaiting Commission Decision' && (
+                          <>
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                              onClick={() =>
+                                handleCommissionDecision(request.id, 'approved')
+                              }
+                            >
+                              Approved by Commission
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() =>
+                                handleCommissionDecision(request.id, 'rejected')
+                              }
+                            >
+                              Rejected by Commission
+                            </Button>
+                          </>
+                        )}
+                    </>
+                  )}
+                  {/* HRO Correction Actions */}
                   {role === ROLES.HRO &&
                     (request.status ===
                       'Rejected by HRMO - Awaiting HRO Correction' ||
                       request.status ===
-                        'Rejected by HHRMD - Awaiting HRO Correction') && (
+                        'Rejected by HHRMD - Awaiting HRO Correction' ||
+                      request.status ===
+                        'Rejected by HRRP - Awaiting HRO Correction') && (
                       <Button
                         size="sm"
                         className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -1859,6 +1969,28 @@ export default function PromotionPage() {
                     {selectedRequest.submittedBy?.name || 'N/A'}
                   </p>
                 </div>
+                {selectedRequest.reviewedBy && (
+                  <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
+                    <Label className="text-right font-semibold">
+                      Reviewed By:
+                    </Label>
+                    <p className="col-span-2">
+                      {selectedRequest.reviewedBy.name || 'N/A'} (
+                      {selectedRequest.reviewedBy.username || 'N/A'})
+                    </p>
+                  </div>
+                )}
+                {selectedRequest.hrrpReviewedBy && (
+                  <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
+                    <Label className="text-right font-semibold">
+                      HRRP Reviewed By:
+                    </Label>
+                    <p className="col-span-2">
+                      {selectedRequest.hrrpReviewedBy.name || 'N/A'} (
+                      {selectedRequest.hrrpReviewedBy.username || 'N/A'})
+                    </p>
+                  </div>
+                )}
                 <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
                   <Label className="text-right font-semibold">Status:</Label>
                   <p className="col-span-2 text-primary">
