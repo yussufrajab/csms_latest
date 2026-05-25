@@ -52,6 +52,7 @@ interface ConfirmationRequest {
   submittedBy: Partial<User>;
   submittedById?: string;
   reviewedBy?: Partial<User> | null;
+  hrrpReviewedBy?: Partial<User> | null;
   status: string;
   reviewStage: string;
   documents: string[];
@@ -59,6 +60,7 @@ interface ConfirmationRequest {
   createdAt: string;
   decisionDate?: string | null;
   commissionDecisionDate?: string | null;
+  hrrpReviewedAt?: string | null;
 }
 
 export default function ConfirmationPage() {
@@ -190,13 +192,14 @@ export default function ConfirmationPage() {
         }
 
         const result = await response.json();
+
+        // Handle both paginated and non-paginated responses
+        const allRequests = Array.isArray(result) ? result : result.data || [];
+
         log.info({ dataCount: allRequests.length }, 'Fetched data (before client-side filter)');
 
         // Log the user and role to confirm they are correctly identified
         log.info({ userId: user?.id, role }, 'Current user and role');
-
-        // Handle both paginated and non-paginated responses
-        const allRequests = Array.isArray(result) ? result : result.data || [];
 
         allRequests.forEach((req: ConfirmationRequest) => {
           log.info(
@@ -296,7 +299,9 @@ export default function ConfirmationPage() {
 
     if (employeeToConfirm && pendingRequests.length > 0) {
       const pendingStatuses = [
+        'Pending HRRP Review',
         'Pending HRMO/HHRMD Review',
+        'Approved by HRRP - Awaiting Commission Review',
         'Pending DO/HHRMD Review',
         'Request Received – Awaiting Commission Decision',
       ];
@@ -430,8 +435,11 @@ export default function ConfirmationPage() {
       submittedById: user.id,
       userRole: role,
       documents: documentsList,
-      status: 'Pending HRMO/HHRMD Review', // Both roles can review in parallel
-      reviewStage: 'initial',
+      // HRO submissions go to HRRP review first; HRRP submissions auto-approve
+      status: role === ROLES.HRRP
+        ? 'Approved by HRRP - Awaiting Commission Review'
+        : 'Pending HRRP Review',
+      reviewStage: role === ROLES.HRRP ? 'hrrp_review' : 'initial',
     };
 
     try {
@@ -622,7 +630,7 @@ export default function ConfirmationPage() {
       req.id === request.id
         ? {
             ...req,
-            status: 'Pending HRMO/HHRMD Review',
+            status: 'Pending HRRP Review',
             reviewStage: 'initial',
             rejectionReason: null,
             updatedAt: new Date().toISOString(),
@@ -635,7 +643,7 @@ export default function ConfirmationPage() {
     const employeeData = getEmployeeFromRequest(request);
     toast({
       title: 'Request Corrected & Resubmitted',
-      description: `Confirmation request for ${employeeData?.name || 'Employee'} has been corrected and resubmitted. Status: Pending HRMO/HHRMD Review`,
+      description: `Confirmation request for ${employeeData?.name || 'Employee'} has been corrected and resubmitted. Status: Pending HRRP Review`,
       duration: 4000,
     });
 
@@ -652,7 +660,7 @@ export default function ConfirmationPage() {
         body: JSON.stringify({
           id: request.id,
           userRole: role,
-          status: 'Pending HRMO/HHRMD Review', // Both roles can review in parallel after correction
+          status: 'Pending HRRP Review', // Resubmitted requests go to HRRP review
           reviewStage: 'initial',
           documents: [
             correctedEvaluationFormFile,
