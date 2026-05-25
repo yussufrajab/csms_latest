@@ -349,7 +349,7 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();
-    const { id, userRole, ...updateData } = body;
+    const { id, userRole, userId, ...updateData } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -362,28 +362,28 @@ export async function PATCH(req: Request) {
     }
 
     // Authorization: Different roles can perform different update actions
-    // - HHRMD/HRMO: Can approve/reject (when reviewedById is present)
-    // - HRO/HRRP: Can resubmit corrected documents (when resetting to Pending status)
-    const isApprovalOrRejection = updateData.reviewedById !== undefined;
+    const isHrrpApproval =
+      updateData.status === 'Approved by HRRP - Awaiting Commission Review' &&
+      !updateData.reviewedById;
+    const isHrrpRejection =
+      updateData.status === 'Rejected by HRRP - Awaiting HRO Correction';
+    const isHrrpAction = isHrrpApproval || isHrrpRejection;
+    const isCommissionApprovalOrRejection = updateData.reviewedById !== undefined && !isHrrpAction;
     const isResubmission =
-      updateData.status === 'Pending HRMO/HHRMD Review' &&
+      updateData.status === 'Pending HRRP Review' &&
       !updateData.reviewedById;
 
     let authCheck;
-    if (isApprovalOrRejection) {
-      // Approval/rejection action - only HHRMD/HRMO
-      authCheck = checkRoleAuthorization(userRole, [
-        'HHRMD' as const,
-        'HRMO' as const,
-      ]);
+    if (isHrrpAction) {
+      // HRRP approve/reject action - only HRRP role
+      authCheck = checkRoleAuthorization(userRole, ['HRRP' as const]);
+    } else if (isCommissionApprovalOrRejection) {
+      // Commission approval/rejection - only HHRMD/HRMO
+      authCheck = checkRoleAuthorization(userRole, ['HHRMD' as const, 'HRMO' as const]);
     } else if (isResubmission) {
-      // Resubmission action - only HRO/HRRP
-      authCheck = checkRoleAuthorization(userRole, [
-        'HRO' as const,
-        'HRRP' as const,
-      ]);
+      // HRO resubmit after rejection - HRO and HRRP
+      authCheck = checkRoleAuthorization(userRole, ['HRO' as const, 'HRRP' as const]);
     } else {
-      // Unknown action type - deny by default
       authCheck = { authorized: false, message: 'Invalid update action' };
     }
 
@@ -401,6 +401,16 @@ export async function PATCH(req: Request) {
     const headers = new Headers(req.headers);
     const ipAddress = getClientIp(headers);
     const deviceInfo = JSON.parse(headers.get('x-device-info') || 'null');
+
+    // Add HRRP review fields if this is an HRRP action
+    if (isHrrpApproval) {
+      updateData.hrrpReviewedById = updateData.hrrpReviewedById || userId;
+      updateData.hrrpReviewedAt = new Date().toISOString();
+      updateData.reviewStage = 'hrrp_review';
+    }
+    if (isHrrpRejection) {
+      updateData.reviewStage = 'initial';
+    }
 
     const updatedRequest = await db.confirmationRequest.update({
       where: { id },
@@ -425,6 +435,9 @@ export async function PATCH(req: Request) {
           select: { id: true, name: true, username: true },
         },
         User_ConfirmationRequest_reviewedByIdToUser: {
+          select: { id: true, name: true, username: true },
+        },
+        User_ConfirmationRequest_hrrpReviewedByToUser: {
           select: { id: true, name: true, username: true },
         },
       },
@@ -511,6 +524,37 @@ export async function PATCH(req: Request) {
       }
     }
 
+    // HRRP approval notifications: notify commission (HHRMD/HRMO) that a request is ready for review
+    if (isHrrpApproval) {
+      const hrrpNotification = NotificationTemplates.confirmationSubmitted(
+        updatedRequest.Employee?.name || 'Unknown',
+        id
+      );
+      await createNotificationForRole(ROLES.HHRMD!, hrrpNotification.message, hrrpNotification.link);
+      await createNotificationForRole(ROLES.HRMO!, hrrpNotification.message, hrrpNotification.link);
+
+      await sendRequestSubmissionEmails({
+        requestType: 'Confirmation',
+        employeeName: updatedRequest.Employee?.name || 'Unknown',
+        requestId: id,
+        submittedByName: updatedRequest.User_ConfirmationRequest_submittedByIdToUser?.name || 'Unknown',
+        dashboardPath: '/dashboard/confirmation',
+      });
+    }
+
+    // HRRP rejection: notify the HRO who submitted
+    if (isHrrpRejection) {
+      const rejectionNotification = NotificationTemplates.confirmationRejected(
+        id,
+        updateData.rejectionReason || 'No reason provided'
+      );
+      await createNotification({
+        message: rejectionNotification.message,
+        link: rejectionNotification.link,
+        userId: updatedRequest.submittedById,
+      });
+    }
+
     // Send email notification to the HRO submitter on approval/rejection
     if (updateData.status) {
       const patchStatusLower = updateData.status.toLowerCase();
@@ -536,8 +580,11 @@ export async function PATCH(req: Request) {
         .User_ConfirmationRequest_submittedByIdToUser,
       reviewedBy: (updatedRequest as any)
         .User_ConfirmationRequest_reviewedByIdToUser,
+      hrrpReviewedBy: (updatedRequest as any)
+        .User_ConfirmationRequest_hrrpReviewedByToUser,
       User_ConfirmationRequest_submittedByIdToUser: undefined,
       User_ConfirmationRequest_reviewedByIdToUser: undefined,
+      User_ConfirmationRequest_hrrpReviewedByToUser: undefined,
     };
 
     return NextResponse.json({
