@@ -383,7 +383,7 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();
-    const { id, ...updateData } = body;
+    const { id, userRole, userId, ...updateData } = body;
 
     logger.info({  id, updateData  }, '🔵 PATCH /api/promotions called with');
 
@@ -401,6 +401,46 @@ export async function PATCH(req: Request) {
     const headers = new Headers(req.headers);
     const ipAddress = getClientIp(headers);
     const deviceInfo = JSON.parse(headers.get('x-device-info') || 'null');
+
+    // Authorization: Different roles can perform different update actions
+    const isHrrpApproval =
+      updateData.status === 'Approved by HRRP - Awaiting Commission Review' &&
+      !updateData.reviewedById;
+    const isHrrpRejection =
+      updateData.status === 'Rejected by HRRP - Awaiting HRO Correction';
+    const isHrrpAction = isHrrpApproval || isHrrpRejection;
+    const isCommissionApprovalOrRejection = updateData.reviewedById !== undefined && !isHrrpAction;
+    const isResubmission =
+      updateData.status === 'Pending HRRP Review' &&
+      !updateData.reviewedById;
+
+    let authCheck;
+    if (isHrrpAction) {
+      authCheck = checkRoleAuthorization(userRole, ['HRRP' as const]);
+    } else if (isCommissionApprovalOrRejection) {
+      authCheck = checkRoleAuthorization(userRole, ['HHRMD' as const, 'HRMO' as const]);
+    } else if (isResubmission) {
+      authCheck = checkRoleAuthorization(userRole, ['HRO' as const, 'HRRP' as const]);
+    } else {
+      authCheck = { authorized: false, message: 'Invalid update action' };
+    }
+
+    if (!authCheck.authorized) {
+      return NextResponse.json(
+        { success: false, message: authCheck.message },
+        { status: 403 }
+      );
+    }
+
+    // Add HRRP review fields if this is an HRRP action
+    if (isHrrpApproval) {
+      updateData.hrrpReviewedById = updateData.hrrpReviewedById || userId;
+      updateData.hrrpReviewedAt = new Date().toISOString();
+      updateData.reviewStage = 'hrrp_review';
+    }
+    if (isHrrpRejection) {
+      updateData.reviewStage = 'initial';
+    }
 
     const updatedRequest = await db.promotionRequest.update({
       where: { id },
@@ -433,6 +473,13 @@ export async function PATCH(req: Request) {
           },
         },
         User_PromotionRequest_reviewedByIdToUser: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+          },
+        },
+        User_PromotionRequest_hrrpReviewedByToUser: {
           select: {
             id: true,
             name: true,
@@ -544,6 +591,37 @@ export async function PATCH(req: Request) {
       }
     }
 
+    // HRRP approval notifications: notify commission (HHRMD/HRMO) that a request is ready for review
+    if (isHrrpApproval) {
+      const hrrpNotification = NotificationTemplates.promotionSubmitted(
+        updatedRequest.Employee?.name || 'Unknown',
+        id
+      );
+      await createNotificationForRole(ROLES.HHRMD!, hrrpNotification.message, hrrpNotification.link);
+      await createNotificationForRole(ROLES.HRMO!, hrrpNotification.message, hrrpNotification.link);
+
+      await sendRequestSubmissionEmails({
+        requestType: 'Promotion',
+        employeeName: updatedRequest.Employee?.name || 'Unknown',
+        requestId: id,
+        submittedByName: updatedRequest.User_PromotionRequest_submittedByIdToUser?.name || 'Unknown',
+        dashboardPath: '/dashboard/promotion',
+      });
+    }
+
+    // HRRP rejection: notify the HRO who submitted
+    if (isHrrpRejection) {
+      const rejectionNotification = NotificationTemplates.promotionRejected(
+        id,
+        updateData.rejectionReason || 'No reason provided'
+      );
+      await createNotification({
+        message: rejectionNotification.message,
+        link: rejectionNotification.link,
+        userId: updatedRequest.submittedById,
+      });
+    }
+
     // Transform the data to match frontend expectations
     const transformedRequest = {
       ...updatedRequest,
@@ -551,8 +629,11 @@ export async function PATCH(req: Request) {
         .User_PromotionRequest_submittedByIdToUser,
       reviewedBy: (updatedRequest as any)
         .User_PromotionRequest_reviewedByIdToUser,
+      hrrpReviewedBy: (updatedRequest as any)
+        .User_PromotionRequest_hrrpReviewedByToUser,
       User_PromotionRequest_submittedByIdToUser: undefined,
       User_PromotionRequest_reviewedByIdToUser: undefined,
+      User_PromotionRequest_hrrpReviewedByToUser: undefined,
     };
 
     return NextResponse.json({
