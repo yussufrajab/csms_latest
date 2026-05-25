@@ -44,7 +44,7 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   {
     pattern: '/dashboard/promotion',
     allowedRoles: [ROLES.HRO, ROLES.HHRMD, ROLES.HRMO, ROLES.CSCS, ROLES.HRRP],
-    description: 'Promotions - HRO submits, HHRMD/HRMO approve',
+    description: 'Promotions - HRO submits to HRRP, HRRP approves and forwards to Commission (HHRMD/HRMO)',
   },
   {
     pattern: '/dashboard/cadre-change',
