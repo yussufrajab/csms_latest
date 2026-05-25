@@ -363,7 +363,7 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();
-    const { id, ...updateData } = body;
+    const { id, userRole, userId, ...updateData } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -379,6 +379,46 @@ export async function PATCH(req: Request) {
     const headers = new Headers(req.headers);
     const ipAddress = getClientIp(headers);
     const deviceInfo = JSON.parse(headers.get('x-device-info') || 'null');
+
+    // Authorization: Different roles can perform different update actions
+    const isHrrpApproval =
+      updateData.status === 'Approved by HRRP - Awaiting Commission Review' &&
+      !updateData.reviewedById;
+    const isHrrpRejection =
+      updateData.status === 'Rejected by HRRP - Awaiting HRO Correction';
+    const isHrrpAction = isHrrpApproval || isHrrpRejection;
+    const isCommissionApprovalOrRejection = updateData.reviewedById !== undefined && !isHrrpAction;
+    const isResubmission =
+      updateData.status === 'Pending HRRP Review' &&
+      !updateData.reviewedById;
+
+    let authCheck;
+    if (isHrrpAction) {
+      authCheck = checkRoleAuthorization(userRole, ['HRRP' as const]);
+    } else if (isCommissionApprovalOrRejection) {
+      authCheck = checkRoleAuthorization(userRole, ['HHRMD' as const, 'HRMO' as const]);
+    } else if (isResubmission) {
+      authCheck = checkRoleAuthorization(userRole, ['HRO' as const, 'HRRP' as const]);
+    } else {
+      authCheck = { authorized: false, message: 'Invalid update action' };
+    }
+
+    if (!authCheck.authorized) {
+      return NextResponse.json(
+        { success: false, message: authCheck.message },
+        { status: 403 }
+      );
+    }
+
+    // Add HRRP review fields if this is an HRRP action
+    if (isHrrpApproval) {
+      updateData.hrrpReviewedById = updateData.hrrpReviewedById || userId;
+      updateData.hrrpReviewedAt = new Date().toISOString();
+      updateData.reviewStage = 'hrrp_review';
+    }
+    if (isHrrpRejection) {
+      updateData.reviewStage = 'initial';
+    }
 
     // No date conversion needed for this schema
 
@@ -404,6 +444,9 @@ export async function PATCH(req: Request) {
           select: { id: true, name: true, username: true },
         },
         User_LwopRequest_reviewedByIdToUser: {
+          select: { id: true, name: true, username: true },
+        },
+        User_LwopRequest_hrrpReviewedByToUser: {
           select: { id: true, name: true, username: true },
         },
       },
@@ -503,13 +546,46 @@ export async function PATCH(req: Request) {
       }
     }
 
+    // HRRP approval notifications: notify commission (HHRMD/HRMO) that a request is ready for review
+    if (isHrrpApproval) {
+      const hrrpNotification = NotificationTemplates.lwopSubmitted(
+        updatedRequest.Employee?.name || 'Unknown',
+        id
+      );
+      await createNotificationForRole(ROLES.HHRMD!, hrrpNotification.message, hrrpNotification.link);
+      await createNotificationForRole(ROLES.HRMO!, hrrpNotification.message, hrrpNotification.link);
+
+      await sendRequestSubmissionEmails({
+        requestType: 'Leave Without Pay',
+        employeeName: updatedRequest.Employee?.name || 'Unknown',
+        requestId: id,
+        submittedByName: updatedRequest.User_LwopRequest_submittedByIdToUser?.name || 'Unknown',
+        dashboardPath: '/dashboard/lwop',
+      });
+    }
+
+    // HRRP rejection: notify the HRO who submitted
+    if (isHrrpRejection) {
+      const rejectionNotification = NotificationTemplates.lwopRejected(
+        id,
+        updateData.rejectionReason || 'No reason provided'
+      );
+      await createNotification({
+        message: rejectionNotification.message,
+        link: rejectionNotification.link,
+        userId: updatedRequest.submittedById,
+      });
+    }
+
     // Transform the data to match frontend expectations
     const transformedRequest = {
       ...updatedRequest,
       submittedBy: (updatedRequest as any).User_LwopRequest_submittedByIdToUser,
       reviewedBy: (updatedRequest as any).User_LwopRequest_reviewedByIdToUser,
+      hrrpReviewedBy: (updatedRequest as any).User_LwopRequest_hrrpReviewedByToUser,
       User_LwopRequest_submittedByIdToUser: undefined,
       User_LwopRequest_reviewedByIdToUser: undefined,
+      User_LwopRequest_hrrpReviewedByToUser: undefined,
     };
 
     return NextResponse.json({
