@@ -113,6 +113,9 @@ export async function GET(req: Request) {
           User_ConfirmationRequest_reviewedByIdToUser: {
             select: { id: true, name: true, username: true },
           },
+          User_ConfirmationRequest_hrrpReviewedByToUser: {
+            select: { id: true, name: true, username: true },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * size,
@@ -126,8 +129,10 @@ export async function GET(req: Request) {
       ...req,
       submittedBy: req.User_ConfirmationRequest_submittedByIdToUser,
       reviewedBy: req.User_ConfirmationRequest_reviewedByIdToUser,
+      hrrpReviewedBy: req.User_ConfirmationRequest_hrrpReviewedByToUser,
       User_ConfirmationRequest_submittedByIdToUser: undefined,
       User_ConfirmationRequest_reviewedByIdToUser: undefined,
+      User_ConfirmationRequest_hrrpReviewedByToUser: undefined,
     }));
 
     return NextResponse.json({
