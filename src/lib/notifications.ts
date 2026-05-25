@@ -74,6 +74,21 @@ export const NotificationTemplates = {
     link: `/dashboard/promotion`,
   }),
 
+  promotionHrrpApproved: (employeeName: string, requestId: string) => ({
+    message: `Promotion request for ${employeeName} (${requestId}) has been approved by HRRP and forwarded to the Commission for review.`,
+    link: `/dashboard/promotion`,
+  }),
+
+  promotionHrrpRejected: (employeeName: string, requestId: string, reason: string) => ({
+    message: `Promotion request for ${employeeName} (${requestId}) has been rejected by HRRP. Reason: ${reason}`,
+    link: `/dashboard/promotion`,
+  }),
+
+  promotionPendingHrrpReview: (employeeName: string, requestId: string) => ({
+    message: `New promotion request for ${employeeName} (${requestId}) is pending your HRRP review.`,
+    link: `/dashboard/promotion`,
+  }),
+
   // Complaint Notifications
   complaintSubmitted: (
     employeeName: string,
