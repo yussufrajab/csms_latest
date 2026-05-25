@@ -9,10 +9,29 @@ import {
   logRequestRejection,
   getClientIp,
 } from '@/lib/audit-logger';
-import { createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
+import { createNotification, createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
 import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
 import { ROLES } from '@/lib/constants';
 import { logger } from '@/lib/logger';
+
+// Role-based authorization helper
+function checkRoleAuthorization(
+  userRole: string | null,
+  allowedRoles: readonly string[]
+): { authorized: boolean; message?: string } {
+  if (!userRole) {
+    return { authorized: false, message: 'User role is required' };
+  }
+
+  if (!allowedRoles.includes(userRole)) {
+    return {
+      authorized: false,
+      message: `Unauthorized: ${userRole} cannot perform this action. Allowed roles: ${allowedRoles.join(', ')}`,
+    };
+  }
+
+  return { authorized: true };
+}
 
 // Cache configuration for cadre change requests
 const CACHE_TTL = 30; // 30 seconds cache (request status changes frequently)
@@ -178,6 +197,18 @@ export async function POST(req: Request) {
       );
     }
 
+    const isHRRP = body.userRole === 'HRRP';
+    const initialStatus = isHRRP
+      ? 'Approved by HRRP - Awaiting Commission Review'
+      : 'Pending HRRP Review';
+    const initialReviewStage = isHRRP ? 'hrrp_review' : 'initial';
+    const hrrpData = isHRRP
+      ? {
+          hrrpReviewedById: body.submittedById,
+          hrrpReviewedAt: new Date(),
+        }
+      : {};
+
     const cadreChangeRequest = await db.cadreChangeRequest.create({
       data: {
         id: uuidv4(),
@@ -188,10 +219,11 @@ export async function POST(req: Request) {
         reason: body.reason,
         studiedOutsideCountry: body.studiedOutsideCountry || false,
         documents: body.documents || [],
-        status: body.status || 'Pending HRMO/HHRMD Review',
-        reviewStage: body.reviewStage || 'initial',
+        status: initialStatus,
+        reviewStage: initialReviewStage,
         rejectionReason: body.rejectionReason,
         updatedAt: new Date(),
+        ...hrrpData,
       },
       include: {
         Employee: {
@@ -211,32 +243,47 @@ export async function POST(req: Request) {
         User_CadreChangeRequest_submittedByIdToUser: {
           select: { id: true, name: true, username: true },
         },
+        User_CadreChangeRequest_hrrpReviewedByToUser: isHRRP
+          ? { select: { id: true, name: true, username: true } }
+          : false,
       },
     });
 
     logger.info({ value: cadreChangeRequest.id }, 'Created cadre change request');
 
-    // Create notification for CSC reviewers
-    const notification = NotificationTemplates.cadreChangeSubmitted(
-      cadreChangeRequest.Employee.name,
-      cadreChangeRequest.id
-    );
-
-    await createNotificationForRole(
-      ROLES.HHRMD || 'HHRMD',
-      notification.message,
-      notification.link
-    );
-    await createNotificationForRole(
-      ROLES.HRMO || 'HRMO',
-      notification.message,
-      notification.link
-    );
-    await createNotificationForRole(
-      ROLES.DO || 'DO',
-      notification.message,
-      notification.link
-    );
+    // Create notification - target depends on who submitted
+    if (isHRRP) {
+      // HRRP submitted directly: notify commission (HHRMD/HRMO)
+      const notification = NotificationTemplates.cadreChangeSubmitted(
+        cadreChangeRequest.Employee.name,
+        cadreChangeRequest.id
+      );
+      await createNotificationForRole(ROLES.HHRMD!, notification.message, notification.link);
+      await createNotificationForRole(ROLES.HRMO!, notification.message, notification.link);
+    } else {
+      // HRO submitted: notify HRRP at the same institution
+      const notification = NotificationTemplates.cadreChangeSubmitted(
+        cadreChangeRequest.Employee.name,
+        cadreChangeRequest.id
+      );
+      const hrrpEmployee = await db.employee.findUnique({
+        where: { id: body.employeeId },
+        select: { institutionId: true },
+      });
+      if (hrrpEmployee?.institutionId) {
+        const hrrpUsers = await db.user.findMany({
+          where: { role: ROLES.HRRP!, active: true, institutionId: hrrpEmployee.institutionId },
+          select: { id: true },
+        });
+        for (const hrrpUser of hrrpUsers) {
+          await createNotification({
+            message: notification.message,
+            link: notification.link,
+            userId: hrrpUser.id,
+          });
+        }
+      }
+    }
 
     // Send email notifications to CSC reviewers
     await sendRequestSubmissionEmails({
@@ -265,9 +312,19 @@ export async function POST(req: Request) {
       deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
     }).catch(() => {});
 
+    // Transform the data to match frontend expectations
+    const transformedRequest = {
+      ...cadreChangeRequest,
+      submittedBy: (cadreChangeRequest as any)
+        .User_CadreChangeRequest_submittedByIdToUser,
+      hrrpReviewedBy: isHRRP ? (cadreChangeRequest as any).User_CadreChangeRequest_hrrpReviewedByToUser : undefined,
+      User_CadreChangeRequest_submittedByIdToUser: undefined,
+      User_CadreChangeRequest_hrrpReviewedByToUser: undefined,
+    };
+
     return NextResponse.json({
       success: true,
-      data: cadreChangeRequest,
+      data: transformedRequest,
     });
   } catch (error) {
     logger.error({ err: error }, 'CADRE CHANGE POST');
