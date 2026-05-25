@@ -110,6 +110,21 @@ export const NotificationTemplates = {
     link: `/dashboard/lwop`,
   }),
 
+  lwopHrrpApproved: (employeeName: string, requestId: string) => ({
+    message: `LWOP request for ${employeeName} (${requestId}) has been approved by HRRP and forwarded to the Commission for review.`,
+    link: `/dashboard/lwop`,
+  }),
+
+  lwopHrrpRejected: (employeeName: string, requestId: string, reason: string) => ({
+    message: `LWOP request for ${employeeName} (${requestId}) has been rejected by HRRP. Reason: ${reason}`,
+    link: `/dashboard/lwop`,
+  }),
+
+  lwopPendingHrrpReview: (employeeName: string, requestId: string) => ({
+    message: `New LWOP request for ${employeeName} (${requestId}) is pending your HRRP review.`,
+    link: `/dashboard/lwop`,
+  }),
+
   // Confirmation Request Notifications (English)
   confirmationSubmitted: (employeeName: string, requestId: string) => ({
     message: `New confirmation request submitted by ${employeeName} (${requestId}). Requires your review.`,
