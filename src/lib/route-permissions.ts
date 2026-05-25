@@ -39,7 +39,7 @@ export const ROUTE_PERMISSIONS: RoutePermission[] = [
   {
     pattern: '/dashboard/lwop',
     allowedRoles: [ROLES.HRO, ROLES.HHRMD, ROLES.HRMO, ROLES.CSCS, ROLES.HRRP],
-    description: 'Leave without pay - HRO submits, HHRMD/HRMO approve',
+    description: 'Leave without pay - HRO submits to HRRP, HRRP approves and forwards to Commission (HHRMD/HRMO)',
   },
   {
     pattern: '/dashboard/promotion',
