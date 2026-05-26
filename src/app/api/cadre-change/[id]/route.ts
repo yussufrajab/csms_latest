@@ -21,6 +21,7 @@ const updateSchema = z.object({
   documents: z.array(z.string()).optional(),
   hrrpReviewedById: z.string().optional(),
   hrrpReviewedAt: z.string().datetime().optional(),
+  commissionLetterKey: z.string().optional(),
 });
 
 async function handleUpdate(

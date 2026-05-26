@@ -20,11 +20,14 @@ model CadreChangeRequest {
   employeeId                                  String
   submittedById                               String
   reviewedById                                String?
+  decisionDate                                DateTime?
+  commissionDecisionDate                       DateTime?
   createdAt                                   DateTime @default(now())
   updatedAt                                   DateTime
   originalCadre                               String?
   hrrpReviewedById                            String?
   hrrpReviewedAt                              DateTime?
+  commissionLetterKey                          String?
   Employee                                    Employee @relation(fields: [employeeId], references: [id])
   User_CadreChangeRequest_reviewedByIdToUser  User?    @relation("CadreChangeRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
   User_CadreChangeRequest_submittedByIdToUser User     @relation("CadreChangeRequest_submittedByIdToUser", fields: [submittedById], references: [id])
@@ -74,6 +77,7 @@ model ConfirmationRequest {
   reviewedById                                 String?
   decisionDate                                 DateTime?
   commissionDecisionDate                       DateTime?
+  commissionLetterKey                           String?
   hrrpReviewedById                             String?
   hrrpReviewedAt                               DateTime?
   createdAt                                    DateTime  @default(now())
@@ -178,12 +182,15 @@ model LwopRequest {
   employeeId                           String
   submittedById                        String
   reviewedById                         String?
+  decisionDate                         DateTime?
+  commissionDecisionDate               DateTime?
   createdAt                            DateTime  @default(now())
   updatedAt                            DateTime
   endDate                              DateTime?
   startDate                            DateTime?
   hrrpReviewedById                     String?
   hrrpReviewedAt                       DateTime?
+  commissionLetterKey                  String?
   Employee                             Employee  @relation(fields: [employeeId], references: [id])
   User_LwopRequest_reviewedByIdToUser  User?     @relation("LwopRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
   User_LwopRequest_submittedByIdToUser User      @relation("LwopRequest_submittedByIdToUser", fields: [submittedById], references: [id])
@@ -218,12 +225,15 @@ model PromotionRequest {
   employeeId                                String
   submittedById                             String
   reviewedById                              String?
+  decisionDate                              DateTime?
+  commissionDecisionDate                     DateTime?
   createdAt                                 DateTime @default(now())
   updatedAt                                 DateTime
   commissionDecisionReason                  String?
   finalCadre                                String?
   hrrpReviewedById                          String?
   hrrpReviewedAt                            DateTime?
+  commissionLetterKey                        String?
   Employee                                  Employee @relation(fields: [employeeId], references: [id])
   User_PromotionRequest_reviewedByIdToUser  User?    @relation("PromotionRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
   User_PromotionRequest_submittedByIdToUser User     @relation("PromotionRequest_submittedByIdToUser", fields: [submittedById], references: [id])
@@ -252,6 +262,9 @@ model ResignationRequest {
   Employee                                    Employee @relation(fields: [employeeId], references: [id])
   hrrpReviewedById                                String?
   hrrpReviewedAt                                  DateTime?
+  commissionLetterKey                             String?
+  decisionDate                                    DateTime?
+  commissionDecisionDate                         DateTime?
   User_ResignationRequest_reviewedByIdToUser      User?    @relation("ResignationRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
   User_ResignationRequest_submittedByIdToUser     User     @relation("ResignationRequest_submittedByIdToUser", fields: [submittedById], references: [id])
   User_ResignationRequest_hrrpReviewedByToUser    User?    @relation("ResignationRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
@@ -281,6 +294,9 @@ model RetirementRequest {
   Employee                                   Employee @relation(fields: [employeeId], references: [id])
   hrrpReviewedById                                String?
   hrrpReviewedAt                                 DateTime?
+  commissionLetterKey                            String?
+  decisionDate                                   DateTime?
+  commissionDecisionDate                         DateTime?
   User_RetirementRequest_reviewedByIdToUser      User?    @relation("RetirementRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
   User_RetirementRequest_submittedByIdToUser     User     @relation("RetirementRequest_submittedByIdToUser", fields: [submittedById], references: [id])
   User_RetirementRequest_hrrpReviewedByToUser    User?    @relation("RetirementRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
@@ -308,6 +324,9 @@ model SeparationRequest {
   Employee                                   Employee @relation(fields: [employeeId], references: [id])
   hrrpReviewedById                               String?
   hrrpReviewedAt                                DateTime?
+  commissionLetterKey                           String?
+  decisionDate                                  DateTime?
+  commissionDecisionDate                        DateTime?
   User_SeparationRequest_reviewedByIdToUser      User?    @relation("SeparationRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
   User_SeparationRequest_submittedByIdToUser     User     @relation("SeparationRequest_submittedByIdToUser", fields: [submittedById], references: [id])
   User_SeparationRequest_hrrpReviewedByToUser    User?    @relation("SeparationRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
@@ -336,6 +355,9 @@ model ServiceExtensionRequest {
   Employee                                         Employee @relation(fields: [employeeId], references: [id])
   hrrpReviewedById                                      String?
   hrrpReviewedAt                                       DateTime?
+  commissionLetterKey                                  String?
+  decisionDate                                         DateTime?
+  commissionDecisionDate                               DateTime?
   User_ServiceExtensionRequest_reviewedByIdToUser        User?    @relation("ServiceExtensionRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
   User_ServiceExtensionRequest_submittedByIdToUser       User     @relation("ServiceExtensionRequest_submittedByIdToUser", fields: [submittedById], references: [id])
   User_ServiceExtensionRequest_hrrpReviewedByToUser      User?    @relation("ServiceExtensionRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])

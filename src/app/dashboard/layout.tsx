@@ -38,12 +38,12 @@ export default function DashboardLayout({
       return;
     }
 
-    // Check if password change is required (middleware check to catch bypasses)
+    // Check if password change is recommended (but don't force redirect for EMPLOYEE role)
     if (!isLoading && isAuthenticated && user) {
       const needsPasswordChange =
         user.mustChangePassword || user.isTemporaryPassword;
 
-      if (needsPasswordChange) {
+      if (needsPasswordChange && user.role !== 'EMPLOYEE') {
         DebugLogger.log('DASHBOARD_LAYOUT_PASSWORD_CHANGE_REQUIRED', {
           userId: user.id,
           mustChangePassword: user.mustChangePassword,

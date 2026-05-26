@@ -906,7 +906,7 @@ export default function ProfilePage() {
         setPageLoading(true);
         try {
           const response = await fetch(
-            `/api/employees/search?zanId=${user.zanId}&userRole=${user.role}&userInstitutionId=${user.institutionId}`
+            `/api/employees/search?employeeId=${user.employeeId}&userRole=${user.role}&userInstitutionId=${user.institutionId}`
           );
           if (!response.ok) throw new Error('Could not load your profile.');
           const result = await response.json();

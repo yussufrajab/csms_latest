@@ -19,6 +19,11 @@ const updateSchema = z.object({
   requestedExtensionPeriod: z.string().optional(),
   justification: z.string().optional(),
   documents: z.array(z.string()).optional(),
+  hrrpReviewedById: z.string().optional(),
+  hrrpReviewedAt: z.string().datetime().optional(),
+  commissionLetterKey: z.string().optional(),
+  decisionDate: z.string().datetime().optional(),
+  commissionDecisionDate: z.string().datetime().optional(),
 });
 
 async function handleUpdate(
@@ -57,6 +62,9 @@ async function handleUpdate(
         },
         User_ServiceExtensionRequest_reviewedByIdToUser: {
           select: { name: true, role: true },
+        },
+        User_ServiceExtensionRequest_hrrpReviewedByToUser: {
+          select: { id: true, name: true, username: true },
         },
       },
     });

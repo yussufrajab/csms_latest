@@ -9,7 +9,7 @@ import {
   logRequestRejection,
   getClientIp,
 } from '@/lib/audit-logger';
-import { createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
+import { createNotification, createNotificationForRole, NotificationTemplates } from '@/lib/notifications';
 import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib/email';
 import { ROLES } from '@/lib/constants';
 import { logger } from '@/lib/logger';
@@ -90,6 +90,9 @@ export async function GET(req: Request) {
           User_ServiceExtensionRequest_reviewedByIdToUser: {
             select: { id: true, name: true, username: true },
           },
+          User_ServiceExtensionRequest_hrrpReviewedByToUser: {
+            select: { id: true, name: true, username: true },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * size,
@@ -103,8 +106,10 @@ export async function GET(req: Request) {
       ...req,
       submittedBy: req.User_ServiceExtensionRequest_submittedByIdToUser,
       reviewedBy: req.User_ServiceExtensionRequest_reviewedByIdToUser,
+      hrrpReviewedBy: req.User_ServiceExtensionRequest_hrrpReviewedByToUser,
       User_ServiceExtensionRequest_submittedByIdToUser: undefined,
       User_ServiceExtensionRequest_reviewedByIdToUser: undefined,
+      User_ServiceExtensionRequest_hrrpReviewedByToUser: undefined,
     }));
 
     return NextResponse.json({
@@ -179,6 +184,19 @@ export async function POST(req: Request) {
       );
     }
 
+    // Determine initial status based on submitter role
+    const isHRRP = body.userRole === 'HRRP';
+    const initialStatus = isHRRP
+      ? 'Approved by HRRP - Awaiting Commission Review'
+      : 'Pending HRRP Review';
+    const initialReviewStage = isHRRP ? 'hrrp_review' : 'initial';
+    const hrrpData = isHRRP
+      ? {
+          hrrpReviewedById: body.submittedById,
+          hrrpReviewedAt: new Date(),
+        }
+      : {};
+
     const serviceExtensionRequest = await db.serviceExtensionRequest.create({
       data: {
         id: uuidv4(),
@@ -188,10 +206,11 @@ export async function POST(req: Request) {
         requestedExtensionPeriod: body.requestedExtensionPeriod,
         justification: body.justification,
         documents: body.documents || [],
-        status: body.status || 'Pending HRMO/HHRMD Review',
-        reviewStage: body.reviewStage || 'initial',
+        status: initialStatus,
+        reviewStage: initialReviewStage,
         rejectionReason: body.rejectionReason,
         updatedAt: new Date(),
+        ...hrrpData,
       },
       include: {
         Employee: {
@@ -211,23 +230,46 @@ export async function POST(req: Request) {
         User_ServiceExtensionRequest_submittedByIdToUser: {
           select: { id: true, name: true, username: true },
         },
+        User_ServiceExtensionRequest_hrrpReviewedByToUser: isHRRP
+          ? { select: { id: true, name: true, username: true } }
+          : false,
       },
     });
 
-    logger.info(
-      'Created service extension request:',
-      serviceExtensionRequest.id
-    );
+    logger.info(`Created service extension request: ${serviceExtensionRequest.id}`);
 
-    // Create notification for CSC reviewers
-    const notification = NotificationTemplates.serviceExtensionSubmitted(
-      serviceExtensionRequest.Employee.name,
-      serviceExtensionRequest.id
-    );
-
-    await createNotificationForRole(ROLES.HHRMD || 'HHRMD', notification.message, notification.link);
-    await createNotificationForRole(ROLES.HRMO || 'HRMO', notification.message, notification.link);
-    await createNotificationForRole(ROLES.DO || 'DO', notification.message, notification.link);
+    // Create notification - target depends on who submitted
+    if (isHRRP) {
+      // HRRP submitted directly: notify commission (HHRMD/HRMO/DO)
+      const notification = NotificationTemplates.serviceExtensionSubmitted(
+        serviceExtensionRequest.Employee.name,
+        serviceExtensionRequest.id
+      );
+      await createNotificationForRole(ROLES.HHRMD || 'HHRMD', notification.message, notification.link);
+      await createNotificationForRole(ROLES.HRMO || 'HRMO', notification.message, notification.link);
+      await createNotificationForRole(ROLES.DO || 'DO', notification.message, notification.link);
+    } else {
+      // HRO submitted: notify HRRP at the same institution
+      const hrrpNotification = NotificationTemplates.serviceExtensionPendingHrrpReview(
+        serviceExtensionRequest.Employee.name,
+        serviceExtensionRequest.id
+      );
+      const submitter = await db.user.findUnique({
+        where: { id: body.submittedById },
+        select: { institutionId: true },
+      });
+      if (submitter?.institutionId) {
+        const hrrpUsers = await db.user.findMany({
+          where: { role: ROLES.HRRP || 'HRRP', active: true, institutionId: submitter.institutionId },
+          select: { id: true },
+        });
+        for (const hrrpUser of hrrpUsers) {
+          await db.notification.create({
+            data: { id: uuidv4(), userId: hrrpUser.id, message: hrrpNotification.message, link: hrrpNotification.link },
+          });
+        }
+      }
+    }
 
     // Send email notifications to CSC reviewers
     await sendRequestSubmissionEmails({
@@ -256,9 +298,19 @@ export async function POST(req: Request) {
       deviceInfo: JSON.parse(req.headers.get('x-device-info') || 'null'),
     }).catch(() => {});
 
+    // Transform the data to match frontend expectations
+    const transformedRequest = {
+      ...serviceExtensionRequest,
+      submittedBy: (serviceExtensionRequest as any)
+        .User_ServiceExtensionRequest_submittedByIdToUser,
+      hrrpReviewedBy: isHRRP ? (serviceExtensionRequest as any).User_ServiceExtensionRequest_hrrpReviewedByToUser : undefined,
+      User_ServiceExtensionRequest_submittedByIdToUser: undefined,
+      User_ServiceExtensionRequest_hrrpReviewedByToUser: undefined,
+    };
+
     return NextResponse.json({
       success: true,
-      data: serviceExtensionRequest,
+      data: transformedRequest,
     });
   } catch (error) {
     logger.error({ err: error }, 'SERVICE EXTENSION POST');
@@ -276,7 +328,7 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();
-    const { id, ...updateData } = body;
+    const { id, userRole, userId, ...updateData } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -286,6 +338,33 @@ export async function PATCH(req: Request) {
         },
         { status: 400 }
       );
+    }
+
+    // Determine HRRP action types before the update
+    const isHrrpApproval = updateData.status === 'Approved by HRRP - Awaiting Commission Review' && (updateData.hrrpReviewedById || userRole === 'HRRP');
+    const isHrrpRejection = updateData.status === 'Rejected by HRRP - Awaiting HRO Correction';
+    const isResubmission = updateData.status === 'Pending HRRP Review' && !updateData.reviewedById;
+
+    // Validate that commission decisions include a commission letter
+    const isCommissionDecision = updateData.reviewedById && (
+      updateData.status?.includes('Approved by Commission') ||
+      updateData.status?.includes('Rejected by Commission')
+    );
+    if (isCommissionDecision && !body.commissionLetterKey) {
+      return NextResponse.json(
+        { success: false, message: 'Commission letter is required for commission decisions' },
+        { status: 400 }
+      );
+    }
+
+    // Add HRRP review fields if this is an HRRP action
+    if (isHrrpApproval) {
+      updateData.hrrpReviewedById = updateData.hrrpReviewedById || userId;
+      updateData.hrrpReviewedAt = new Date().toISOString();
+      updateData.reviewStage = 'hrrp_review';
+    }
+    if (isHrrpRejection) {
+      updateData.reviewStage = 'initial';
     }
 
     // Get IP and device info for audit logging
@@ -323,6 +402,9 @@ export async function PATCH(req: Request) {
           select: { id: true, name: true, username: true },
         },
         User_ServiceExtensionRequest_reviewedByIdToUser: {
+          select: { id: true, name: true, username: true },
+        },
+        User_ServiceExtensionRequest_hrrpReviewedByToUser: {
           select: { id: true, name: true, username: true },
         },
       },
@@ -365,8 +447,8 @@ export async function PATCH(req: Request) {
         );
       } catch (employeeUpdateError) {
         logger.error(
-          'Failed to update employee retirement date:',
-          employeeUpdateError
+          { err: employeeUpdateError },
+          'Failed to update employee retirement date'
         );
         // Don't fail the entire request if employee update fails
       }
@@ -461,9 +543,62 @@ export async function PATCH(req: Request) {
         .User_ServiceExtensionRequest_submittedByIdToUser,
       reviewedBy: (updatedRequest as any)
         .User_ServiceExtensionRequest_reviewedByIdToUser,
+      hrrpReviewedBy: (updatedRequest as any)
+        .User_ServiceExtensionRequest_hrrpReviewedByToUser,
       User_ServiceExtensionRequest_submittedByIdToUser: undefined,
       User_ServiceExtensionRequest_reviewedByIdToUser: undefined,
+      User_ServiceExtensionRequest_hrrpReviewedByToUser: undefined,
     };
+
+    // HRRP approval notifications: notify commission (HHRMD/HRMO/DO) that a request is ready for review
+    if (isHrrpApproval) {
+      const hrrpNotification = NotificationTemplates.serviceExtensionHrrpApproved(
+        updatedRequest.Employee?.name || 'Unknown',
+        id
+      );
+      await createNotificationForRole(ROLES.HHRMD || 'HHRMD', hrrpNotification.message, hrrpNotification.link);
+      await createNotificationForRole(ROLES.HRMO || 'HRMO', hrrpNotification.message, hrrpNotification.link);
+      await createNotificationForRole(ROLES.DO || 'DO', hrrpNotification.message, hrrpNotification.link);
+    }
+
+    // HRRP rejection: notify the HRO who submitted
+    if (isHrrpRejection) {
+      const rejectionNotification = NotificationTemplates.serviceExtensionHrrpRejected(
+        updatedRequest.Employee?.name || 'Unknown',
+        id,
+        updateData.rejectionReason || 'No reason provided'
+      );
+      await createNotification({
+        message: rejectionNotification.message,
+        link: rejectionNotification.link,
+        userId: updatedRequest.submittedById,
+      });
+    }
+
+    // Resubmission after HRRP rejection: notify HRRP at the same institution
+    if (isResubmission) {
+      const resubmissionNotification = NotificationTemplates.serviceExtensionPendingHrrpReview(
+        updatedRequest.Employee?.name || 'Unknown',
+        id
+      );
+      const submitter = await db.user.findUnique({
+        where: { id: updatedRequest.submittedById },
+        select: { institutionId: true },
+      });
+      if (submitter?.institutionId) {
+        const hrrpUsers = await db.user.findMany({
+          where: { role: ROLES.HRRP || 'HRRP', active: true, institutionId: submitter.institutionId },
+          select: { id: true },
+        });
+        for (const hrrpUser of hrrpUsers) {
+          await createNotification({
+            message: resubmissionNotification.message,
+            link: resubmissionNotification.link,
+            userId: hrrpUser.id,
+          });
+        }
+      }
+    }
 
     return NextResponse.json({
       success: true,

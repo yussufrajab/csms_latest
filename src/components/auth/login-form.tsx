@@ -66,18 +66,28 @@ export function LoginForm() {
       log.info({ userId: user?.id, userRole: user?.role }, 'LoginForm onSubmit - returned user');
 
       if (user) {
-        // Check if password change is required
+        // Check if password change is required (but don't force EMPLOYEE role)
         if (user.mustChangePassword || user.isTemporaryPassword) {
-          log.info({ userId: user.id }, 'Password change required');
-          toast({
-            title: 'Password Change Required',
-            description: 'You must change your password to continue.',
-            variant: 'default',
-          });
-          // Redirect to password change page
-          router.push('/change-password-required');
-          setIsLoading(false);
-          return;
+          if (user.role !== ROLES.EMPLOYEE) {
+            log.info({ userId: user.id }, 'Password change required');
+            toast({
+              title: 'Password Change Required',
+              description: 'You must change your password to continue.',
+              variant: 'default',
+            });
+            // Redirect to password change page
+            router.push('/change-password-required');
+            setIsLoading(false);
+            return;
+          } else {
+            // EMPLOYEE: show warning but allow access
+            toast({
+              title: 'Password Change Recommended',
+              description: 'Please consider changing your password for security. You can update it from your profile.',
+              variant: 'default',
+              duration: 5000,
+            });
+          }
         }
 
         toast({

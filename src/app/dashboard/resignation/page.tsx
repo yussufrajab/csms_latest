@@ -45,17 +45,22 @@ import { FilePreviewModal } from '@/components/ui/file-preview-modal';
 import { apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/store/auth-store';
 import { EmployeeSearch } from '@/components/shared/employee-search';
-import { clientLogger } from '@/lib/logger-client';
-const log = clientLogger.child({ component: 'resignation' });
 
 interface ResignationRequest {
   id: string;
   Employee: Partial<Employee & User & { Institution: { name: string } }>;
   submittedBy: Partial<User>;
+  submittedById?: string;
   reviewedBy?: Partial<User> | null;
+  hrrpReviewedBy?: Partial<User> | null;
   status: string;
   reviewStage: string;
   rejectionReason?: string | null;
+  reviewedById?: string | null;
+  decisionDate?: string | null;
+  commissionDecisionDate?: string | null;
+  commissionLetterKey?: string | null;
+  hrrpReviewedAt?: string | null;
   createdAt: string;
 
   effectiveDate: string;
@@ -135,6 +140,14 @@ export default function ResignationPage() {
     useState<string>('');
   const [correctedNoticeOrReceiptFile, setCorrectedNoticeOrReceiptFile] =
     useState<string>('');
+
+  // Commission decision modal states
+  const [isCommissionDecisionModalOpen, setIsCommissionDecisionModalOpen] = useState(false);
+  const [commissionDecisionType, setCommissionDecisionType] = useState<'approved' | 'rejected' | null>(null);
+  const [commissionDecisionRequestId, setCommissionDecisionRequestId] = useState<string | null>(null);
+  const [commissionLetterFile, setCommissionLetterFile] = useState<string>('');
+  const [commissionRejectionReason, setCommissionRejectionReason] = useState('');
+  const [isCommissionSubmitting, setIsCommissionSubmitting] = useState(false);
 
   // Employee status validation
   const isEmployeeResigned = employeeDetails?.status === 'Resigned';
@@ -257,8 +270,12 @@ export default function ResignationPage() {
 
     // Check for pending resignation request
     const pendingStatuses = [
+      'Pending HRRP Review',
+      'Approved by HRRP - Awaiting Commission Review',
       'Pending HRMO/HHRMD Review',
       'Pending DO/HHRMD Review',
+      'Approved by HRMO - Awaiting Commission Decision',
+      'Approved by HHRMD - Awaiting Commission Decision',
       'Request Received – Awaiting Commission Decision',
     ];
 
@@ -330,7 +347,8 @@ export default function ResignationPage() {
     const payload = {
       employeeId: employeeDetails.id,
       submittedById: user.id,
-      status: 'Pending HRMO/HHRMD Review',
+      status: 'Pending HRRP Review',
+      reviewStage: 'initial',
       effectiveDate: new Date(effectiveDate).toISOString(),
       reason: reason,
       documents: documentObjectKeys,
@@ -369,7 +387,7 @@ export default function ResignationPage() {
         description: errorMessage,
         variant: 'destructive',
       });
-      log.error({ err: error }, 'Resignation submission error:');
+      console.error('Resignation submission error:', error);
     } finally {
       setIsSubmitting(false);
     }
@@ -406,8 +424,10 @@ export default function ResignationPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: requestId,
+          userRole: role,
+          userId: user?.id,
           ...payload,
-          reviewedById: user?.id,
+          ...(payload.hrrpReviewedById ? {} : { reviewedById: user?.id }),
         }),
       });
       if (!response.ok) throw new Error('Failed to update request');
@@ -443,6 +463,7 @@ export default function ResignationPage() {
       const payload = {
         status: 'Request Received – Awaiting Commission Decision',
         reviewStage: 'commission_review',
+        decisionDate: new Date().toISOString(),
       };
       const roleName = role === ROLES.HRMO ? 'HRMO' : 'HHRMD';
 
@@ -462,8 +483,15 @@ export default function ResignationPage() {
 
   const handleRejectionSubmit = async () => {
     if (!currentRequestToAction || !rejectionReasonInput.trim()) return;
+    let rejectionStatus: string;
+    if (role === ROLES.HRRP) {
+      rejectionStatus = 'Rejected by HRRP - Awaiting HRO Action';
+    } else {
+      rejectionStatus = `Rejected by ${role} - Awaiting HRO Action`;
+    }
+
     const payload = {
-      status: `Rejected by ${role} - Awaiting HRO Action`,
+      status: rejectionStatus,
       rejectionReason: rejectionReasonInput,
       reviewStage: 'initial',
     };
@@ -478,21 +506,105 @@ export default function ResignationPage() {
     }
   };
 
-  const handleCommissionDecision = async (
+  const handleCommissionDecision = (
     requestId: string,
     decision: 'approved' | 'rejected'
   ) => {
-    const finalStatus =
-      decision === 'approved'
-        ? 'Approved by Commission'
-        : 'Rejected by Commission - Request Concluded';
-    const payload = { status: finalStatus, reviewStage: 'completed' };
-    const actionDescription =
-      decision === 'approved'
+    setCommissionDecisionRequestId(requestId);
+    setCommissionDecisionType(decision);
+    setCommissionLetterFile('');
+    setCommissionRejectionReason('');
+    setIsCommissionDecisionModalOpen(true);
+  };
+
+  const handleCommissionDecisionSubmit = async () => {
+    if (!commissionDecisionRequestId || !commissionDecisionType || !user) return;
+
+    if (!commissionLetterFile) {
+      toast({
+        title: 'Barua Inahitajika',
+        description: 'Tafadhali pakia barua rasmi ya Tume kabla ya kuwasilisha uamuzi.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (commissionDecisionType === 'rejected' && !commissionRejectionReason.trim()) {
+      toast({
+        title: 'Sababu ya Kukataa Inahitajika',
+        description: 'Tafadhali toa sababu ya kukataa ombi hili.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsCommissionSubmitting(true);
+    try {
+      const finalStatus =
+        commissionDecisionType === 'approved'
+          ? 'Approved by Commission'
+          : 'Rejected by Commission - Request Concluded';
+
+      const payload: Record<string, any> = {
+        status: finalStatus,
+        reviewStage: 'completed',
+        commissionDecisionDate: new Date().toISOString(),
+        reviewedById: user.id,
+        commissionLetterKey: commissionLetterFile,
+      };
+
+      if (commissionDecisionType === 'rejected') {
+        payload.rejectionReason = commissionRejectionReason;
+      }
+
+      const actionDescription = commissionDecisionType === 'approved'
         ? 'Resignation approved by Commission'
         : 'Resignation rejected by Commission';
 
-    await handleUpdateRequest(requestId, payload, actionDescription);
+      await handleUpdateRequest(
+        commissionDecisionRequestId,
+        payload,
+        actionDescription
+      );
+
+      setIsCommissionDecisionModalOpen(false);
+      setCommissionLetterFile('');
+      setCommissionRejectionReason('');
+      setCommissionDecisionRequestId(null);
+      setCommissionDecisionType(null);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Imeshindwa kufanya uamuzi. Tafadhali jaribu tena.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCommissionSubmitting(false);
+    }
+  };
+
+  const handleHrrpAction = async (
+    requestId: string,
+    action: 'forward' | 'reject'
+  ) => {
+    if (!user) return;
+
+    if (action === 'forward') {
+      await handleUpdateRequest(
+        requestId,
+        {
+          status: 'Approved by HRRP - Awaiting Commission Review',
+          reviewStage: 'hrrp_review',
+          hrrpReviewedById: user.id,
+          hrrpReviewedAt: new Date().toISOString(),
+        },
+        'Request approved by HRRP and forwarded to Commission'
+      );
+    } else if (action === 'reject') {
+      setCurrentRequestToAction(pendingRequests.find((req) => req.id === requestId) || null);
+      setRejectionReasonInput('');
+      setIsRejectionModalOpen(true);
+    }
   };
 
   const handleCorrection = (request: ResignationRequest) => {
@@ -541,7 +653,7 @@ export default function ResignationPage() {
       req.id === request.id
         ? {
             ...req,
-            status: 'Pending HRMO/HHRMD Review',
+            status: 'Pending HRRP Review',
             reviewStage: 'initial',
             rejectionReason: null,
             effectiveDate: new Date(correctedEffectiveDate).toISOString(),
@@ -555,7 +667,7 @@ export default function ResignationPage() {
     // Show immediate success feedback
     toast({
       title: 'Request Corrected & Resubmitted',
-      description: `Resignation request for ${request.Employee.name} has been corrected and resubmitted. Status: Pending HRMO/HHRMD Review`,
+      description: `Resignation request for ${request.Employee.name} has been corrected and resubmitted.`,
       duration: 4000,
     });
 
@@ -575,7 +687,7 @@ export default function ResignationPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: request.id,
-          status: 'Pending HRMO/HHRMD Review',
+          status: 'Pending HRRP Review',
           reviewStage: 'initial',
           effectiveDate: new Date(correctedEffectiveDate).toISOString(),
           reason: correctedReason,
@@ -592,7 +704,7 @@ export default function ResignationPage() {
     } catch (error) {
       // Revert optimistic update on error and show error feedback
       await fetchRequests();
-      log.error({ err: error }, '');
+      console.error('[RESUBMIT_RESIGNATION]', error);
       toast({
         title: 'Update Failed',
         description: 'Could not update the request.',
@@ -996,6 +1108,12 @@ export default function ResignationPage() {
                       : 'N/A'}{' '}
                     by {request.submittedBy?.name || 'N/A'}
                   </p>
+                  {request.hrrpReviewedBy && (
+                    <p className="text-sm text-muted-foreground">
+                      HRRP Reviewed by: {request.hrrpReviewedBy.name || 'N/A'} (
+                      {request.hrrpReviewedBy.username || 'N/A'})
+                    </p>
+                  )}
                   <div className="flex items-center space-x-2">
                     <p className="text-sm">
                       <span className="font-medium">Status:</span>
@@ -1027,12 +1145,7 @@ export default function ResignationPage() {
                       <div className="flex items-center space-x-1">
                         <div
                           className={`w-2 h-2 rounded-full ${
-                            [
-                              'Pending HRMO/HHRMD Review',
-                              'Request Received – Awaiting Commission Decision',
-                              'Approved by Commission',
-                              'Rejected by Commission - Request Concluded',
-                            ].includes(request.status)
+                            request.status !== 'Pending'
                               ? 'bg-green-500'
                               : 'bg-gray-300'
                           }`}
@@ -1041,27 +1154,47 @@ export default function ResignationPage() {
                         <div className="w-3 h-px bg-gray-300"></div>
                         <div
                           className={`w-2 h-2 rounded-full ${
-                            [
-                              'Request Received – Awaiting Commission Decision',
-                              'Approved by Commission',
-                              'Rejected by Commission - Request Concluded',
-                            ].includes(request.status)
+                            request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                            request.status.includes('Awaiting Commission') ||
+                            request.status.includes('Approved by Commission') ||
+                            request.status.includes('Rejected by Commission')
                               ? 'bg-green-500'
-                              : request.status.includes('Pending HRMO/HHRMD')
-                                ? 'bg-orange-500'
-                                : 'bg-gray-300'
+                              : request.status === 'Pending HRRP Review'
+                                ? 'bg-purple-500'
+                                : request.status === 'Rejected by HRRP - Awaiting HRO Correction'
+                                  ? 'bg-red-500'
+                                  : 'bg-gray-300'
                           }`}
                         ></div>
-                        <span className="text-[10px]">HRMO/HHRMD Review</span>
+                        <span className="text-[10px]">HRRP Review</span>
                         <div className="w-3 h-px bg-gray-300"></div>
                         <div
                           className={`w-2 h-2 rounded-full ${
-                            [
-                              'Approved by Commission',
-                              'Rejected by Commission - Request Concluded',
-                            ].includes(request.status)
+                            request.status.includes('Approved by HRMO')
                               ? 'bg-green-500'
-                              : request.status.includes('Awaiting Commission')
+                              : request.status.includes('Approved by HHRMD')
+                                ? 'bg-green-500'
+                                : request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                                  request.status === 'Pending HRMO/HHRMD Review'
+                                  ? 'bg-orange-500'
+                                  : request.status.includes('Awaiting Commission Decision')
+                                    ? 'bg-blue-500'
+                                    : 'bg-gray-300'
+                          }`}
+                        ></div>
+                        <span className="text-[10px]">
+                          {request.status.includes('Approved by HRMO')
+                            ? 'HRMO ✓'
+                            : request.status.includes('Approved by HHRMD')
+                              ? 'HHRMD ✓'
+                              : 'HRMO/HHRMD Review'}
+                        </span>
+                        <div className="w-3 h-px bg-gray-300"></div>
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            ['Approved by Commission', 'Rejected by Commission - Request Concluded'].includes(request.status)
+                              ? 'bg-green-500'
+                              : request.status.includes('Awaiting Commission Decision')
                                 ? 'bg-blue-500'
                                 : 'bg-gray-300'
                           }`}
@@ -1222,6 +1355,12 @@ export default function ResignationPage() {
                       : 'N/A'}{' '}
                     by {request.submittedBy?.name || 'N/A'}
                   </p>
+                  {request.hrrpReviewedBy && (
+                    <p className="text-sm text-muted-foreground">
+                      HRRP Reviewed by: {request.hrrpReviewedBy.name || 'N/A'} (
+                      {request.hrrpReviewedBy.username || 'N/A'})
+                    </p>
+                  )}
                   <div className="flex items-center space-x-2">
                     <p className="text-sm">
                       <span className="font-medium">Status:</span>
@@ -1253,12 +1392,7 @@ export default function ResignationPage() {
                       <div className="flex items-center space-x-1">
                         <div
                           className={`w-2 h-2 rounded-full ${
-                            [
-                              'Pending HRMO/HHRMD Review',
-                              'Request Received – Awaiting Commission Decision',
-                              'Approved by Commission',
-                              'Rejected by Commission - Request Concluded',
-                            ].includes(request.status)
+                            request.status !== 'Pending'
                               ? 'bg-green-500'
                               : 'bg-gray-300'
                           }`}
@@ -1267,27 +1401,47 @@ export default function ResignationPage() {
                         <div className="w-3 h-px bg-gray-300"></div>
                         <div
                           className={`w-2 h-2 rounded-full ${
-                            [
-                              'Request Received – Awaiting Commission Decision',
-                              'Approved by Commission',
-                              'Rejected by Commission - Request Concluded',
-                            ].includes(request.status)
+                            request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                            request.status.includes('Awaiting Commission') ||
+                            request.status.includes('Approved by Commission') ||
+                            request.status.includes('Rejected by Commission')
                               ? 'bg-green-500'
-                              : request.status.includes('Pending HRMO/HHRMD')
-                                ? 'bg-orange-500'
-                                : 'bg-gray-300'
+                              : request.status === 'Pending HRRP Review'
+                                ? 'bg-purple-500'
+                                : request.status === 'Rejected by HRRP - Awaiting HRO Correction'
+                                  ? 'bg-red-500'
+                                  : 'bg-gray-300'
                           }`}
                         ></div>
-                        <span className="text-[10px]">HRMO/HHRMD Review</span>
+                        <span className="text-[10px]">HRRP Review</span>
                         <div className="w-3 h-px bg-gray-300"></div>
                         <div
                           className={`w-2 h-2 rounded-full ${
-                            [
-                              'Approved by Commission',
-                              'Rejected by Commission - Request Concluded',
-                            ].includes(request.status)
+                            request.status.includes('Approved by HRMO')
                               ? 'bg-green-500'
-                              : request.status.includes('Awaiting Commission')
+                              : request.status.includes('Approved by HHRMD')
+                                ? 'bg-green-500'
+                                : request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                                  request.status === 'Pending HRMO/HHRMD Review'
+                                  ? 'bg-orange-500'
+                                  : request.status.includes('Awaiting Commission Decision')
+                                    ? 'bg-blue-500'
+                                    : 'bg-gray-300'
+                          }`}
+                        ></div>
+                        <span className="text-[10px]">
+                          {request.status.includes('Approved by HRMO')
+                            ? 'HRMO ✓'
+                            : request.status.includes('Approved by HHRMD')
+                              ? 'HHRMD ✓'
+                              : 'HRMO/HHRMD Review'}
+                        </span>
+                        <div className="w-3 h-px bg-gray-300"></div>
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            ['Approved by Commission', 'Rejected by Commission - Request Concluded'].includes(request.status)
+                              ? 'bg-green-500'
+                              : request.status.includes('Awaiting Commission Decision')
                                 ? 'bg-blue-500'
                                 : 'bg-gray-300'
                           }`}
@@ -1313,9 +1467,10 @@ export default function ResignationPage() {
                     >
                       View Details
                     </Button>
-                    {/* HRMO/HHRMD Parallel Review Actions */}
+                    {/* HRMO/HHRMD Review Actions */}
                     {(role === ROLES.HRMO || role === ROLES.HHRMD) &&
-                      request.status === 'Pending HRMO/HHRMD Review' && (
+                      (request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                       request.status === 'Pending HRMO/HHRMD Review') && (
                         <>
                           <Button
                             size="sm"
@@ -1336,28 +1491,49 @@ export default function ResignationPage() {
                           </Button>
                         </>
                       )}
-                    {request.reviewStage === 'commission_review' && (
+                    {/* HRRP Review Actions */}
+                    {role === ROLES.HRRP && request.status === 'Pending HRRP Review' && (
                       <>
                         <Button
                           size="sm"
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                          onClick={() =>
-                            handleCommissionDecision(request.id, 'approved')
-                          }
+                          onClick={() => handleHrrpAction(request.id, 'forward')}
                         >
-                          Approve (Commission)
+                          Verify &amp; Forward to Commission
                         </Button>
                         <Button
                           size="sm"
                           variant="destructive"
-                          onClick={() =>
-                            handleCommissionDecision(request.id, 'rejected')
-                          }
+                          onClick={() => handleHrrpAction(request.id, 'reject')}
                         >
-                          Reject (Commission)
+                          Reject &amp; Return to HRO
                         </Button>
                       </>
                     )}
+                    {/* Commission Decision Actions */}
+                    {(role === ROLES.HRMO || role === ROLES.HHRMD) &&
+                      request.reviewStage === 'commission_review' &&
+                      request.status.includes('Awaiting Commission Decision') && (
+                        <>
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() =>
+                              handleCommissionDecision(request.id, 'approved')
+                            }
+                          >
+                            Approved by Commission
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() =>
+                              handleCommissionDecision(request.id, 'rejected')
+                            }
+                          >
+                            Rejected by Commission
+                          </Button>
+                        </>
+                      )}
                   </div>
                 </div>
               ))
@@ -1516,6 +1692,17 @@ export default function ResignationPage() {
                     by {selectedRequest.submittedBy?.name || 'N/A'}
                   </p>
                 </div>
+                {selectedRequest.hrrpReviewedBy && (
+                  <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
+                    <Label className="text-right font-semibold">
+                      HRRP Reviewed by:
+                    </Label>
+                    <p className="col-span-2">
+                      {selectedRequest.hrrpReviewedBy.name || 'N/A'} (
+                      {selectedRequest.hrrpReviewedBy.username || 'N/A'})
+                    </p>
+                  </div>
+                )}
                 <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
                   <Label className="text-right font-semibold">Status:</Label>
                   <p className="col-span-2 text-primary">
@@ -1602,7 +1789,7 @@ export default function ResignationPage() {
                                     });
                                   }
                                 } catch (error) {
-                                  log.error({ err: error }, 'Download failed:');
+                                  console.error('Download failed:', error);
                                   toast({
                                     title: 'Download Failed',
                                     description:
@@ -1626,6 +1813,73 @@ export default function ResignationPage() {
                   )}
                 </div>
               </div>
+
+              {/* Commission Letter */}
+              {selectedRequest.commissionLetterKey && (
+                <div className="pt-3 mt-3 border-t">
+                  <Label className="font-semibold">Barua Rasmi ya Tume</Label>
+                  <div className="mt-2 space-y-2">
+                    <div className="flex items-center justify-between p-2 rounded-md border bg-blue-50 dark:bg-blue-950/30 text-sm">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <span className="font-medium text-foreground">
+                          Barua Rasmi ya Tume
+                        </span>
+                      </div>
+                      <div className="flex gap-1 flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={() => handlePreviewFile(selectedRequest.commissionLetterKey!)}
+                        >
+                          Preview
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={async () => {
+                            try {
+                              const response = await fetch(
+                                `/api/files/download/${selectedRequest.commissionLetterKey}`,
+                                { credentials: 'include' }
+                              );
+                              if (response.ok) {
+                                const blob = await response.blob();
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = 'Barua-Rasmi-ya-Tume.pdf';
+                                document.body.appendChild(a);
+                                a.click();
+                                window.URL.revokeObjectURL(url);
+                                document.body.removeChild(a);
+                              } else {
+                                toast({
+                                  title: 'Download Failed',
+                                  description: 'Could not download the file. Please try again.',
+                                  variant: 'destructive',
+                                });
+                              }
+                            } catch (error) {
+                              console.error('Download failed:', error);
+                              toast({
+                                title: 'Download Failed',
+                                description: 'Could not download the file. Please try again.',
+                                variant: 'destructive',
+                              });
+                            }
+                          }}
+                        >
+                          Download
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
             <DialogFooter>
               <DialogClose asChild>
@@ -1683,6 +1937,80 @@ export default function ResignationPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Commission Decision Modal */}
+      <Dialog
+        open={isCommissionDecisionModalOpen}
+        onOpenChange={setIsCommissionDecisionModalOpen}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {commissionDecisionType === 'approved'
+                ? 'Approved by Commission'
+                : 'Rejected by Commission'}
+            </DialogTitle>
+            <DialogDescription>
+              {commissionDecisionType === 'approved'
+                ? 'Pakia barua rasmi ya Tume ya kuidhinisha ombi hili.'
+                : 'Pakia barua rasmi ya Tume ya kukataa ombi hili na toa sababu.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {commissionDecisionType === 'rejected' && (
+              <div className="space-y-2">
+                <Label className="font-semibold">Sababu ya Kukataa *</Label>
+                <Textarea
+                  value={commissionRejectionReason}
+                  onChange={(e) => setCommissionRejectionReason(e.target.value)}
+                  placeholder="Toa sababu ya kukataa ombi hili..."
+                  rows={3}
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <FileUpload
+                label="Barua Rasmi ya Tume *"
+                description="Pakia barua rasmi ya Tume (PDF pekee, max 1MB)"
+                accept=".pdf"
+                maxSize={1}
+                folder="resignation/commission-letters"
+                value={commissionLetterFile}
+                onChange={(value) => setCommissionLetterFile(value as string)}
+                onPreview={(objectKey) => {
+                  setPreviewObjectKey(objectKey);
+                  setIsPreviewModalOpen(true);
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsCommissionDecisionModalOpen(false)}
+              disabled={isCommissionSubmitting}
+            >
+              Ghairi
+            </Button>
+            <Button
+              className={
+                commissionDecisionType === 'approved'
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : ''
+              }
+              variant={commissionDecisionType === 'rejected' ? 'destructive' : 'default'}
+              onClick={handleCommissionDecisionSubmit}
+              disabled={
+                isCommissionSubmitting ||
+                !commissionLetterFile ||
+                (commissionDecisionType === 'rejected' && !commissionRejectionReason.trim())
+              }
+            >
+              {isCommissionSubmitting ? 'Inawasilisha...' : 'Wasilisha Uamuzi'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {requestToCorrect && (
         <Dialog

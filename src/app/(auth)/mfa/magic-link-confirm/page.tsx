@@ -86,12 +86,20 @@ export default function MagicLinkConfirmPage() {
         document.cookie = `auth-storage=${encodeURIComponent(cookieValue)}; path=/; expires=${expiryDate.toUTCString()}; SameSite=Strict`;
 
         if (userData.mustChangePassword || userData.isTemporaryPassword) {
-          toast({
-            title: 'Password Change Required',
-            description: 'You must change your password to continue.',
-          });
-          router.push('/change-password-required');
-          return;
+          if (userData.role !== 'EMPLOYEE') {
+            toast({
+              title: 'Password Change Required',
+              description: 'You must change your password to continue.',
+            });
+            router.push('/change-password-required');
+            return;
+          } else {
+            toast({
+              title: 'Password Change Recommended',
+              description: 'Please consider changing your password for security. You can update it from your profile.',
+              duration: 5000,
+            });
+          }
         }
 
         toast({

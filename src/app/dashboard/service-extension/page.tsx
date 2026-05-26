@@ -44,17 +44,22 @@ import { FileUpload } from '@/components/ui/file-upload';
 import { FilePreviewModal } from '@/components/ui/file-preview-modal';
 import { useAuthStore } from '@/store/auth-store';
 import { EmployeeSearch } from '@/components/shared/employee-search';
-import { clientLogger } from '@/lib/logger-client';
-const log = clientLogger.child({ component: 'service-extension' });
 
 interface ServiceExtensionRequest {
   id: string;
   Employee: Partial<Employee & User & { Institution: { name: string } }>;
   submittedBy: Partial<User>;
+  submittedById?: string;
   reviewedBy?: Partial<User> | null;
+  reviewedById?: string | null;
+  hrrpReviewedBy?: Partial<User> | null;
   status: string;
   reviewStage: string;
   rejectionReason?: string | null;
+  decisionDate?: string | null;
+  commissionDecisionDate?: string | null;
+  commissionLetterKey?: string | null;
+  hrrpReviewedAt?: string | null;
   createdAt: string;
 
   currentRetirementDate: string;
@@ -145,6 +150,13 @@ export default function ServiceExtensionPage() {
     correctedEmployeeConsentLetterFile,
     setCorrectedEmployeeConsentLetterFile,
   ] = useState<string>('');
+
+  const [isCommissionDecisionModalOpen, setIsCommissionDecisionModalOpen] = useState(false);
+  const [commissionDecisionType, setCommissionDecisionType] = useState<'approved' | 'rejected' | null>(null);
+  const [commissionDecisionRequestId, setCommissionDecisionRequestId] = useState<string | null>(null);
+  const [commissionLetterFile, setCommissionLetterFile] = useState<string>('');
+  const [commissionRejectionReason, setCommissionRejectionReason] = useState('');
+  const [isCommissionSubmitting, setIsCommissionSubmitting] = useState(false);
 
   const fetchRequests = useCallback(
     async (isRefresh = false, page = currentPage) => {
@@ -264,33 +276,46 @@ export default function ServiceExtensionPage() {
   const handleEmployeeFound = (employee: Employee) => {
     resetFormFields();
 
-    log.info({ employee }, 'handleEmployeeFound called with employee:');
-    log.info({ pendingRequests }, 'Current pendingRequests');
-    log.info({ pendingRequestsLength: pendingRequests.length }, 'Pending requests length');
+    console.log(
+      '[SERVICE_EXT] handleEmployeeFound called with employee:',
+      employee
+    );
+    console.log('[SERVICE_EXT] Current pendingRequests:', pendingRequests);
+    console.log(
+      '[SERVICE_EXT] pendingRequests length:',
+      pendingRequests.length
+    );
 
     // Check for pending service extension request
     const pendingStatuses = [
+      'Pending HRRP Review',
+      'Approved by HRRP - Awaiting Commission Review',
       'Pending HRMO/HHRMD Review',
       'Pending DO/HHRMD Review',
       'Request Received – Awaiting Commission Decision',
     ];
 
-    log.info({ employeeId: employee.id }, 'Checking for pending requests with employee');
-    log.info({ pendingStatuses }, 'Pending statuses to check');
+    console.log(
+      '[SERVICE_EXT] Checking for pending requests with employee.id:',
+      employee.id
+    );
+    console.log('[SERVICE_EXT] Pending statuses to check:', pendingStatuses);
 
     const hasPending = pendingRequests.some((req) => {
-      log.info({
+      console.log('[SERVICE_EXT] Checking request:', {
         requestId: req.id,
         employeeId: req.Employee?.id,
         status: req.status,
-        matches: req.Employee?.id === employee.id && pendingStatuses.includes(req.status),
-      }, 'Checking request');
+        matches:
+          req.Employee?.id === employee.id &&
+          pendingStatuses.includes(req.status),
+      });
       return (
         req.Employee?.id === employee.id && pendingStatuses.includes(req.status)
       );
     });
 
-    log.info({ hasPending }, 'hasPending result:');
+    console.log('[SERVICE_EXT] hasPending result:', hasPending);
 
     if (hasPending) {
       setHasPendingServiceExtension(true);
@@ -342,8 +367,10 @@ export default function ServiceExtensionPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: requestId,
+          userRole: role,
+          userId: user?.id,
           ...payload,
-          reviewedById: user?.id,
+          ...(payload.hrrpReviewedById ? {} : { reviewedById: user?.id }),
         }),
       });
       if (!response.ok) throw new Error('Failed to update request');
@@ -424,7 +451,8 @@ export default function ServiceExtensionPage() {
     const payload = {
       employeeId: employeeDetails.id,
       submittedById: user.id,
-      status: 'Pending HRMO/HHRMD Review',
+      status: 'Pending HRRP Review',
+      reviewStage: 'initial',
       currentRetirementDate: new Date(currentRetirementDate).toISOString(),
       requestedExtensionPeriod,
       justification,
@@ -472,6 +500,8 @@ export default function ServiceExtensionPage() {
       const payload = {
         status: 'Request Received – Awaiting Commission Decision',
         reviewStage: 'commission_review',
+        reviewedById: user?.id,
+        decisionDate: new Date().toISOString(),
       };
       await handleUpdateRequest(
         requestId,
@@ -484,8 +514,17 @@ export default function ServiceExtensionPage() {
   const handleRejectionSubmit = async () => {
     if (!currentRequestToAction || !rejectionReasonInput.trim() || !user)
       return;
+
+    // Determine the correct rejection status based on who is rejecting
+    let rejectionStatus: string;
+    if (role === ROLES.HRRP) {
+      rejectionStatus = 'Rejected by HRRP - Awaiting HRO Correction';
+    } else {
+      rejectionStatus = `Rejected by ${role} - Awaiting HRO Correction`;
+    }
+
     const payload = {
-      status: `Rejected by ${role} - Awaiting HRO Correction`,
+      status: rejectionStatus,
       rejectionReason: rejectionReasonInput,
       reviewStage: 'hro_correction',
     };
@@ -505,53 +544,133 @@ export default function ServiceExtensionPage() {
     requestId: string,
     decision: 'approved' | 'rejected'
   ) => {
-    const request = pendingRequests.find((req) => req.id === requestId);
-    if (!request) return;
+    setCommissionDecisionRequestId(requestId);
+    setCommissionDecisionType(decision);
+    setCommissionLetterFile('');
+    setCommissionRejectionReason('');
+    setIsCommissionDecisionModalOpen(true);
+  };
 
-    const finalStatus =
-      decision === 'approved'
-        ? 'Approved by Commission'
-        : 'Rejected by Commission - Request Concluded';
-    const payload = { status: finalStatus, reviewStage: 'completed' };
+  const handleCommissionDecisionSubmit = async () => {
+    if (!commissionDecisionRequestId || !commissionDecisionType || !user) return;
 
-    let actionDescription = '';
-    if (decision === 'approved') {
-      // Calculate new retirement date for notification
-      const currentDate = new Date(request.currentRetirementDate);
-      const extensionPeriod = request.requestedExtensionPeriod.toLowerCase();
-      const newDate = new Date(currentDate);
+    if (!commissionLetterFile) {
+      toast({
+        title: 'Commission Letter Required',
+        description: 'Please upload the official commission letter (Barua Rasmi ya Tume) before making a decision.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
-      if (extensionPeriod.includes('year')) {
-        const years = parseInt(extensionPeriod.match(/\d+/)?.[0] || '1');
-        newDate.setFullYear(newDate.getFullYear() + years);
-      } else if (extensionPeriod.includes('month')) {
-        const months = parseInt(extensionPeriod.match(/\d+/)?.[0] || '6');
-        newDate.setMonth(newDate.getMonth() + months);
-      } else {
-        newDate.setFullYear(newDate.getFullYear() + 1);
+    if (commissionDecisionType === 'rejected' && !commissionRejectionReason.trim()) {
+      toast({
+        title: 'Rejection Reason Required',
+        description: 'Please provide a reason for rejecting this request.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsCommissionSubmitting(true);
+
+    try {
+      const finalStatus =
+        commissionDecisionType === 'approved'
+          ? 'Approved by Commission'
+          : 'Rejected by Commission - Request Concluded';
+
+      const payload: any = {
+        status: finalStatus,
+        reviewStage: 'completed',
+        decisionDate: new Date().toISOString(),
+        commissionDecisionDate: new Date().toISOString(),
+        reviewedById: user.id,
+        commissionLetterKey: commissionLetterFile,
+      };
+
+      if (commissionDecisionType === 'rejected') {
+        payload.rejectionReason = commissionRejectionReason;
       }
 
-      actionDescription = `Service extension approved by Commission! Employee retirement date updated from ${format(currentDate, 'PPP')} to ${format(newDate, 'PPP')}`;
-    } else {
-      actionDescription = 'Service extension rejected by Commission';
+      const request = pendingRequests.find((req) => req.id === commissionDecisionRequestId);
+      const actionDescription = commissionDecisionType === 'approved'
+        ? `Service extension approved by Commission!`
+        : 'Service extension rejected by Commission';
+
+      const success = await handleUpdateRequest(
+        commissionDecisionRequestId,
+        payload,
+        actionDescription
+      );
+
+      if (success && commissionDecisionType === 'approved' && request) {
+        const currentDate = new Date(request.currentRetirementDate);
+        const extensionPeriod = request.requestedExtensionPeriod.toLowerCase();
+        const newDate = new Date(currentDate);
+
+        if (extensionPeriod.includes('year')) {
+          const years = parseInt(extensionPeriod.match(/\d+/)?.[0] || '1');
+          newDate.setFullYear(newDate.getFullYear() + years);
+        } else if (extensionPeriod.includes('month')) {
+          const months = parseInt(extensionPeriod.match(/\d+/)?.[0] || '6');
+          newDate.setMonth(newDate.getMonth() + months);
+        } else {
+          newDate.setFullYear(newDate.getFullYear() + 1);
+        }
+
+        setTimeout(() => {
+          toast({
+            title: '✅ Retirement Date Updated',
+            description: `${request.Employee?.name || 'Unknown'}'s retirement date has been automatically updated in the system.`,
+            duration: 5000,
+          });
+        }, 1000);
+      }
+
+      setIsCommissionDecisionModalOpen(false);
+      setCommissionDecisionType(null);
+      setCommissionDecisionRequestId(null);
+      setCommissionLetterFile('');
+      setCommissionRejectionReason('');
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to submit commission decision.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCommissionSubmitting(false);
+    }
+  };
+
+  const handleHrrpAction = async (
+    requestId: string,
+    action: 'forward' | 'reject'
+  ) => {
+    if (!user) return;
+
+    if (action === 'reject') {
+      const request = pendingRequests.find((req) => req.id === requestId);
+      if (!request) return;
+      setCurrentRequestToAction(request);
+      setIsRejectionModalOpen(true);
+      return;
     }
 
-    const success = await handleUpdateRequest(
+    // Forward to commission (HRRP approves)
+    const payload = {
+      status: 'Approved by HRRP - Awaiting Commission Review',
+      reviewStage: 'hrrp_review',
+      hrrpReviewedById: user.id,
+      hrrpReviewedAt: new Date().toISOString(),
+    };
+
+    await handleUpdateRequest(
       requestId,
       payload,
-      actionDescription
+      'Approved by HRRP and forwarded to Commission for review'
     );
-
-    // Additional notification for approval with retirement date update
-    if (success && decision === 'approved') {
-      setTimeout(() => {
-        toast({
-          title: '✅ Retirement Date Updated',
-          description: `${request.Employee?.name || 'Unknown'}'s retirement date has been automatically updated in the system.`,
-          duration: 5000,
-        });
-      }, 1000);
-    }
   };
 
   const handleCorrection = (request: ServiceExtensionRequest) => {
@@ -613,7 +732,7 @@ export default function ServiceExtensionPage() {
       req.id === request.id
         ? {
             ...req,
-            status: 'Pending HRMO/HHRMD Review',
+            status: 'Pending HRRP Review',
             reviewStage: 'initial',
             rejectionReason: null,
             updatedAt: new Date().toISOString(),
@@ -625,7 +744,7 @@ export default function ServiceExtensionPage() {
     // Show immediate success feedback
     toast({
       title: 'Request Corrected & Resubmitted',
-      description: `Service extension request for ${request.Employee?.name || 'Unknown'} has been corrected and resubmitted. Status: Pending HRMO/HHRMD Review`,
+      description: `Service extension request for ${request.Employee?.name || 'Unknown'} has been corrected and resubmitted. Status: Pending HRRP Review`,
       duration: 4000,
     });
 
@@ -639,7 +758,7 @@ export default function ServiceExtensionPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: request.id,
-          status: 'Pending HRMO/HHRMD Review',
+          status: 'Pending HRRP Review',
           reviewStage: 'initial',
           currentRetirementDate: new Date(
             correctedCurrentRetirementDate
@@ -1067,6 +1186,12 @@ export default function ServiceExtensionPage() {
                       : 'N/A'}{' '}
                     by {request.submittedBy?.name || 'N/A'}
                   </p>
+                  {request.hrrpReviewedBy && (
+                    <p className="text-sm text-muted-foreground">
+                      HRRP Reviewed by: {request.hrrpReviewedBy.name || 'N/A'} (
+                      {request.hrrpReviewedBy.username || 'N/A'})
+                    </p>
+                  )}
                   <div className="flex items-center space-x-2">
                     <p className="text-sm">
                       <span className="font-medium">Status:</span>
@@ -1079,13 +1204,17 @@ export default function ServiceExtensionPage() {
                             ? 'bg-red-100 text-red-800'
                             : request.status.includes('Awaiting Commission')
                               ? 'bg-blue-100 text-blue-800'
-                              : request.status.includes('Pending HRMO/HHRMD')
+                              : request.status === 'Approved by HRRP - Awaiting Commission Review'
                                 ? 'bg-orange-100 text-orange-800'
-                                : request.status.includes('Awaiting HRO')
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : request.status.includes('Correction')
-                                    ? 'bg-yellow-100 text-yellow-800'
-                                    : 'bg-gray-100 text-gray-800'
+                                : request.status === 'Pending HRRP Review'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : request.status.includes('Pending HRMO/HHRMD')
+                                    ? 'bg-orange-100 text-orange-800'
+                                    : request.status.includes('Awaiting HRO')
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : request.status.includes('Correction')
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : 'bg-gray-100 text-gray-800'
                       }`}
                     >
                       {request.status}
@@ -1099,7 +1228,8 @@ export default function ServiceExtensionPage() {
                         <div
                           className={`w-2 h-2 rounded-full ${
                             [
-                              'Pending HRMO/HHRMD Review',
+                              'Pending HRRP Review',
+                              'Approved by HRRP - Awaiting Commission Review',
                               'Request Received – Awaiting Commission Decision',
                               'Approved by Commission',
                               'Rejected by Commission - Request Concluded',
@@ -1113,12 +1243,28 @@ export default function ServiceExtensionPage() {
                         <div
                           className={`w-2 h-2 rounded-full ${
                             [
+                              'Approved by HRRP - Awaiting Commission Review',
                               'Request Received – Awaiting Commission Decision',
                               'Approved by Commission',
                               'Rejected by Commission - Request Concluded',
                             ].includes(request.status)
                               ? 'bg-green-500'
-                              : request.status.includes('Pending HRMO/HHRMD')
+                              : request.status === 'Pending HRRP Review'
+                                ? 'bg-orange-500'
+                                : 'bg-gray-300'
+                          }`}
+                        ></div>
+                        <span className="text-[10px]">HRRP Review</span>
+                        <div className="w-3 h-px bg-gray-300"></div>
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            [
+                              'Request Received – Awaiting Commission Decision',
+                              'Approved by Commission',
+                              'Rejected by Commission - Request Concluded',
+                            ].includes(request.status)
+                              ? 'bg-green-500'
+                              : request.status === 'Approved by HRRP - Awaiting Commission Review'
                                 ? 'bg-orange-500'
                                 : 'bg-gray-300'
                           }`}
@@ -1160,6 +1306,7 @@ export default function ServiceExtensionPage() {
                     </Button>
                     {((request.status.includes('Rejected') &&
                       request.status.includes('Awaiting HRO')) ||
+                      request.status === 'Rejected by HRRP - Awaiting HRO Correction' ||
                       request.reviewStage === 'hro_correction') && (
                       <Button
                         size="sm"
@@ -1292,6 +1439,12 @@ export default function ServiceExtensionPage() {
                       : 'N/A'}{' '}
                     by {request.submittedBy?.name || 'N/A'}
                   </p>
+                  {request.hrrpReviewedBy && (
+                    <p className="text-sm text-muted-foreground">
+                      HRRP Reviewed by: {request.hrrpReviewedBy.name || 'N/A'} (
+                      {request.hrrpReviewedBy.username || 'N/A'})
+                    </p>
+                  )}
                   <div className="flex items-center space-x-2">
                     <p className="text-sm">
                       <span className="font-medium">Status:</span>
@@ -1304,13 +1457,17 @@ export default function ServiceExtensionPage() {
                             ? 'bg-red-100 text-red-800'
                             : request.status.includes('Awaiting Commission')
                               ? 'bg-blue-100 text-blue-800'
-                              : request.status.includes('Pending HRMO/HHRMD')
+                              : request.status === 'Approved by HRRP - Awaiting Commission Review'
                                 ? 'bg-orange-100 text-orange-800'
-                                : request.status.includes('Awaiting HRO')
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : request.status.includes('Correction')
-                                    ? 'bg-yellow-100 text-yellow-800'
-                                    : 'bg-gray-100 text-gray-800'
+                                : request.status === 'Pending HRRP Review'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : request.status.includes('Pending HRMO/HHRMD')
+                                    ? 'bg-orange-100 text-orange-800'
+                                    : request.status.includes('Awaiting HRO')
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : request.status.includes('Correction')
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : 'bg-gray-100 text-gray-800'
                       }`}
                     >
                       {request.status}
@@ -1324,7 +1481,8 @@ export default function ServiceExtensionPage() {
                         <div
                           className={`w-2 h-2 rounded-full ${
                             [
-                              'Pending HRMO/HHRMD Review',
+                              'Pending HRRP Review',
+                              'Approved by HRRP - Awaiting Commission Review',
                               'Request Received – Awaiting Commission Decision',
                               'Approved by Commission',
                               'Rejected by Commission - Request Concluded',
@@ -1338,12 +1496,28 @@ export default function ServiceExtensionPage() {
                         <div
                           className={`w-2 h-2 rounded-full ${
                             [
+                              'Approved by HRRP - Awaiting Commission Review',
                               'Request Received – Awaiting Commission Decision',
                               'Approved by Commission',
                               'Rejected by Commission - Request Concluded',
                             ].includes(request.status)
                               ? 'bg-green-500'
-                              : request.status.includes('Pending HRMO/HHRMD')
+                              : request.status === 'Pending HRRP Review'
+                                ? 'bg-orange-500'
+                                : 'bg-gray-300'
+                          }`}
+                        ></div>
+                        <span className="text-[10px]">HRRP Review</span>
+                        <div className="w-3 h-px bg-gray-300"></div>
+                        <div
+                          className={`w-2 h-2 rounded-full ${
+                            [
+                              'Request Received – Awaiting Commission Decision',
+                              'Approved by Commission',
+                              'Rejected by Commission - Request Concluded',
+                            ].includes(request.status)
+                              ? 'bg-green-500'
+                              : request.status === 'Approved by HRRP - Awaiting Commission Review'
                                 ? 'bg-orange-500'
                                 : 'bg-gray-300'
                           }`}
@@ -1383,8 +1557,27 @@ export default function ServiceExtensionPage() {
                     >
                       View Details
                     </Button>
+                    {(role === ROLES.HRRP) &&
+                      request.status === 'Pending HRRP Review' && (
+                        <>
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() => handleHrrpAction(request.id, 'forward')}
+                          >
+                            Approve &amp; Forward to Commission
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleHrrpAction(request.id, 'reject')}
+                          >
+                            Reject &amp; Return to HRO
+                          </Button>
+                        </>
+                      )}
                     {(role === ROLES.HRMO || role === ROLES.HHRMD) &&
-                      request.status === 'Pending HRMO/HHRMD Review' && (
+                      request.status === 'Approved by HRRP - Awaiting Commission Review' && (
                         <>
                           <Button
                             size="sm"
@@ -1405,7 +1598,8 @@ export default function ServiceExtensionPage() {
                           </Button>
                         </>
                       )}
-                    {request.reviewStage === 'commission_review' &&
+                    {(role === ROLES.HHRMD || role === ROLES.HRMO) &&
+                      request.reviewStage === 'commission_review' &&
                       request.status ===
                         'Request Received – Awaiting Commission Decision' && (
                         <>
@@ -1611,8 +1805,66 @@ export default function ServiceExtensionPage() {
                     </p>
                   </div>
                 )}
+                {selectedRequest.hrrpReviewedBy && (
+                  <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
+                    <Label className="text-right font-semibold">HRRP Reviewed by:</Label>
+                    <p className="col-span-2">
+                      {selectedRequest.hrrpReviewedBy.name || 'N/A'} (
+                      {selectedRequest.hrrpReviewedBy.username || 'N/A'})
+                    </p>
+                  </div>
+                )}
               </div>
               <div className="pt-3 mt-3 border-t">
+                {selectedRequest.commissionLetterKey && (
+                  <div className="mb-4">
+                    <Label className="font-semibold">Barua Rasmi ya Tume</Label>
+                    <div className="mt-2 flex items-center gap-2 p-2 rounded-md border bg-secondary/50 text-sm">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-foreground">Barua Rasmi ya Tume</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePreviewFile(selectedRequest.commissionLetterKey!)}
+                        className="h-8 px-2 text-xs"
+                      >
+                        Preview
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            const headers: HeadersInit = {};
+                            if (accessToken) {
+                              headers['Authorization'] = `Bearer ${accessToken}`;
+                            }
+                            const response = await fetch(
+                              `/api/files/download/${selectedRequest.commissionLetterKey}`,
+                              { credentials: 'include', headers }
+                            );
+                            if (response.ok) {
+                              const blob = await response.blob();
+                              const url = window.URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = 'Barua_Rasmi_ya_Tume.pdf';
+                              document.body.appendChild(a);
+                              a.click();
+                              window.URL.revokeObjectURL(url);
+                              document.body.removeChild(a);
+                            }
+                          } catch (error) {
+                            toast({ title: 'Download Failed', description: 'Could not download the file.', variant: 'destructive' });
+                          }
+                        }}
+                        className="h-8 px-2 text-xs"
+                      >
+                        Download
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 <Label className="font-semibold">Attached Documents</Label>
                 <div className="mt-2 space-y-2">
                   {selectedRequest.documents &&
@@ -1681,7 +1933,7 @@ export default function ServiceExtensionPage() {
                                     });
                                   }
                                 } catch (error) {
-                                  log.error({ err: error }, 'Download failed:');
+                                  console.error('Download failed:', error);
                                   toast({
                                     title: 'Download Failed',
                                     description:
@@ -1765,6 +2017,80 @@ export default function ServiceExtensionPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Commission Decision Modal */}
+      <Dialog
+        open={isCommissionDecisionModalOpen}
+        onOpenChange={setIsCommissionDecisionModalOpen}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {commissionDecisionType === 'approved'
+                ? 'Approved by Commission'
+                : 'Rejected by Commission'}
+            </DialogTitle>
+            <DialogDescription>
+              {commissionDecisionType === 'approved'
+                ? 'Pakia barua rasmi ya Tume ya kuidhinisha ombi hili.'
+                : 'Pakia barua rasmi ya Tume ya kukataa ombi hili na toa sababu.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {commissionDecisionType === 'rejected' && (
+              <div className="space-y-2">
+                <Label className="font-semibold">Sababu ya Kukataa *</Label>
+                <Textarea
+                  value={commissionRejectionReason}
+                  onChange={(e) => setCommissionRejectionReason(e.target.value)}
+                  placeholder="Toa sababu ya kukataa ombi hili..."
+                  rows={3}
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <FileUpload
+                label="Barua Rasmi ya Tume *"
+                description="Pakia barua rasmi ya Tume (PDF pekee, max 1MB)"
+                accept=".pdf"
+                maxSize={1}
+                folder="service-extension/commission-letters"
+                value={commissionLetterFile}
+                onChange={(value) => setCommissionLetterFile(value as string)}
+                onPreview={(objectKey) => {
+                  setPreviewObjectKey(objectKey);
+                  setIsPreviewModalOpen(true);
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsCommissionDecisionModalOpen(false)}
+              disabled={isCommissionSubmitting}
+            >
+              Ghairi
+            </Button>
+            <Button
+              className={
+                commissionDecisionType === 'approved'
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : ''
+              }
+              variant={commissionDecisionType === 'rejected' ? 'destructive' : 'default'}
+              onClick={handleCommissionDecisionSubmit}
+              disabled={
+                isCommissionSubmitting ||
+                !commissionLetterFile ||
+                (commissionDecisionType === 'rejected' && !commissionRejectionReason.trim())
+              }
+            >
+              {isCommissionSubmitting ? 'Inawasilisha...' : 'Wasilisha Uamuzi'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {requestToCorrect && (
         <Dialog

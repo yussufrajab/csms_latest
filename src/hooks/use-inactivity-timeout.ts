@@ -11,21 +11,21 @@ const log = clientLogger.child({ component: 'inactivity-timeout' });
 /**
  * Session Inactivity Timeout Hook
  *
- * Automatically logs out users after 7 minutes of inactivity.
+ * Automatically logs out users after 2 hours of inactivity.
  * Inactivity is defined as no user interactions (mouse, keyboard, scroll, touch, etc.)
  *
  * Features:
  * - Tracks user activity events
  * - Updates server with activity timestamps
- * - Shows warning 1 minute before timeout
+ * - Shows warning 5 minutes before timeout
  * - Auto-logout on timeout
  * - Handles tab visibility changes
  */
 
-const SESSION_TIMEOUT_MS = 7 * 60 * 1000; // 7 minutes
-const WARNING_BEFORE_MS = 1 * 60 * 1000; // Warn 1 minute before
-const ACTIVITY_UPDATE_INTERVAL_MS = 30 * 1000; // Update server every 30 seconds
-const CHECK_INTERVAL_MS = 5 * 1000; // Check timeout every 5 seconds
+const SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
+const WARNING_BEFORE_MS = 5 * 60 * 1000; // Warn 5 minutes before timeout
+const ACTIVITY_UPDATE_INTERVAL_MS = 60 * 1000; // Update server every 60 seconds
+const CHECK_INTERVAL_MS = 15 * 1000; // Check timeout every 15 seconds
 
 interface UseInactivityTimeoutOptions {
   enabled?: boolean;

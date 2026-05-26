@@ -20,6 +20,11 @@ const updateSchema = z.object({
   illnessDescription: z.string().nullable().optional(),
   delayReason: z.string().nullable().optional(),
   documents: z.array(z.string()).optional(),
+  hrrpReviewedById: z.string().optional(),
+  hrrpReviewedAt: z.string().datetime().optional(),
+  commissionLetterKey: z.string().optional(),
+  decisionDate: z.string().datetime().optional(),
+  commissionDecisionDate: z.string().datetime().optional(),
 });
 
 async function handleUpdate(
@@ -58,6 +63,9 @@ async function handleUpdate(
         },
         User_RetirementRequest_reviewedByIdToUser: {
           select: { name: true, role: true },
+        },
+        User_RetirementRequest_hrrpReviewedByToUser: {
+          select: { id: true, name: true, username: true },
         },
       },
     });

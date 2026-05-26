@@ -11,6 +11,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
     const zanId = searchParams.get('zanId');
     const payrollNumber = searchParams.get('payrollNumber');
     const identifier = searchParams.get('identifier'); // New flexible search parameter
+    const employeeId = searchParams.get('employeeId'); // Direct employee ID lookup
     const q = searchParams.get('q');
     const userRole = auth.role;
     const userInstitutionId = auth.institutionId;
@@ -24,7 +25,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       userInstitutionId,
      }, 'Employee search API called with');
 
-    if (!zanId && !payrollNumber && !identifier && !q) {
+    if (!zanId && !payrollNumber && !identifier && !employeeId && !q) {
       return NextResponse.json(
         {
           success: false,
@@ -68,6 +69,9 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       } else {
         whereClause.OR = [{ zanId: identifier }, { payrollNumber: identifier }];
       }
+    } else if (employeeId) {
+      // Direct lookup by employee ID
+      whereClause.id = employeeId;
     } else if (q) {
       // For general search, we need to combine institution filter with OR conditions
       if (shouldFilter) {
@@ -129,12 +133,14 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
 
       if (unauthorizedEmployees.length > 0) {
         logger.warn(
-          `Security violation detected: User ${userRole} from institution ${userInstitutionId} attempted to access employees from other institutions:`,
-          unauthorizedEmployees.map((emp) => ({
-            id: emp.id,
-            zanId: emp.zanId,
-            institutionId: emp.institutionId,
-          }))
+          {
+            violations: unauthorizedEmployees.map((emp) => ({
+              id: emp.id,
+              zanId: emp.zanId,
+              institutionId: emp.institutionId,
+            })),
+          },
+          `Security violation detected: User ${userRole} from institution ${userInstitutionId} attempted to access employees from other institutions`
         );
 
         return NextResponse.json(
@@ -194,4 +200,4 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       { status: 500 }
     );
   }
-}, { allowedRoles: ['ADMIN', 'HRO', 'HRMO', 'HHRMD', 'DO', 'CSCS'] }), 'read');
+}, { allowedRoles: ['ADMIN', 'HRO', 'HRRP', 'HRMO', 'HHRMD', 'DO', 'CSCS', 'EMPLOYEE'] }), 'read');
