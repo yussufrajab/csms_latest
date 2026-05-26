@@ -96,9 +96,9 @@ function ComplaintConfirmContent() {
             {state === 'error' && 'Hitilafu'}
           </CardTitle>
           <CardDescription>
-            {state === 'loading' && 'Tunathibitisha link chako...'}
+            {state === 'loading' && 'Tunathibitisha link yako...'}
             {state === 'success' && 'Lalamiko lako limepokelewa kikamilifu.'}
-            {state === 'error' && 'Kuna tatizo na link chako.'}
+            {state === 'error' && 'Kuna tatizo na link yako.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center space-y-6">
@@ -157,7 +157,7 @@ export default function ComplaintConfirmPage() {
           <Card className="w-full max-w-md">
             <CardHeader className="text-center">
               <CardTitle className="text-2xl">Inathibitisha...</CardTitle>
-              <CardDescription>Tunathibitisha link chako...</CardDescription>
+              <CardDescription>Tunathibitisha link yako...</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center space-y-6">
               <Loader2 className="h-16 w-16 animate-spin text-primary" />

@@ -412,7 +412,7 @@ export default function ComplaintsPage() {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        toast({ title: 'Imeshindikana', description: result.message || 'Imeshindwa kutuma link cha kuthibitisha.', variant: 'destructive' });
+        toast({ title: 'Imeshindikana', description: result.message || 'Imeshindwa kutuma link ya kuthibitisha.', variant: 'destructive' });
         setIsMagicLinkSending(false);
         return;
       }
@@ -429,7 +429,7 @@ export default function ComplaintsPage() {
       setComplaintLetterFile('');
       setEvidenceFile('');
 
-      toast({ title: 'Link Imetumwa', description: 'Tumetuma link cha kuthibitisha kwenye barua pepe yako. Bonyeza link hicho kuwasilisha lalamiko.' });
+      toast({ title: 'Link Imetumwa', description: 'Tumetuma link ya kuthibitisha kwenye barua pepe yako. Bonyeza link hiyo kuwasilisha lalamiko.' });
     } catch {
       toast({ title: 'Hitilafu', description: 'Hitilafu imetokea. Tafadhali jaribu tena.', variant: 'destructive' });
       setIsMagicLinkSending(false);
@@ -1441,8 +1441,8 @@ export default function ComplaintsPage() {
                   <div>
                     <h3 className="text-xl font-semibold mb-2">Barua Pepe Imetumwa!</h3>
                     <p className="text-muted-foreground max-w-md mx-auto">
-                      Tumetuma link cha kuthibitisha kwenye <strong>{magicLinkEmail}</strong>.
-                      Bonyeza link hicho katika email yako kuwasilisha lalamiko lako.
+                      Tumetuma link ya kuthibitisha kwenye <strong>{magicLinkEmail}</strong>.
+                      Bonyeza link hiyo katika email yako kuwasilisha lalamiko lako.
                     </p>
                   </div>
                   <Card className="bg-blue-50 border-blue-200 max-w-md mx-auto">
