@@ -54,7 +54,7 @@ function MagicLinkConfirmationContent() {
       }, 1000);
       return () => clearTimeout(timer);
     } else if (state === 'success' && countdown === 0) {
-      router.push('/complaints/submitted');
+      router.push('/dashboard/complaints');
     }
   }, [state, countdown, router]);
 
@@ -103,7 +103,7 @@ function MagicLinkConfirmationContent() {
   };
 
   const handleGoBack = () => {
-    router.push('/complaints');
+    router.push('/dashboard/complaints');
   };
 
   return (
