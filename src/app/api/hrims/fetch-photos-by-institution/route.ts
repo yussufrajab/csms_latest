@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
  );
  }
 
- hrimsLogger.info(' Starting bulk photo fetch for institution:', institutionId);
+ hrimsLogger.info(`Starting bulk photo fetch for institution: ${institutionId}`);
 
  // Fetch all employees from database for this institution
  const employees = await prisma.employee.findMany({
@@ -282,8 +282,8 @@ export async function POST(request: NextRequest) {
  hrimsLogger.info(` Photo uploaded to MinIO: ${filePath}`);
  } catch (uploadError) {
  hrimsLogger.error(
- ` Failed to upload photo to MinIO for ${name}:`,
- uploadError
+ { err: uploadError },
+ `Failed to upload photo to MinIO for ${name}:`
  );
  results.push({
  employeeName: name,
@@ -358,7 +358,7 @@ export async function POST(request: NextRequest) {
  message: error instanceof Error ? error.message : 'Unknown error',
  });
  failedCount++;
- hrimsLogger.error(` Failed to fetch photo for ${name}:`, error);
+ hrimsLogger.error({ err: error }, `Failed to fetch photo for ${name}:`);
 
  // Send progress update
  const progressData = {
@@ -390,7 +390,7 @@ export async function POST(request: NextRequest) {
  skipped: skippedCount,
  };
 
- hrimsLogger.info(` Photo fetch complete. Summary:`, summary);
+ hrimsLogger.info(summary, 'Photo fetch complete. Summary:');
 
  // Send final result
  const finalData = {
@@ -417,7 +417,7 @@ export async function POST(request: NextRequest) {
  },
  });
  } catch (error) {
- hrimsLogger.error(' Error in bulk photo fetch:', error);
+ hrimsLogger.error({ err: error }, 'Error in bulk photo fetch:');
  return NextResponse.json(
  {
  success: false,

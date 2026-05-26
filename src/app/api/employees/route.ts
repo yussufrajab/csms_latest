@@ -114,10 +114,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       whereClause.institutionId = userInstitutionId;
       logger.info({ value: userRole }, 'Applying institution filter for role');
     } else if (isCSCRole(userRole)) {
-      logger.info(
-        'CSC role detected - showing ALL institutions data for role:',
-        userRole
-      );
+      logger.info(`CSC role detected - showing ALL institutions data for role: ${userRole}`);
     } else if (!userRole) {
       logger.info(
         'No user role provided - showing ALL employees (default behavior)'

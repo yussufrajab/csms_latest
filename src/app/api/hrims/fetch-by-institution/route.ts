@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
  statusUrl: `/api/hrims/sync-status/${jobId}`,
  });
  } catch (error) {
- hrimsLogger.error('Error queueing HRIMS sync job:', error);
+ hrimsLogger.error({ err: error }, 'Error queueing HRIMS sync job:');
 
  return NextResponse.json(
  {

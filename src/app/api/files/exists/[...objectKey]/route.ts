@@ -13,8 +13,8 @@ export async function GET(
     const objectKey = decodeURIComponent(resolvedParams.objectKey.join('/'));
 
     logger.info(
-      'File exists API - Object key segments:',
-      resolvedParams.objectKey
+      { objectKeySegments: resolvedParams.objectKey },
+      'File exists API - Object key segments'
     );
     logger.info({ value: objectKey }, 'File exists API - Reconstructed object key');
 

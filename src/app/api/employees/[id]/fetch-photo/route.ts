@@ -105,10 +105,7 @@ export async function POST(
 
  const hrimsData = await hrimsResponse.json();
  logger.info(' Received response from HRIMS');
- logger.info(
- 'HRIMS Response structure:',
- JSON.stringify(hrimsData).substring(0, 500)
- );
+ logger.info(`HRIMS Response structure: ${JSON.stringify(hrimsData).substring(0, 500)}`);
 
  // Extract photo data from response
  // The response structure may vary, adjust according to actual HRIMS response

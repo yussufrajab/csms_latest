@@ -43,8 +43,6 @@ import {
 import { format, parseISO } from 'date-fns';
 import { Pagination } from '@/components/shared/pagination';
 import { FilePreviewModal } from '@/components/ui/file-preview-modal';
-import { clientLogger } from '@/lib/logger-client';
-const log = clientLogger.child({ component: 'lwop' });
 
 interface LWOPRequest {
   id: string;
@@ -54,10 +52,9 @@ interface LWOPRequest {
   >; // API returns this (capital E)
   employee?: Partial<Employee & User & { institution: { name: string } }>; // Keep for compatibility
   submittedBy: Partial<User>;
+  submittedById?: string;
   reviewedBy?: Partial<User> | null;
   hrrpReviewedBy?: Partial<User> | null;
-  hrrpReviewedAt?: string | null;
-  decisionDate?: string | null;
   status: string;
   reviewStage: string;
   rejectionReason?: string | null;
@@ -67,6 +64,10 @@ interface LWOPRequest {
   duration: string;
   reason: string;
   documents: string[];
+  decisionDate?: string | null;
+  commissionDecisionDate?: string | null;
+  commissionLetterKey?: string | null;
+  hrrpReviewedAt?: string | null;
 }
 
 function parseDurationToMonths(durationStr: string): number | null {
@@ -139,17 +140,16 @@ export default function LwopPage() {
   const [previewFileKey, setPreviewFileKey] = useState<string>('');
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
+  const [isCommissionDecisionModalOpen, setIsCommissionDecisionModalOpen] = useState(false);
+  const [commissionDecisionType, setCommissionDecisionType] = useState<'approved' | 'rejected' | null>(null);
+  const [commissionDecisionRequestId, setCommissionDecisionRequestId] = useState<string | null>(null);
+  const [commissionLetterFile, setCommissionLetterFile] = useState<string>('');
+  const [commissionRejectionReason, setCommissionRejectionReason] = useState('');
+  const [isCommissionSubmitting, setIsCommissionSubmitting] = useState(false);
+
   const isEmployeeOnProbation = employeeDetails?.status === 'On Probation';
   const isEmployeeOnLWOP =
     employeeDetails?.status === 'On LWOP' || employeeDetails?.status === 'LWOP';
-
-  const pendingStatuses = [
-    'Pending HRRP Review',
-    'Pending HRMO/HHRMD Review',
-    'Approved by HRRP - Awaiting Commission Review',
-    'Request Received – Awaiting Commission Decision',
-    'Pending DO/HHRMD Review',
-  ];
 
   // Check for existing pending LWOP requests for this employee
   const hasPendingLWOPRequest = employeeDetails
@@ -157,7 +157,8 @@ export default function LwopPage() {
         const employeeId = request.Employee?.id || request.employee?.id;
         return (
           employeeId === employeeDetails.id &&
-          pendingStatuses.includes(request.status)
+          (request.status.includes('Pending') ||
+            request.status.includes('Awaiting'))
         );
       })
     : false;
@@ -168,6 +169,12 @@ export default function LwopPage() {
   // Helper function to get employee from request (handles both Employee and employee)
   const getEmployeeFromRequest = (request: LWOPRequest) => {
     return request.Employee || request.employee;
+  };
+
+  // Handle file preview
+  const handlePreviewFile = (objectKey: string) => {
+    setPreviewFileKey(objectKey);
+    setIsPreviewModalOpen(true);
   };
 
   // Helper function to shorten document names for better display
@@ -252,7 +259,7 @@ export default function LwopPage() {
         });
         if (!response.ok) throw new Error('Failed to fetch LWOP requests');
         const result = await response.json();
-        log.info({ result }, 'Data received from API:');
+        console.log('[LWOP_FRONTEND] Data received from API:', result);
 
         // Handle both array and paginated object responses
         let requests = [];
@@ -283,7 +290,23 @@ export default function LwopPage() {
               : req.updatedAt,
           // Keep submittedBy as an object, don't overwrite it
         }));
-        setPendingRequests(processedData);
+
+        // Client-side filtering for HRO: only show their own submissions
+        const filteredData = processedData.filter((req: LWOPRequest) => {
+          if (
+            role === ROLES.HHRMD ||
+            role === ROLES.HRMO ||
+            role === ROLES.CSCS ||
+            role === ROLES.HRRP
+          ) {
+            return true;
+          } else if (role === ROLES.HRO) {
+            return req.submittedById === user.id;
+          }
+          return true;
+        });
+
+        setPendingRequests(filteredData);
         if (isRefresh) {
           toast({
             title: 'Refreshed',
@@ -335,7 +358,7 @@ export default function LwopPage() {
   };
 
   const handleEmployeeFound = (employee: Employee) => {
-    log.info(`Found employee: ${employee.name}`);
+    console.log(`[LWOP] Found employee: ${employee.name}`);
 
     // Reset form fields when new employee is selected
     resetForm();
@@ -464,9 +487,8 @@ export default function LwopPage() {
           documents: [
             correctedLetterOfRequestKey,
             correctedEmployeeConsentLetterKey,
-          ].filter(Boolean), // Filter out empty strings if no file is selected
+          ].filter(Boolean),
           rejectionReason: null, // Clear rejection reason on resubmission
-          reviewedById: null, // Reset reviewer to allow fresh review
         }),
       });
 
@@ -589,7 +611,6 @@ export default function LwopPage() {
       submittedById: user.id,
       userRole: role,
       documents: documentsList,
-      // HRO submissions go to HRRP review first; HRRP submissions auto-approve
       status: role === ROLES.HRRP
         ? 'Approved by HRRP - Awaiting Commission Review'
         : 'Pending HRRP Review',
@@ -659,7 +680,6 @@ export default function LwopPage() {
         body: JSON.stringify({
           id: requestId,
           ...payload,
-          reviewedById: user?.id,
           userRole: role,
         }),
       });
@@ -705,37 +725,8 @@ export default function LwopPage() {
       await handleUpdateRequest(
         requestId,
         payload,
-        'Request forwarded to Commission'
+        `Request approved by ${roleName} and forwarded to Commission`
       );
-    }
-  };
-
-  const handleRejectionSubmit = async () => {
-    if (!currentRequestToAction || !rejectionReasonInput.trim() || !user)
-      return;
-
-    let rejectionStatus: string;
-    if (role === ROLES.HRRP) {
-      rejectionStatus = 'Rejected by HRRP - Awaiting HRO Correction';
-    } else {
-      rejectionStatus = `Rejected by ${role} - Awaiting HRO Correction`;
-    }
-
-    const payload = {
-      status: rejectionStatus,
-      rejectionReason: rejectionReasonInput,
-      reviewStage: 'initial',
-      decisionDate: new Date().toISOString(),
-    };
-    const success = await handleUpdateRequest(
-      currentRequestToAction.id,
-      payload,
-      'Request rejected and returned to HRO'
-    );
-    if (success) {
-      setIsRejectionModalOpen(false);
-      setCurrentRequestToAction(null);
-      setRejectionReasonInput('');
     }
   };
 
@@ -751,6 +742,7 @@ export default function LwopPage() {
       setRejectionReasonInput('');
       setIsRejectionModalOpen(true);
     } else if (action === 'forward') {
+      // HRRP approves and forwards to commission
       const payload = {
         status: 'Approved by HRRP - Awaiting Commission Review',
         reviewStage: 'hrrp_review',
@@ -767,24 +759,102 @@ export default function LwopPage() {
     }
   };
 
-  const handleCommissionDecision = async (
-    requestId: string,
-    decision: 'approved' | 'rejected'
-  ) => {
-    const request = pendingRequests.find((req) => req.id === requestId);
-    if (!request) return;
+  const handleRejectionSubmit = async () => {
+    if (!currentRequestToAction || !rejectionReasonInput.trim() || !user)
+      return;
 
-    const finalStatus =
-      decision === 'approved'
-        ? 'Approved by Commission'
-        : 'Rejected by Commission - Request Concluded';
-    const payload = { status: finalStatus, reviewStage: 'completed' };
-    const actionDescription =
-      decision === 'approved'
-        ? 'LWOP approved by Commission'
-        : 'LWOP rejected by Commission';
+    let rejectionStatus: string;
+    if (role === ROLES.HRRP) {
+      rejectionStatus = 'Rejected by HRRP - Awaiting HRO Correction';
+    } else {
+      // HHRMD or HRMO rejection
+      rejectionStatus = `Rejected by ${role} - Awaiting HRO Correction`;
+    }
 
-    await handleUpdateRequest(requestId, payload, actionDescription);
+    const payload: any = {
+      status: rejectionStatus,
+      rejectionReason: rejectionReasonInput,
+      reviewStage: 'initial',
+      decisionDate: new Date().toISOString(),
+    };
+    // Only set reviewedById for HHRMD/HRMO rejections, not HRRP
+    if (role !== ROLES.HRRP) {
+      payload.reviewedById = user?.id;
+    }
+    const success = await handleUpdateRequest(
+      currentRequestToAction.id,
+      payload,
+      'Request rejected and returned to HRO'
+    );
+    if (success) {
+      setIsRejectionModalOpen(false);
+      setCurrentRequestToAction(null);
+      setRejectionReasonInput('');
+    }
+  };
+
+  const handleCommissionDecision = async () => {
+    if (!commissionDecisionRequestId || !commissionDecisionType || !user) return;
+
+    if (!commissionLetterFile) {
+      toast({
+        title: 'Barua Inahitajika',
+        description: 'Tafadhali pakia barua rasmi ya Tume kabla ya kuwasilisha uamuzi.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (commissionDecisionType === 'rejected' && !commissionRejectionReason.trim()) {
+      toast({
+        title: 'Sababu ya Kukataa Inahitajika',
+        description: 'Tafadhali toa sababu ya kukataa ombi hili.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsCommissionSubmitting(true);
+    try {
+      const finalStatus =
+        commissionDecisionType === 'approved'
+          ? 'Approved by Commission'
+          : 'Rejected by Commission - Request Concluded';
+
+      const payload: Record<string, any> = {
+        status: finalStatus,
+        reviewStage: 'completed',
+        commissionDecisionDate: new Date().toISOString(),
+        reviewedById: user.id,
+        commissionLetterKey: commissionLetterFile,
+      };
+
+      if (commissionDecisionType === 'rejected') {
+        payload.rejectionReason = commissionRejectionReason;
+      }
+
+      await handleUpdateRequest(
+        commissionDecisionRequestId,
+        payload,
+        commissionDecisionType === 'approved'
+          ? 'LWOP approved by Commission'
+          : 'LWOP rejected by Commission'
+      );
+
+      setIsCommissionDecisionModalOpen(false);
+      setCommissionLetterFile('');
+      setCommissionRejectionReason('');
+      setCommissionDecisionRequestId(null);
+      setCommissionDecisionType(null);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Imeshindwa kufanya uamuzi. Tafadhali jaribu tena.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCommissionSubmitting(false);
+    }
   };
 
   const paginatedRequests = pendingRequests || [];
@@ -1170,16 +1240,22 @@ export default function LwopPage() {
                         : 'N/A'}{' '}
                       by {request.submittedBy?.name || 'N/A'}
                     </p>
-                    {request.reviewedBy && (
-                      <p className="text-sm text-muted-foreground">
-                        Reviewed by: {request.reviewedBy.name || 'N/A'} (
-                        {request.reviewedBy.username || 'N/A'})
-                      </p>
-                    )}
                     {request.hrrpReviewedBy && (
                       <p className="text-sm text-muted-foreground">
                         HRRP Reviewed by: {request.hrrpReviewedBy.name || 'N/A'} (
                         {request.hrrpReviewedBy.username || 'N/A'})
+                      </p>
+                    )}
+                    {request.decisionDate && (
+                      <p className="text-sm text-muted-foreground">
+                        Initial Review Date:{' '}
+                        {format(parseISO(request.decisionDate), 'PPP')}
+                      </p>
+                    )}
+                    {request.commissionDecisionDate && (
+                      <p className="text-sm text-muted-foreground">
+                        Commission Decision Date:{' '}
+                        {format(parseISO(request.commissionDecisionDate), 'PPP')}
                       </p>
                     )}
                     <div className="flex items-center space-x-2">
@@ -1200,10 +1276,11 @@ export default function LwopPage() {
                                     ? 'bg-purple-100 text-purple-800'
                                     : request.status.includes('Pending HRMO/HHRMD')
                                       ? 'bg-orange-100 text-orange-800'
-                                      : request.status.includes('Awaiting HRO') ||
-                                        request.status.includes('Correction')
+                                      : request.status.includes('Awaiting HRO') || request.status.includes('Correction')
                                         ? 'bg-yellow-100 text-yellow-800'
-                                        : 'bg-gray-100 text-gray-800'
+                                        : request.status.includes('Rejected')
+                                          ? 'bg-red-100 text-red-800'
+                                          : 'bg-gray-100 text-gray-800'
                         }`}
                       >
                         {request.status}
@@ -1316,61 +1393,71 @@ export default function LwopPage() {
                           {(role === ROLES.HRMO || role === ROLES.HHRMD) &&
                             (request.status === 'Approved by HRRP - Awaiting Commission Review' ||
                              request.status === 'Pending HRMO/HHRMD Review') && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  onClick={() =>
-                                    handleInitialAction(request.id, 'forward')
-                                  }
-                                >
-                                  Verify &amp; Forward to Commission
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() =>
-                                    handleInitialAction(request.id, 'reject')
-                                  }
-                                >
-                                  Reject &amp; Return to HRO
-                                </Button>
-                              </>
-                            )}
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={() =>
+                                  handleInitialAction(request.id, 'forward')
+                                }
+                              >
+                                Verify &amp; Forward to Commission
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() =>
+                                  handleInitialAction(request.id, 'reject')
+                                }
+                              >
+                                Reject &amp; Return to HRO
+                              </Button>
+                            </>
+                          )}
                           {/* Commission decision */}
                           {(role === ROLES.HHRMD || role === ROLES.HRMO) &&
                             request.reviewStage === 'commission_review' &&
                             request.status.includes('Awaiting Commission Decision') && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  className="bg-green-600 hover:bg-green-700 text-white"
-                                  onClick={() =>
-                                    handleCommissionDecision(request.id, 'approved')
-                                  }
-                                >
-                                  Approved by Commission
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="destructive"
-                                  onClick={() =>
-                                    handleCommissionDecision(request.id, 'rejected')
-                                  }
-                                >
-                                  Rejected by Commission
-                                </Button>
-                              </>
-                            )}
+                            <>
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                                onClick={() => {
+                                  setCommissionDecisionRequestId(request.id);
+                                  setCommissionDecisionType('approved');
+                                  setCommissionLetterFile('');
+                                  setCommissionRejectionReason('');
+                                  setIsCommissionDecisionModalOpen(true);
+                                }}
+                              >
+                                Approved by Commission
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => {
+                                  setCommissionDecisionRequestId(request.id);
+                                  setCommissionDecisionType('rejected');
+                                  setCommissionLetterFile('');
+                                  setCommissionRejectionReason('');
+                                  setIsCommissionDecisionModalOpen(true);
+                                }}
+                              >
+                                Rejected by Commission
+                              </Button>
+                            </>
+                          )}
                         </>
                       )}
-                      {/* HRO Correction Actions */}
+
                       {role === ROLES.HRO &&
-                        (request.status === 'Rejected by HRMO - Awaiting HRO Correction' ||
-                         request.status === 'Rejected by HHRMD - Awaiting HRO Correction' ||
-                         request.status === 'Rejected by HRRP - Awaiting HRO Correction') && (
+                        (request.status ===
+                          'Rejected by HHRMD - Awaiting HRO Correction' ||
+                          request.status ===
+                            'Rejected by HRMO - Awaiting HRO Correction' ||
+                          request.status ===
+                            'Rejected by HRRP - Awaiting HRO Correction') && (
                           <Button
                             size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
                             onClick={() => handleResubmit(request)}
                           >
                             Correct and Resubmit
@@ -1555,17 +1642,6 @@ export default function LwopPage() {
                         by {selectedRequest.submittedBy?.name || 'N/A'}
                       </p>
                     </div>
-                    {selectedRequest.reviewedBy && (
-                      <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
-                        <Label className="text-right font-semibold">
-                          Reviewed By:
-                        </Label>
-                        <p className="col-span-2">
-                          {selectedRequest.reviewedBy.name || 'N/A'} (
-                          {selectedRequest.reviewedBy.username || 'N/A'})
-                        </p>
-                      </div>
-                    )}
                     {selectedRequest.hrrpReviewedBy && (
                       <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
                         <Label className="text-right font-semibold">
@@ -1584,6 +1660,21 @@ export default function LwopPage() {
                         </Label>
                         <p className="col-span-2">
                           {format(parseISO(selectedRequest.decisionDate), 'PPP')}
+                        </p>
+                      </div>
+                    )}
+                    {selectedRequest.commissionDecisionDate && (
+                      <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
+                        <Label className="text-right font-semibold">
+                          Commission Date:
+                        </Label>
+                        <p className="col-span-2">
+                          {format(
+                            typeof selectedRequest.commissionDecisionDate === 'string'
+                              ? parseISO(selectedRequest.commissionDecisionDate)
+                              : selectedRequest.commissionDecisionDate,
+                            'PPP'
+                          )}
                         </p>
                       </div>
                     )}
@@ -1685,7 +1776,7 @@ export default function LwopPage() {
                                         });
                                       }
                                     } catch (error) {
-                                      log.error({ err: error }, 'Download error:');
+                                      console.error('Download error:', error);
                                       toast({
                                         title: 'Download Failed',
                                         description:
@@ -1709,6 +1800,72 @@ export default function LwopPage() {
                       )}
                     </div>
                   </div>
+
+                  {/* Commission Letter */}
+                  {selectedRequest.commissionLetterKey && (
+                    <div className="pt-3 mt-3 border-t">
+                      <Label className="font-semibold">Barua Rasmi ya Tume</Label>
+                      <div className="mt-2 space-y-2">
+                        <div className="flex items-center justify-between p-2 rounded-md border bg-blue-50 dark:bg-blue-950/30 text-sm">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                            <span className="font-medium text-foreground">
+                              Barua Rasmi ya Tume
+                            </span>
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-2 text-xs"
+                              onClick={() => handlePreviewFile(selectedRequest.commissionLetterKey!)}
+                            >
+                              Preview
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-2 text-xs"
+                              onClick={async () => {
+                                try {
+                                  const response = await fetch(
+                                    `/api/files/download/${selectedRequest.commissionLetterKey}`,
+                                    { credentials: 'include' }
+                                  );
+                                  if (response.ok) {
+                                    const blob = await response.blob();
+                                    const url = window.URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = 'Barua-Rasmi-ya-Tume.pdf';
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    window.URL.revokeObjectURL(url);
+                                    document.body.removeChild(a);
+                                  } else {
+                                    toast({
+                                      title: 'Download Failed',
+                                      description: 'Could not download the file. Please try again.',
+                                      variant: 'destructive',
+                                    });
+                                  }
+                                } catch (error) {
+                                  toast({
+                                    title: 'Download Failed',
+                                    description: 'Could not download the file. Please try again.',
+                                    variant: 'destructive',
+                                  });
+                                }
+                              }}
+                            >
+                              Download
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
                 <DialogFooter>
                   <DialogClose asChild>
@@ -1774,6 +1931,80 @@ export default function LwopPage() {
             </Dialog>
           );
         })()}
+
+      {/* Commission Decision Modal */}
+      <Dialog
+        open={isCommissionDecisionModalOpen}
+        onOpenChange={setIsCommissionDecisionModalOpen}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {commissionDecisionType === 'approved'
+                ? 'Approved by Commission'
+                : 'Rejected by Commission'}
+            </DialogTitle>
+            <DialogDescription>
+              {commissionDecisionType === 'approved'
+                ? 'Pakia barua rasmi ya Tume ya kuidhinisha ombi hili.'
+                : 'Pakia barua rasmi ya Tume ya kukataa ombi hili na toa sababu.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {commissionDecisionType === 'rejected' && (
+              <div className="space-y-2">
+                <Label className="font-semibold">Sababu ya Kukataa *</Label>
+                <Textarea
+                  value={commissionRejectionReason}
+                  onChange={(e) => setCommissionRejectionReason(e.target.value)}
+                  placeholder="Toa sababu ya kukataa ombi hili..."
+                  rows={3}
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <FileUpload
+                label="Barua Rasmi ya Tume *"
+                description="Pakia barua rasmi ya Tume (PDF pekee, max 1MB)"
+                accept=".pdf"
+                maxSize={1}
+                folder="lwop/commission-letters"
+                value={commissionLetterFile}
+                onChange={(value) => setCommissionLetterFile(value as string)}
+                onPreview={(objectKey) => {
+                  setPreviewFileKey(objectKey);
+                  setIsPreviewModalOpen(true);
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsCommissionDecisionModalOpen(false)}
+              disabled={isCommissionSubmitting}
+            >
+              Ghairi
+            </Button>
+            <Button
+              className={
+                commissionDecisionType === 'approved'
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : ''
+              }
+              variant={commissionDecisionType === 'rejected' ? 'destructive' : 'default'}
+              onClick={handleCommissionDecision}
+              disabled={
+                isCommissionSubmitting ||
+                !commissionLetterFile ||
+                (commissionDecisionType === 'rejected' && !commissionRejectionReason.trim())
+              }
+            >
+              {isCommissionSubmitting ? 'Inawasilisha...' : 'Wasilisha Uamuzi'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Correction Modal */}
       <Dialog

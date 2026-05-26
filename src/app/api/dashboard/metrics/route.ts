@@ -703,8 +703,8 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       pendingServiceExtensions,
     };
 
-    logger.info('=== Dashboard metrics calculated ===', stats);
-    logger.info('=== Recent activities count ===', recentActivities.length);
+    logger.info(stats, '=== Dashboard metrics calculated ===');
+    logger.info(`=== Recent activities count: ${recentActivities.length} ===`);
     logger.info(`=== Total request time: ${Date.now() - startTime}ms ===`);
 
     const response = {

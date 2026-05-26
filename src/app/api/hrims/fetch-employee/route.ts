@@ -181,12 +181,12 @@ async function saveEmployeeToDatabase(hrimsData: any, institutionId: string) {
       employeeEntityId: personalInfo.zanIdNumber, // Use ZanID as entity ID
     };
 
-    hrimsLogger.info('Saving employee data:', {
+    hrimsLogger.info({
       zanId: dbEmployeeData.zanId,
       name: dbEmployeeData.name,
       ministry: dbEmployeeData.ministry,
       cadre: dbEmployeeData.cadre,
-    });
+    }, 'Saving employee data:');
 
     // Save/update employee
     await db.employee.upsert({
@@ -197,7 +197,7 @@ async function saveEmployeeToDatabase(hrimsData: any, institutionId: string) {
 
     return employeeId;
   } catch (error) {
-    hrimsLogger.error('Error saving employee to database:', error);
+    hrimsLogger.error({ err: error }, 'Error saving employee to database:');
     throw error;
   }
 }
@@ -269,8 +269,7 @@ async function processDocuments(
         // Check for HRIMS internal errors
         if (hrimsData.code === 500 || hrimsData.status === 'Failure') {
           hrimsLogger.error(
-            ` HRIMS internal error for ${docType.name}:`,
-            hrimsData.message
+            `HRIMS internal error for ${docType.name}: ${hrimsData.message}`
           );
           continue;
         }
@@ -304,13 +303,13 @@ async function processDocuments(
 
         savedDocuments++;
       } catch (error) {
-        hrimsLogger.error(`Error processing ${docType.name}:`, error);
+        hrimsLogger.error({ err: error }, `Error processing ${docType.name}:`);
       }
     }
 
     return savedDocuments;
   } catch (error) {
-    hrimsLogger.error('Error processing documents:', error);
+    hrimsLogger.error({ err: error }, 'Error processing documents:');
     return 0;
   }
 }
@@ -409,7 +408,7 @@ async function processPhoto(
 
     return true;
   } catch (error) {
-    hrimsLogger.error('Error processing photo:', error);
+    hrimsLogger.error({ err: error }, 'Error processing photo:');
     return false;
   }
 }
@@ -460,7 +459,7 @@ export async function POST(req: NextRequest) {
       HRIMS_CONFIG
     );
 
-    hrimsLogger.info('HRIMS Response received:', {
+    hrimsLogger.info({
       code: employeeResponse.code,
       status: employeeResponse.status,
       message: employeeResponse.message,
@@ -468,7 +467,7 @@ export async function POST(req: NextRequest) {
       hasPersonalInfo: !!(
         employeeResponse.data && employeeResponse.data.personalInfo
       ),
-    });
+    }, 'HRIMS Response received:');
 
     if (employeeResponse.code !== 200 || !employeeResponse.data?.personalInfo) {
       return NextResponse.json(
@@ -552,7 +551,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    hrimsLogger.error('Error in HRIMS fetch-employee API:', error);
+    hrimsLogger.error({ err: error }, 'Error in HRIMS fetch-employee API:');
 
     return NextResponse.json(
       {

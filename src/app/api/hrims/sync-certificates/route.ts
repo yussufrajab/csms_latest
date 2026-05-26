@@ -49,10 +49,10 @@ const hrimsCertificatesResponseSchema = z.object({
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    hrimsLogger.info('HRIMS certificates sync request received:', {
+    hrimsLogger.info({
       ...body,
       hrimsApiKey: '[REDACTED]',
-    });
+    }, 'HRIMS certificates sync request received');
 
     // Validate request payload
     const validatedRequest = hrimsCertificatesRequestSchema.parse(body);
@@ -117,7 +117,7 @@ export async function POST(req: Request) {
       employee.id
     );
 
-    hrimsLogger.info('Certificates synced successfully for Employee:', employee.id);
+    hrimsLogger.info({ employeeId: employee.id }, 'Certificates synced successfully for Employee');
 
     return NextResponse.json(
       {
@@ -134,7 +134,7 @@ export async function POST(req: Request) {
       { status: 200 }
     );
   } catch (error) {
-    hrimsLogger.error('[HRIMS_CERTIFICATES_SYNC_ERROR]', error);
+    hrimsLogger.error({ err: error }, '[HRIMS_CERTIFICATES_SYNC_ERROR]');
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -200,7 +200,7 @@ async function fetchCertificatesFromHRIMS(
     hrimsLogger.info('HRIMS Certificates API response received');
     return data;
   } catch (error) {
-    hrimsLogger.error('Error fetching certificates from HRIMS:', error);
+    hrimsLogger.error({ err: error }, 'Error fetching certificates from HRIMS');
 
     // For development/demo - return mock data
     if (
@@ -245,7 +245,7 @@ async function storeEmployeeCertificates(
 
       successful++;
     } catch (error) {
-      hrimsLogger.error(`Failed to store certificate ${cert.id}:`, error);
+      hrimsLogger.error({ err: error, certificateId: cert.id }, `Failed to store certificate ${cert.id}`);
       failed++;
     }
   }

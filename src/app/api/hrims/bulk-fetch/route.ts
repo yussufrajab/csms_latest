@@ -118,7 +118,7 @@ async function saveEmployeeFromDetailedData(
 
  return employeeId;
  } catch (error) {
- hrimsLogger.error('Error saving detailed employee data:', error);
+ hrimsLogger.error({ err: error }, 'Error saving detailed employee data:');
  throw error;
  }
 }
@@ -207,11 +207,11 @@ async function saveEmployeeFromListData(
  employeeEntityId: employeeBasicInfo.zanIdNumber,
  };
 
- hrimsLogger.info('Saving employee from list data:', {
+ hrimsLogger.info({
  zanId: dbEmployeeData.zanId,
  name: dbEmployeeData.name,
  status: dbEmployeeData.status,
- });
+ }, 'Saving employee from list data:');
 
  // Save/update employee
  await db.employee.upsert({
@@ -222,7 +222,7 @@ async function saveEmployeeFromListData(
 
  return employeeId;
  } catch (error) {
- hrimsLogger.error('Error saving employee from list data:', error);
+ hrimsLogger.error({ err: error }, 'Error saving employee from list data:');
  throw error;
  }
 }
@@ -265,13 +265,13 @@ async function processEmployeeDocuments(
 
  savedDocuments++;
  } catch (error) {
- hrimsLogger.error(`Error processing document ${doc.id}:`, error);
+ hrimsLogger.error({ err: error }, `Error processing document ${doc.id}:`);
  }
  }
 
  return savedDocuments;
  } catch (error) {
- hrimsLogger.error('Error processing documents:', error);
+ hrimsLogger.error({ err: error }, 'Error processing documents:');
  return 0;
  }
 }
@@ -310,13 +310,13 @@ async function processEmployeeCertificates(
 
  savedCertificates++;
  } catch (error) {
- hrimsLogger.error(`Error processing certificate ${cert.id}:`, error);
+ hrimsLogger.error({ err: error }, `Error processing certificate ${cert.id}:`);
  }
  }
 
  return savedCertificates;
  } catch (error) {
- hrimsLogger.error('Error processing certificates:', error);
+ hrimsLogger.error({ err: error }, 'Error processing certificates:');
  return 0;
  }
 }
@@ -347,13 +347,13 @@ async function processBulkFetch(
  PageSize: fetchMode === 'fast' ? 100 : 50, // Larger batches for fast mode
  }, HRIMS_CONFIG);
 
- hrimsLogger.info(`Page ${page} response:`, {
+ hrimsLogger.info({
  code: employeeListResponse.code,
  status: employeeListResponse.status,
  hasData: !!employeeListResponse.data,
  currentDataSize: employeeListResponse.currentDataSize,
  overallDataSize: employeeListResponse.overallDataSize,
- });
+ }, `Page ${page} response:`);
 
  // Check if we have data
  if (
@@ -388,8 +388,8 @@ async function processBulkFetch(
  await new Promise((resolve) => setTimeout(resolve, 50)); // 50ms delay
  } catch (error) {
  hrimsLogger.error(
- `Error processing employee ${employeeBasicInfo.zanIdNumber}:`,
- error
+ { err: error },
+ `Error processing employee ${employeeBasicInfo.zanIdNumber}:`
  );
  }
  }
@@ -444,8 +444,8 @@ async function processBulkFetch(
  await new Promise((resolve) => setTimeout(resolve, 200)); // 200ms delay
  } catch (error) {
  hrimsLogger.error(
- `Error processing employee ${employeeBasicInfo.zanIdNumber}:`,
- error
+ { err: error },
+ `Error processing employee ${employeeBasicInfo.zanIdNumber}:`
  );
  }
  }
@@ -476,7 +476,7 @@ async function processBulkFetch(
  : 'Detailed mode: Complete employee profiles with employment history saved.',
  };
  } catch (error) {
- hrimsLogger.error('Error in bulk fetch:', error);
+ hrimsLogger.error({ err: error }, 'Error in bulk fetch:');
  throw error;
  }
 }
@@ -517,10 +517,10 @@ export async function POST(req: NextRequest) {
  // like Bull, Agenda, or a background worker service for this kind of operation
  processBulkFetch(institutionVoteNumber, institution.id, 'fast', HRIMS_CONFIG)
  .then((result) => {
- hrimsLogger.info(`Bulk fetch completed for ${institution.name}:`, result);
+ hrimsLogger.info(result, `Bulk fetch completed for ${institution.name}:`);
  })
  .catch((error) => {
- hrimsLogger.error(`Bulk fetch failed for ${institution.name}:`, error);
+ hrimsLogger.error({ err: error }, `Bulk fetch failed for ${institution.name}:`);
  });
 
  return NextResponse.json({
@@ -533,7 +533,7 @@ export async function POST(req: NextRequest) {
  },
  });
  } catch (error) {
- hrimsLogger.error('Error in HRIMS bulk-fetch API:', error);
+ hrimsLogger.error({ err: error }, 'Error in HRIMS bulk-fetch API:');
 
  return NextResponse.json(
  {

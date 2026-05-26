@@ -19,6 +19,7 @@ const updateSchema = z.object({
   commissionDecisionDate: z.string().datetime().optional(),
   hrrpReviewedById: z.string().optional(),
   hrrpReviewedAt: z.string().datetime().optional(),
+  commissionLetterKey: z.string().optional(),
 });
 
 async function handleUpdate(

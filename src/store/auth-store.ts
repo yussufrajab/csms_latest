@@ -24,6 +24,7 @@ function setAuthCookie(state: {
             id: state.user.id,
             role: state.user.role,
             username: state.user.username,
+            institutionId: state.user.institutionId,
           }
         : null,
       role: state.role,
@@ -406,6 +407,12 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: currentState.isAuthenticated,
           });
         }
+
+        // Refresh user data from database to pick up institution name
+        // and other profile changes that may have occurred since login
+        if (currentState.isAuthenticated && currentState.user) {
+          get().refreshUserData();
+        }
       },
 
       // Add a method to sync token updates from API client
@@ -444,21 +451,27 @@ export const useAuthStore = create<AuthState>()(
             log.info('User data refreshed successfully');
 
             // Update the store with fresh user data
+            // Construct institution object from institutionId/institutionName
+            // to match User type which expects { id, name } object
+            const refreshedUser = {
+              ...result.data,
+              institution: result.data.institutionName
+                ? { id: result.data.institutionId, name: result.data.institutionName }
+                : result.data.institution,
+              createdAt: new Date(result.data.createdAt),
+              updatedAt: new Date(result.data.updatedAt),
+              temporaryPasswordExpiry: result.data.temporaryPasswordExpiry
+                ? new Date(result.data.temporaryPasswordExpiry)
+                : null,
+              lastPasswordChange: result.data.lastPasswordChange
+                ? new Date(result.data.lastPasswordChange)
+                : null,
+              passwordChangeLockoutUntil: result.data.passwordChangeLockoutUntil
+                ? new Date(result.data.passwordChangeLockoutUntil)
+                : null,
+            };
             set({
-              user: {
-                ...result.data,
-                createdAt: new Date(result.data.createdAt),
-                updatedAt: new Date(result.data.updatedAt),
-                temporaryPasswordExpiry: result.data.temporaryPasswordExpiry
-                  ? new Date(result.data.temporaryPasswordExpiry)
-                  : null,
-                lastPasswordChange: result.data.lastPasswordChange
-                  ? new Date(result.data.lastPasswordChange)
-                  : null,
-                passwordChangeLockoutUntil: result.data.passwordChangeLockoutUntil
-                  ? new Date(result.data.passwordChangeLockoutUntil)
-                  : null,
-              },
+              user: refreshedUser,
               role: result.data.role,
             });
 

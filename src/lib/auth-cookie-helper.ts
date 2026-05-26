@@ -4,7 +4,9 @@
  */
 
 import type { User, Role } from '@/lib/types';
-import { authLogger } from '@/lib/logger';
+import { clientLogger } from '@/lib/logger-client';
+
+const authLogger = clientLogger.child({ component: 'auth' });
 
 /**
  * Refresh auth cookie with current user data

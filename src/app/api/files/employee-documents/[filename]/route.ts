@@ -33,8 +33,8 @@ export async function GET(
       fileStream = await downloadFile(filePath);
     } catch (downloadError) {
       logger.error(
-        `Failed to download file from MinIO: ${filePath}`,
-        downloadError
+        { err: downloadError },
+        `Failed to download file from MinIO: ${filePath}`
       );
       return NextResponse.json(
         { success: false, message: 'Document not found' },

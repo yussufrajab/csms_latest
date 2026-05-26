@@ -281,7 +281,7 @@ export async function POST(req: Request) {
     // Create notification - target depends on who submitted
     if (isHRRP) {
       // HRRP submitted directly: notify commission (HHRMD/HRMO)
-      const notification = NotificationTemplates.lwopSubmitted(
+      const notification = NotificationTemplates.lwopHrrpApproved(
         lwopRequest.Employee.name,
         lwopRequest.id
       );
@@ -289,7 +289,7 @@ export async function POST(req: Request) {
       await createNotificationForRole(ROLES.HRMO!, notification.message, notification.link);
     } else {
       // HRO submitted: notify HRRP at the same institution
-      const notification = NotificationTemplates.lwopSubmitted(
+      const notification = NotificationTemplates.lwopPendingHrrpReview(
         lwopRequest.Employee.name,
         lwopRequest.id
       );
@@ -388,11 +388,12 @@ export async function PATCH(req: Request) {
     // Authorization: Different roles can perform different update actions
     const isHrrpApproval =
       updateData.status === 'Approved by HRRP - Awaiting Commission Review' &&
-      !updateData.reviewedById;
+      (updateData.hrrpReviewedById || userRole === 'HRRP');
     const isHrrpRejection =
       updateData.status === 'Rejected by HRRP - Awaiting HRO Correction';
     const isHrrpAction = isHrrpApproval || isHrrpRejection;
-    const isCommissionApprovalOrRejection = updateData.reviewedById !== undefined && !isHrrpAction;
+    const isCommissionDecision = updateData.reviewedById !== undefined && !isHrrpAction && (updateData.status === 'Approved by Commission' || updateData.status === 'Rejected by Commission - Request Concluded');
+    const isInitialReviewAction = updateData.reviewedById !== undefined && !isHrrpAction && !isCommissionDecision;
     const isResubmission =
       updateData.status === 'Pending HRRP Review' &&
       !updateData.reviewedById;
@@ -400,7 +401,7 @@ export async function PATCH(req: Request) {
     let authCheck;
     if (isHrrpAction) {
       authCheck = checkRoleAuthorization(userRole, ['HRRP' as const]);
-    } else if (isCommissionApprovalOrRejection) {
+    } else if (isCommissionDecision || isInitialReviewAction) {
       authCheck = checkRoleAuthorization(userRole, ['HHRMD' as const, 'HRMO' as const]);
     } else if (isResubmission) {
       authCheck = checkRoleAuthorization(userRole, ['HRO' as const, 'HRRP' as const]);
@@ -412,6 +413,14 @@ export async function PATCH(req: Request) {
       return NextResponse.json(
         { success: false, message: authCheck.message },
         { status: 403 }
+      );
+    }
+
+    // Validate that commission decisions include a commission letter
+    if (isCommissionDecision && !body.commissionLetterKey) {
+      return NextResponse.json(
+        { success: false, message: 'Commission letter is required for commission decisions' },
+        { status: 400 }
       );
     }
 
@@ -553,7 +562,7 @@ export async function PATCH(req: Request) {
 
     // HRRP approval notifications: notify commission (HHRMD/HRMO) that a request is ready for review
     if (isHrrpApproval) {
-      const hrrpNotification = NotificationTemplates.lwopSubmitted(
+      const hrrpNotification = NotificationTemplates.lwopHrrpApproved(
         updatedRequest.Employee?.name || 'Unknown',
         id
       );
@@ -571,7 +580,8 @@ export async function PATCH(req: Request) {
 
     // HRRP rejection: notify the HRO who submitted
     if (isHrrpRejection) {
-      const rejectionNotification = NotificationTemplates.lwopRejected(
+      const rejectionNotification = NotificationTemplates.lwopHrrpRejected(
+        updatedRequest.Employee?.name || 'Unknown',
         id,
         updateData.rejectionReason || 'No reason provided'
       );

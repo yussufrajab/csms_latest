@@ -60,6 +60,7 @@ interface ConfirmationRequest {
   createdAt: string;
   decisionDate?: string | null;
   commissionDecisionDate?: string | null;
+  commissionLetterKey?: string | null;
   hrrpReviewedAt?: string | null;
 }
 
@@ -100,6 +101,13 @@ export default function ConfirmationPage() {
     useState<string>('');
   const [correctedLetterOfRequestFile, setCorrectedLetterOfRequestFile] =
     useState<string>('');
+
+  const [isCommissionDecisionModalOpen, setIsCommissionDecisionModalOpen] = useState(false);
+  const [commissionDecisionType, setCommissionDecisionType] = useState<'approved' | 'rejected' | null>(null);
+  const [commissionDecisionRequestId, setCommissionDecisionRequestId] = useState<string | null>(null);
+  const [commissionLetterFile, setCommissionLetterFile] = useState<string>('');
+  const [commissionRejectionReason, setCommissionRejectionReason] = useState('');
+  const [isCommissionSubmitting, setIsCommissionSubmitting] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50; // Server-side pagination
@@ -500,7 +508,6 @@ export default function ConfirmationPage() {
         body: JSON.stringify({
           id: requestId,
           ...payload,
-          reviewedById: user?.id,
           userRole: role,
         }),
       });
@@ -562,12 +569,16 @@ export default function ConfirmationPage() {
       rejectionStatus = `Rejected by ${role} - Awaiting HRO Correction`;
     }
 
-    const payload = {
+    const payload: any = {
       status: rejectionStatus,
       rejectionReason: rejectionReasonInput,
       reviewStage: 'initial',
       decisionDate: new Date().toISOString(),
     };
+    // Only set reviewedById for commission rejections, not HRRP
+    if (role !== ROLES.HRRP) {
+      payload.reviewedById = user?.id;
+    }
     const success = await handleUpdateRequest(
       currentRequestToAction.id,
       payload,
@@ -609,26 +620,69 @@ export default function ConfirmationPage() {
     }
   };
 
-  const handleCommissionDecision = async (
-    requestId: string,
-    decision: 'approved' | 'rejected'
-  ) => {
-    const request = pendingRequests.find((req) => req.id === requestId);
-    const finalStatus =
-      decision === 'approved'
-        ? 'Approved by Commission'
-        : 'Rejected by Commission - Request Concluded';
-    const payload = {
-      status: finalStatus,
-      reviewStage: 'completed',
-      commissionDecisionDate: new Date().toISOString(),
-    };
-    const actionDescription =
-      decision === 'approved'
-        ? 'Confirmation approved by Commission'
-        : 'Confirmation rejected by Commission';
+  const handleCommissionDecision = async () => {
+    if (!commissionDecisionRequestId || !commissionDecisionType || !user) return;
 
-    await handleUpdateRequest(requestId, payload, actionDescription);
+    if (!commissionLetterFile) {
+      toast({
+        title: 'Barua Inahitajika',
+        description: 'Tafadhali pakia barua rasmi ya Tume kabla ya kuwasilisha uamuzi.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (commissionDecisionType === 'rejected' && !commissionRejectionReason.trim()) {
+      toast({
+        title: 'Sababu ya Kukataa Inahitajika',
+        description: 'Tafadhali toa sababu ya kukataa ombi hili.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsCommissionSubmitting(true);
+    try {
+      const finalStatus =
+        commissionDecisionType === 'approved'
+          ? 'Approved by Commission'
+          : 'Rejected by Commission - Request Concluded';
+
+      const payload: Record<string, any> = {
+        status: finalStatus,
+        reviewStage: 'completed',
+        commissionDecisionDate: new Date().toISOString(),
+        reviewedById: user.id,
+        commissionLetterKey: commissionLetterFile,
+      };
+
+      if (commissionDecisionType === 'rejected') {
+        payload.rejectionReason = commissionRejectionReason;
+      }
+
+      await handleUpdateRequest(
+        commissionDecisionRequestId,
+        payload,
+        commissionDecisionType === 'approved'
+          ? 'Confirmation approved by Commission'
+          : 'Confirmation rejected by Commission'
+      );
+
+      setIsCommissionDecisionModalOpen(false);
+      setCommissionLetterFile('');
+      setCommissionRejectionReason('');
+      setCommissionDecisionRequestId(null);
+      setCommissionDecisionType(null);
+    } catch (error) {
+      log.error({ err: error }, 'Commission decision error');
+      toast({
+        title: 'Error',
+        description: 'Imeshindwa kufanya uamuzi. Tafadhali jaribu tena.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCommissionSubmitting(false);
+    }
   };
 
   const handleResubmit = (request: ConfirmationRequest) => {
@@ -1282,18 +1336,26 @@ export default function ConfirmationPage() {
                               <Button
                                 size="sm"
                                 className="bg-green-600 hover:bg-green-700 text-white"
-                                onClick={() =>
-                                  handleCommissionDecision(request.id, 'approved')
-                                }
+                                onClick={() => {
+                                  setCommissionDecisionRequestId(request.id);
+                                  setCommissionDecisionType('approved');
+                                  setCommissionLetterFile('');
+                                  setCommissionRejectionReason('');
+                                  setIsCommissionDecisionModalOpen(true);
+                                }}
                               >
                                 Approved by Commission
                               </Button>
                               <Button
                                 size="sm"
                                 variant="destructive"
-                                onClick={() =>
-                                  handleCommissionDecision(request.id, 'rejected')
-                                }
+                                onClick={() => {
+                                  setCommissionDecisionRequestId(request.id);
+                                  setCommissionDecisionType('rejected');
+                                  setCommissionLetterFile('');
+                                  setCommissionRejectionReason('');
+                                  setIsCommissionDecisionModalOpen(true);
+                                }}
                               >
                                 Rejected by Commission
                               </Button>
@@ -1609,6 +1671,73 @@ export default function ConfirmationPage() {
                       )}
                     </div>
                   </div>
+
+                  {/* Commission Letter */}
+                  {selectedRequest.commissionLetterKey && (
+                    <div className="pt-3 mt-3 border-t">
+                      <Label className="font-semibold">Barua Rasmi ya Tume</Label>
+                      <div className="mt-2 space-y-2">
+                        <div className="flex items-center justify-between p-2 rounded-md border bg-blue-50 dark:bg-blue-950/30 text-sm">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                            <span className="font-medium text-foreground">
+                              Barua Rasmi ya Tume
+                            </span>
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-2 text-xs"
+                              onClick={() => handlePreviewFile(selectedRequest.commissionLetterKey!)}
+                            >
+                              Preview
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 px-2 text-xs"
+                              onClick={async () => {
+                                try {
+                                  const response = await fetch(
+                                    `/api/files/download/${selectedRequest.commissionLetterKey}`,
+                                    { credentials: 'include' }
+                                  );
+                                  if (response.ok) {
+                                    const blob = await response.blob();
+                                    const url = window.URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = 'Barua-Rasmi-ya-Tume.pdf';
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    window.URL.revokeObjectURL(url);
+                                    document.body.removeChild(a);
+                                  } else {
+                                    toast({
+                                      title: 'Download Failed',
+                                      description: 'Could not download the file. Please try again.',
+                                      variant: 'destructive',
+                                    });
+                                  }
+                                } catch (error) {
+                                  log.error({ err: error }, 'Download failed');
+                                  toast({
+                                    title: 'Download Failed',
+                                    description: 'Could not download the file. Please try again.',
+                                    variant: 'destructive',
+                                  });
+                                }
+                              }}
+                            >
+                              Download
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
                 <DialogFooter>
                   <DialogClose asChild>
@@ -1621,6 +1750,80 @@ export default function ConfirmationPage() {
             </Dialog>
           );
         })()}
+
+      {/* Commission Decision Modal */}
+      <Dialog
+        open={isCommissionDecisionModalOpen}
+        onOpenChange={setIsCommissionDecisionModalOpen}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {commissionDecisionType === 'approved'
+                ? 'Approved by Commission'
+                : 'Rejected by Commission'}
+            </DialogTitle>
+            <DialogDescription>
+              {commissionDecisionType === 'approved'
+                ? 'Pakia barua rasmi ya Tume ya kuidhinisha ombi hili.'
+                : 'Pakia barua rasmi ya Tume ya kukataa ombi hili na toa sababu.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {commissionDecisionType === 'rejected' && (
+              <div className="space-y-2">
+                <Label className="font-semibold">Sababu ya Kukataa *</Label>
+                <Textarea
+                  value={commissionRejectionReason}
+                  onChange={(e) => setCommissionRejectionReason(e.target.value)}
+                  placeholder="Toa sababu ya kukataa ombi hili..."
+                  rows={3}
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <FileUpload
+                label="Barua Rasmi ya Tume *"
+                description="Pakia barua rasmi ya Tume (PDF pekee, max 1MB)"
+                accept=".pdf"
+                maxSize={1}
+                folder="confirmation/commission-letters"
+                value={commissionLetterFile}
+                onChange={(value) => setCommissionLetterFile(value as string)}
+                onPreview={(objectKey) => {
+                  setPreviewObjectKey(objectKey);
+                  setIsPreviewModalOpen(true);
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsCommissionDecisionModalOpen(false)}
+              disabled={isCommissionSubmitting}
+            >
+              Ghairi
+            </Button>
+            <Button
+              className={
+                commissionDecisionType === 'approved'
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : ''
+              }
+              variant={commissionDecisionType === 'rejected' ? 'destructive' : 'default'}
+              onClick={handleCommissionDecision}
+              disabled={
+                isCommissionSubmitting ||
+                !commissionLetterFile ||
+                (commissionDecisionType === 'rejected' && !commissionRejectionReason.trim())
+              }
+            >
+              {isCommissionSubmitting ? 'Inawasilisha...' : 'Wasilisha Uamuzi'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {currentRequestToAction &&
         (() => {

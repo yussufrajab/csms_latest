@@ -127,11 +127,11 @@ export async function verifyAuth(
   }
 
   // 4. Verify user exists and is active in database --------------------------
-  let user: { id: string; active: boolean; role: string } | null;
+  let user: { id: string; active: boolean; role: string; institutionId: string | null } | null;
   try {
     user = await db.user.findUnique({
       where: { id: userId },
-      select: { id: true, active: true, role: true },
+      select: { id: true, active: true, role: true, institutionId: true },
     });
 
     if (!user || !user.active) {
@@ -143,12 +143,14 @@ export async function verifyAuth(
   }
 
   // 5. Success ---------------------------------------------------------------
+  // Use institutionId from cookie if available, fall back to database value
+  const resolvedInstitutionId = institutionId ?? user.institutionId;
   return {
     authenticated: true,
     context: {
       userId,
       role: user.role,
-      institutionId,
+      institutionId: resolvedInstitutionId,
       username: username || '',
     },
   };

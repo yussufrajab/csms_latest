@@ -106,6 +106,7 @@ model Employee {
   countryOfBirth          String?
   zanId                   String                    @unique
   phoneNumber             String?
+  email                   String?
   contactAddress          String?
   zssfNumber              String?
   payrollNumber           String?

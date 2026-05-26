@@ -23,6 +23,7 @@ const updateSchema = z.object({
   studiedOutsideCountry: z.boolean().optional(),
   hrrpReviewedById: z.string().optional(),
   hrrpReviewedAt: z.string().datetime().optional(),
+  commissionLetterKey: z.string().optional(),
 });
 
 async function handleUpdate(

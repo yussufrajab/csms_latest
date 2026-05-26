@@ -95,6 +95,7 @@ export interface Employee {
   countryOfBirth?: string | null;
   zanId: string;
   phoneNumber?: string | null;
+  email?: string | null;
   contactAddress?: string | null;
   zssfNumber?: string | null;
   payrollNumber?: string | null;

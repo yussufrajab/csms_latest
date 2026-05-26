@@ -88,8 +88,8 @@ export async function POST(request: NextRequest) {
 
     try {
       hrimsLogger.info(
-        ' Sending specific employee request:',
-        specificEmployeePayload
+        specificEmployeePayload,
+        'Sending specific employee request'
       );
 
       const response = await fetch(`${HRIMS_CONFIG.BASE_URL}/Employees`, {
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
         };
       } else {
         const errorText = await response.text();
-        hrimsLogger.error(' Specific employee API error:', errorText);
+        hrimsLogger.error(`Specific employee API error: ${errorText}`);
 
         testResults.tests[0] = {
           ...testResults.tests[0],
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
         };
       }
     } catch (error) {
-      hrimsLogger.error(' Specific employee connection failed:', error);
+      hrimsLogger.error({ err: error }, 'Specific employee connection failed');
 
       testResults.tests[0] = {
         ...testResults.tests[0],
@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      hrimsLogger.info(' Sending photo request:', photoPayload);
+      hrimsLogger.info(photoPayload, 'Sending photo request');
 
       const response = await fetch(`${HRIMS_CONFIG.BASE_URL}/Employees`, {
         method: 'POST',
@@ -239,7 +239,7 @@ export async function POST(request: NextRequest) {
         };
       } else {
         const errorText = await response.text();
-        hrimsLogger.error(' Photo API error:', errorText);
+        hrimsLogger.error(`Photo API error: ${errorText}`);
 
         testResults.tests[1] = {
           ...testResults.tests[1],
@@ -254,7 +254,7 @@ export async function POST(request: NextRequest) {
         };
       }
     } catch (error) {
-      hrimsLogger.error(' Photo fetch connection failed:', error);
+      hrimsLogger.error({ err: error }, 'Photo fetch connection failed');
 
       testResults.tests[1] = {
         ...testResults.tests[1],
@@ -308,7 +308,7 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      hrimsLogger.info(' Sending vote code request:', voteCodePayload);
+      hrimsLogger.info(voteCodePayload, 'Sending vote code request');
 
       const response = await fetch(`${HRIMS_CONFIG.BASE_URL}/Employees`, {
         method: 'POST',
@@ -354,7 +354,7 @@ export async function POST(request: NextRequest) {
         };
       } else {
         const errorText = await response.text();
-        hrimsLogger.error(' Vote code API error:', errorText);
+        hrimsLogger.error(`Vote code API error: ${errorText}`);
 
         testResults.tests[2] = {
           ...testResults.tests[2],
@@ -369,7 +369,7 @@ export async function POST(request: NextRequest) {
         };
       }
     } catch (error) {
-      hrimsLogger.error(' Vote code fetch connection failed:', error);
+      hrimsLogger.error({ err: error }, 'Vote code fetch connection failed');
 
       testResults.tests[2] = {
         ...testResults.tests[2],
@@ -424,7 +424,7 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      hrimsLogger.info(' Sending TIN request:', tinPayload);
+      hrimsLogger.info(tinPayload, 'Sending TIN request');
 
       const response = await fetch(`${HRIMS_CONFIG.BASE_URL}/Employees`, {
         method: 'POST',
@@ -470,7 +470,7 @@ export async function POST(request: NextRequest) {
         };
       } else {
         const errorText = await response.text();
-        hrimsLogger.error(' TIN API error:', errorText);
+        hrimsLogger.error(`TIN API error: ${errorText}`);
 
         testResults.tests[3] = {
           ...testResults.tests[3],
@@ -485,7 +485,7 @@ export async function POST(request: NextRequest) {
         };
       }
     } catch (error) {
-      hrimsLogger.error(' TIN fetch connection failed:', error);
+      hrimsLogger.error({ err: error }, 'TIN fetch connection failed');
 
       testResults.tests[3] = {
         ...testResults.tests[3],
@@ -564,8 +564,8 @@ export async function POST(request: NextRequest) {
 
       try {
         hrimsLogger.info(
-          ' Sending employee documents request to HRIMS:',
-          documentsPayload
+          documentsPayload,
+          'Sending employee documents request to HRIMS'
         );
         hrimsLogger.info(' Waiting up to 120 seconds for HRIMS response...');
 
@@ -589,7 +589,7 @@ export async function POST(request: NextRequest) {
 
           // Check if HRIMS returned an error in the response body
           if (data.code === 500 || data.status === 'Failure') {
-            hrimsLogger.error(' HRIMS internal error:', data.message);
+            hrimsLogger.error(`HRIMS internal error: ${data.message}`);
 
             // Check if it's a timeout error from HRIMS
             const isTimeoutError =
@@ -651,8 +651,7 @@ export async function POST(request: NextRequest) {
         } else {
           const errorText = await response.text();
           hrimsLogger.error(
-            ` Employee documents API error for ${docTypeName}:`,
-            errorText
+            `Employee documents API error for ${docTypeName}: ${errorText}`
           );
 
           testResults.tests[testIndex] = {
@@ -671,8 +670,8 @@ export async function POST(request: NextRequest) {
         }
       } catch (error) {
         hrimsLogger.error(
-          ` Employee documents fetch connection failed for ${docTypeName}:`,
-          error
+          { err: error, documentType: docTypeName },
+          `Employee documents fetch connection failed for ${docTypeName}`
         );
 
         testResults.tests[testIndex] = {

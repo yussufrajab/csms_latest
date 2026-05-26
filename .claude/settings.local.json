@@ -164,7 +164,13 @@
       "Bash(PGPASSWORD='Mamlaka2020' psql *)",
       "Bash(npx tsc *)",
       "Bash(pm2 describe *)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(read f *)",
+      "Bash(PORT=9002 pm2 restart csms)",
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_snapshot",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "Bash(git checkout *)",
+      "Bash(git *)"
     ],
     "deny": []
   }

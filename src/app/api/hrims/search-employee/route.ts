@@ -32,10 +32,10 @@ export async function GET(req: Request) {
     // Validate request parameters
     const validatedRequest = employeeSearchSchema.parse(requestData);
 
-    hrimsLogger.info('Employee search request:', {
+    hrimsLogger.info({
       ...validatedRequest,
       timestamp: new Date().toISOString(),
-    });
+    }, 'Employee search request');
 
     // Find institution by vote number
     const institution = await db.institution.findFirst({
@@ -179,7 +179,7 @@ export async function GET(req: Request) {
       { status: 200 }
     );
   } catch (error) {
-    hrimsLogger.error('[EMPLOYEE_SEARCH_ERROR]', error);
+    hrimsLogger.error({ err: error }, '[EMPLOYEE_SEARCH_ERROR]');
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -210,10 +210,10 @@ export async function POST(req: Request) {
     // Validate request payload
     const validatedRequest = employeeSearchSchema.parse(body);
 
-    hrimsLogger.info('Employee search request (POST):', {
+    hrimsLogger.info({
       ...validatedRequest,
       timestamp: new Date().toISOString(),
-    });
+    }, 'Employee search request (POST)');
 
     // Find institution by vote number
     const institution = await db.institution.findFirst({
@@ -357,7 +357,7 @@ export async function POST(req: Request) {
       { status: 200 }
     );
   } catch (error) {
-    hrimsLogger.error('[EMPLOYEE_SEARCH_POST_ERROR]', error);
+    hrimsLogger.error({ err: error }, '[EMPLOYEE_SEARCH_POST_ERROR]');
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(

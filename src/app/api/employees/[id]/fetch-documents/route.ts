@@ -314,10 +314,7 @@ export async function POST(
 
  // Check for HRIMS internal errors
  if (hrimsData.code === 500 || hrimsData.status === 'Failure') {
- logger.error(
- ` HRIMS internal error for ${docType.name}:`,
- hrimsData.message
- );
+ logger.error(`HRIMS internal error for ${docType.name}: ${hrimsData.message}`);
  continue; // Skip to next document type
  }
 
@@ -340,10 +337,7 @@ export async function POST(
  await delay(2000);
  }
  } catch (error) {
- logger.error(
- ` Error fetching ${docType.name}:`,
- error instanceof Error ? error.message : 'Unknown error'
- );
+ logger.error(`Error fetching ${docType.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
  continue; // Skip to next document type
  }
  }
@@ -457,10 +451,7 @@ export async function POST(
  ` Stored ${docMapping.label} (${attachment.contentSize} bytes)`
  );
  } else {
- logger.error(
- ` Failed to store ${docMapping.label}:`,
- storeResult.error
- );
+ logger.error(`Failed to store ${docMapping.label}: ${storeResult.error}`);
  }
  } else if (
  attachmentType.toLowerCase().includes('educational') ||

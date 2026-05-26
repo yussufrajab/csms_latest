@@ -4,21 +4,12 @@ const isDev = process.env.NODE_ENV === 'development';
 const isTest = process.env.NODE_ENV === 'test';
 const logLevel = process.env.LOG_LEVEL || (isDev ? 'debug' : 'info');
 
-const transport = isDev
+// Use pino.transport (worker threads) only in dev — it breaks in Next.js
+// production builds because webpack bundles pino into chunks and the worker
+// cannot resolve its own module path at runtime.
+const destination = isDev
   ? pino.transport({ target: 'pino-pretty' })
-  : pino.transport({
-      targets: [
-        {
-          target: 'pino/file',
-          options: { destination: '/var/log/csms/app/app.log', mkdir: true },
-        },
-        {
-          target: 'pino/file',
-          level: 'error',
-          options: { destination: '/var/log/csms/app/error.log', mkdir: true },
-        },
-      ],
-    });
+  : pino.destination('/var/log/csms/app/app.log');
 
 export const logger = pino(
   {
@@ -28,7 +19,7 @@ export const logger = pino(
       env: process.env.NODE_ENV,
     },
   },
-  transport
+  destination
 );
 
 // Child loggers for specific components

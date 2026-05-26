@@ -54,10 +54,10 @@ const hrimsDocumentsResponseSchema = z.object({
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    hrimsLogger.info('HRIMS documents sync request received:', {
+    hrimsLogger.info({
       ...body,
       hrimsApiKey: '[REDACTED]',
-    });
+    }, 'HRIMS documents sync request received');
 
     // Validate request payload
     const validatedRequest = hrimsDocumentsRequestSchema.parse(body);
@@ -122,7 +122,7 @@ export async function POST(req: Request) {
       employee.id
     );
 
-    hrimsLogger.info('Documents synced successfully for Employee:', employee.id);
+    hrimsLogger.info({ employeeId: employee.id }, 'Documents synced successfully for Employee');
 
     return NextResponse.json(
       {
@@ -139,7 +139,7 @@ export async function POST(req: Request) {
       { status: 200 }
     );
   } catch (error) {
-    hrimsLogger.error('[HRIMS_DOCUMENTS_SYNC_ERROR]', error);
+    hrimsLogger.error({ err: error }, '[HRIMS_DOCUMENTS_SYNC_ERROR]');
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -205,7 +205,7 @@ async function fetchDocumentsFromHRIMS(
     hrimsLogger.info('HRIMS Documents API response received');
     return data;
   } catch (error) {
-    hrimsLogger.error('Error fetching documents from HRIMS:', error);
+    hrimsLogger.error({ err: error }, 'Error fetching documents from HRIMS');
 
     // For development/demo - return mock data
     if (
@@ -255,7 +255,7 @@ async function storeEmployeeDocuments(
 
       successful++;
     } catch (error) {
-      hrimsLogger.error(`Failed to store document ${doc.id}:`, error);
+      hrimsLogger.error({ err: error, documentId: doc.id }, `Failed to store document ${doc.id}`);
       failed++;
     }
   }

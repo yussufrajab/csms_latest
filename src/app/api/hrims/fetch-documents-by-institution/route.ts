@@ -133,8 +133,7 @@ async function fetchDocumentsFromHRIMS(
  // Check for HRIMS internal errors
  if (hrimsData.code === 500 || hrimsData.status === 'Failure') {
  hrimsLogger.error(
- ` HRIMS internal error for ${docType.name}:`,
- hrimsData.message
+ `HRIMS internal error for ${docType.name}: ${hrimsData.message}`
  );
  continue; // Skip to next document type
  }
@@ -161,8 +160,7 @@ async function fetchDocumentsFromHRIMS(
  }
  } catch (error) {
  hrimsLogger.error(
- ` Error fetching ${docType.name}:`,
- error instanceof Error ? error.message : 'Unknown error'
+ `Error fetching ${docType.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
  );
  continue; // Skip to next document type
  }
@@ -365,8 +363,7 @@ async function processEmployeeDocuments(
  hrimsLogger.info(` Stored ${docMapping.label} for ${employee.name}`);
  } else {
  hrimsLogger.error(
- ` Failed to store ${docMapping.label}:`,
- storeResult.error
+ `Failed to store ${docMapping.label}: ${storeResult.error ?? 'Unknown error'}`
  );
  }
  } else if (
@@ -429,7 +426,7 @@ async function processEmployeeDocuments(
  });
  hrimsLogger.info(` Updated database for ${employee.name}`);
  } catch (error) {
- hrimsLogger.error(` Failed to update employee ${employee.id}:`, error);
+ hrimsLogger.error({ err: error }, `Failed to update employee ${employee.id}:`);
  }
  }
 
@@ -484,7 +481,7 @@ async function processEmployeeDocuments(
  ` Processed ${result.certificatesStored.length} certificates for ${employee.name}`
  );
  } catch (error) {
- hrimsLogger.error(` Failed to save certificates for ${employee.id}:`, error);
+ hrimsLogger.error({ err: error }, `Failed to save certificates for ${employee.id}:`);
  }
  }
 
@@ -668,7 +665,7 @@ export async function POST(request: NextRequest) {
  },
  });
  } catch (error) {
- hrimsLogger.error('Error in fetch-documents-by-institution:', error);
+ hrimsLogger.error({ err: error }, 'Error in fetch-documents-by-institution:');
  return NextResponse.json(
  {
  success: false,

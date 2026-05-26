@@ -335,8 +335,7 @@ export default function DashboardPage() {
   };
 
   const institutionName = getInstitutionName();
-  const shouldShowInstitution =
-    (role === ROLES.HRO || role === ROLES.HRRP) && institutionName;
+  const shouldShowInstitution = !!institutionName;
 
   return (
     <div className="flex-1 space-y-4">

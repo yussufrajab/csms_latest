@@ -65,22 +65,23 @@ import {
   DialogClose,
 } from '@/components/ui/dialog';
 import { format, parseISO, differenceInYears } from 'date-fns';
-import { clientLogger } from '@/lib/logger-client';
-const log = clientLogger.child({ component: 'promotion' });
 
 interface PromotionRequest {
   id: string;
   Employee: Partial<Employee & User & { Institution: { name: string } }>;
   submittedBy: Partial<User>;
+  submittedById?: string;
   reviewedBy?: Partial<User> | null;
+  hrrpReviewedBy?: Partial<User> | null;
   status: string;
   reviewStage: string;
   rejectionReason?: string | null;
   reviewedById?: string | null;
-  hrrpReviewedBy?: Partial<User> | null;
-  hrrpReviewedAt?: string | null;
+  decisionDate?: string | null;
   commissionDecisionDate?: string | null;
   commissionDecisionReason?: string | null;
+  commissionLetterKey?: string | null;
+  hrrpReviewedAt?: string | null;
   createdAt: string;
 
   proposedCadre: string;
@@ -179,7 +180,7 @@ export default function PromotionPage() {
         });
       }
     } catch (error) {
-      log.error({ err: error }, 'Template upload error:');
+      console.error('Template upload error:', error);
       toast({
         title: 'Error',
         description: 'An error occurred while uploading the template',
@@ -220,7 +221,7 @@ export default function PromotionPage() {
         });
       }
     } catch (error) {
-      log.error({ err: error }, 'Template download error:');
+      console.error('Template download error:', error);
       toast({
         title: 'Error',
         description: 'An error occurred while downloading the template',
@@ -259,10 +260,18 @@ export default function PromotionPage() {
     useState(false);
   const [isCommissionRejection, setIsCommissionRejection] = useState(false);
 
-  // Commission approval modal states
+  // Commission approval modal states (kept for promotion-specific fields)
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [approvalReasonInput, setApprovalReasonInput] = useState('');
   const [finalCadreInput, setFinalCadreInput] = useState('');
+
+  // Commission decision modal states (for commission letter upload)
+  const [isCommissionDecisionModalOpen, setIsCommissionDecisionModalOpen] = useState(false);
+  const [commissionDecisionType, setCommissionDecisionType] = useState<'approved' | 'rejected' | null>(null);
+  const [commissionDecisionRequestId, setCommissionDecisionRequestId] = useState<string | null>(null);
+  const [commissionLetterFile, setCommissionLetterFile] = useState<string>('');
+  const [commissionRejectionReason, setCommissionRejectionReason] = useState('');
+  const [isCommissionSubmitting, setIsCommissionSubmitting] = useState(false);
 
   const [eligibilityError, setEligibilityError] = useState<string | null>(null);
   const [hasPendingPromotion, setHasPendingPromotion] = useState(false);
@@ -329,7 +338,12 @@ export default function PromotionPage() {
           );
         }
 
-        setPendingRequests(requests);
+        // Client-side filtering for HRO: only show own submissions
+        const filteredRequests = role === ROLES.HRO
+          ? requests.filter((req: PromotionRequest) => req.submittedById === user.id)
+          : requests;
+
+        setPendingRequests(filteredRequests);
         if (isRefresh) {
           toast({
             title: 'Refreshed',
@@ -386,7 +400,7 @@ export default function PromotionPage() {
   };
 
   const handleEmployeeFound = (employee: Employee) => {
-    log.info(`Found employee: ${employee.name}`);
+    console.log(`[PROMOTION] Found employee: ${employee.name}`);
 
     // Reset form fields when new employee is selected
     resetFormFields();
@@ -417,9 +431,11 @@ export default function PromotionPage() {
     // Check for pending promotion request
     const pendingStatuses = [
       'Pending HRRP Review',
-      'Pending HRMO/HHRMD Review',
       'Approved by HRRP - Awaiting Commission Review',
+      'Pending HRMO/HHRMD Review',
       'Pending DO/HHRMD Review',
+      'Approved by HRMO – Awaiting Commission Decision',
+      'Approved by HHRMD – Awaiting Commission Decision',
       'Request Received – Awaiting Commission Decision',
     ];
 
@@ -492,6 +508,7 @@ export default function PromotionPage() {
       ...(isEditingExistingRequest && { id: selectedRequest?.id }),
       employeeId: employeeDetails.id,
       submittedById: user.id,
+      userRole: role,
       // HRO submissions go to HRRP review first; HRRP submissions auto-approve
       status: role === ROLES.HRRP
         ? 'Approved by HRRP - Awaiting Commission Review'
@@ -580,7 +597,7 @@ export default function PromotionPage() {
         body: JSON.stringify({
           id: requestId,
           ...payload,
-          reviewedById: user?.id,
+          userRole: role,
         }),
       });
       if (!response.ok) throw new Error('Failed to update request');
@@ -635,82 +652,11 @@ export default function PromotionPage() {
     return false;
   };
 
-  const handleInitialAction = async (
-    requestId: string,
-    action: 'forward' | 'reject'
-  ) => {
-    const request = pendingRequests.find((req) => req.id === requestId);
-    if (!request) return;
-
-    if (action === 'reject') {
-      setCurrentRequestToAction(request);
-      setRejectionReasonInput('');
-      setIsRejectionModalOpen(true);
-    } else if (action === 'forward') {
-      // Both HRMO and HHRMD forward directly to Commission (parallel workflow)
-      const payload = {
-        status: 'Request Received – Awaiting Commission Decision',
-        reviewStage: 'commission_review',
-      };
-      const roleName = role === ROLES.HRMO ? 'HRMO' : 'HHRMD';
-
-      await handleUpdateRequest(
-        requestId,
-        payload,
-        `Request approved by ${roleName} and forwarded to Commission`
-      );
-    }
-  };
-
-  const handleRejectionSubmit = async () => {
-    if (!currentRequestToAction || !rejectionReasonInput.trim() || !user)
-      return;
-
-    let payload;
-    let actionDescription;
-    if (isCommissionRejection) {
-      // Commission rejection - final, no corrections possible
-      payload = {
-        status: 'Rejected by Commission - Request Concluded',
-        reviewStage: 'completed',
-        commissionDecisionReason: rejectionReasonInput,
-      };
-      actionDescription = 'Promotion request rejected by Commission';
-    } else {
-      // HRRP or HRMO/HHRMD rejection - allows HRO correction
-      let rejectionStatus: string;
-      if (role === ROLES.HRRP) {
-        rejectionStatus = 'Rejected by HRRP - Awaiting HRO Correction';
-      } else {
-        rejectionStatus = `Rejected by ${role} - Awaiting HRO Correction`;
-      }
-
-      payload = {
-        status: rejectionStatus,
-        rejectionReason: rejectionReasonInput,
-        reviewStage: 'initial',
-      };
-      actionDescription = 'Request rejected and returned to HRO';
-    }
-
-    const success = await handleUpdateRequest(
-      currentRequestToAction.id,
-      payload,
-      actionDescription
-    );
-    if (success) {
-      setIsRejectionModalOpen(false);
-      setCurrentRequestToAction(null);
-      setRejectionReasonInput('');
-      setIsCommissionRejection(false);
-    }
-  };
-
   const handleHrrpAction = async (
     requestId: string,
     action: 'forward' | 'reject'
   ) => {
-    const request = pendingRequests.find((req: any) => req.id === requestId);
+    const request = pendingRequests.find((req) => req.id === requestId);
     if (!request) return;
 
     if (action === 'reject') {
@@ -734,34 +680,124 @@ export default function PromotionPage() {
     }
   };
 
-  const handleCommissionDecision = async (
+  const handleInitialAction = async (
     requestId: string,
-    decision: 'approved' | 'rejected'
+    action: 'forward' | 'reject'
   ) => {
     const request = pendingRequests.find((req) => req.id === requestId);
     if (!request) return;
 
-    if (decision === 'rejected') {
-      // Show modal to enter commission decision reason
+    if (action === 'reject') {
       setCurrentRequestToAction(request);
       setRejectionReasonInput('');
       setIsRejectionModalOpen(true);
-      // Set a flag to indicate this is a commission rejection
-      setIsCommissionRejection(true);
-    } else {
-      // Show approval modal to enter reason and final cadre (for education-based promotions)
-      setCurrentRequestToAction(request);
-      setApprovalReasonInput('');
-      setFinalCadreInput('');
-      setIsApprovalModalOpen(true);
+    } else if (action === 'forward') {
+      const roleName = role === ROLES.HRMO ? 'HRMO' : 'HHRMD';
+      const payload = {
+        status: `Approved by ${roleName} – Awaiting Commission Decision`,
+        reviewStage: 'commission_review',
+        decisionDate: new Date().toISOString(),
+        reviewedById: user?.id,
+      };
+
+      await handleUpdateRequest(
+        requestId,
+        payload,
+        `Request approved by ${roleName} and forwarded to Commission`
+      );
     }
   };
 
-  const handleApprovalSubmit = async () => {
-    if (!currentRequestToAction || !approvalReasonInput.trim() || !user) return;
+  const handleRejectionSubmit = async () => {
+    if (!currentRequestToAction || !rejectionReasonInput.trim() || !user)
+      return;
 
-    // Final cadre is required for all promotion types
-    if (!finalCadreInput.trim()) {
+    let payload: any;
+    let actionDescription: string;
+    if (isCommissionRejection) {
+      // Commission rejection - final, no corrections possible
+      payload = {
+        status: 'Rejected by Commission - Request Concluded',
+        reviewStage: 'completed',
+        commissionDecisionReason: rejectionReasonInput,
+      };
+      actionDescription = 'Promotion request rejected by Commission';
+    } else if (role === ROLES.HRRP) {
+      payload = {
+        status: 'Rejected by HRRP - Awaiting HRO Correction',
+        rejectionReason: rejectionReasonInput,
+        reviewStage: 'initial',
+        decisionDate: new Date().toISOString(),
+      };
+      actionDescription = 'Request rejected by HRRP and returned to HRO';
+    } else {
+      // HHRMD or HRMO rejection - allows HRO correction
+      payload = {
+        status: `Rejected by ${role} - Awaiting HRO Correction`,
+        rejectionReason: rejectionReasonInput,
+        reviewStage: 'initial',
+        decisionDate: new Date().toISOString(),
+        reviewedById: user?.id,
+      };
+      actionDescription = 'Request rejected and returned to HRO';
+    }
+
+    const success = await handleUpdateRequest(
+      currentRequestToAction.id,
+      payload,
+      actionDescription
+    );
+    if (success) {
+      setIsRejectionModalOpen(false);
+      setCurrentRequestToAction(null);
+      setRejectionReasonInput('');
+      setIsCommissionRejection(false);
+    }
+  };
+
+  const handleCommissionDecision = async (
+    requestId: string,
+    decision: 'approved' | 'rejected'
+  ) => {
+    // Open commission decision modal instead of separate approval/rejection modals
+    setCommissionDecisionRequestId(requestId);
+    setCommissionDecisionType(decision);
+    setCommissionLetterFile('');
+    setCommissionRejectionReason('');
+    setIsCommissionDecisionModalOpen(true);
+  };
+
+  const handleCommissionDecisionSubmit = async () => {
+    if (!commissionDecisionRequestId || !commissionDecisionType || !user) return;
+
+    if (!commissionLetterFile) {
+      toast({
+        title: 'Barua Inahitajika',
+        description: 'Tafadhali pakia barua rasmi ya Tume kabla ya kuwasilisha uamuzi.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (commissionDecisionType === 'rejected' && !commissionRejectionReason.trim()) {
+      toast({
+        title: 'Sababu ya Kukataa Inahitajika',
+        description: 'Tafadhali toa sababu ya kukataa ombi hili.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (commissionDecisionType === 'approved' && !approvalReasonInput.trim()) {
+      toast({
+        title: 'Approval Reason Required',
+        description: 'Please provide the approval reason.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (commissionDecisionType === 'approved' && !finalCadreInput.trim()) {
       toast({
         title: 'Final Cadre Required',
         description: 'You must specify the final cadre and rank for the promotion.',
@@ -770,27 +806,56 @@ export default function PromotionPage() {
       return;
     }
 
-    const finalStatus = 'Approved by Commission';
-    const payload: any = {
-      status: finalStatus,
-      reviewStage: 'completed',
-      commissionDecisionReason: approvalReasonInput,
-      finalCadre: finalCadreInput.trim(),
-    };
+    setIsCommissionSubmitting(true);
+    try {
+      const finalStatus =
+        commissionDecisionType === 'approved'
+          ? 'Approved by Commission'
+          : 'Rejected by Commission - Request Concluded';
 
-    const actionDescription = `Promotion approved by Commission. Employee ${currentRequestToAction?.Employee?.name || 'Unknown'} rank updated to "${finalCadreInput.trim()}".`;
+      const payload: Record<string, any> = {
+        status: finalStatus,
+        reviewStage: 'completed',
+        commissionDecisionDate: new Date().toISOString(),
+        reviewedById: user.id,
+        commissionLetterKey: commissionLetterFile,
+      };
 
-    const success = await handleUpdateRequest(
-      currentRequestToAction.id,
-      payload,
-      actionDescription
-    );
+      if (commissionDecisionType === 'approved') {
+        payload.commissionDecisionReason = approvalReasonInput;
+        payload.finalCadre = finalCadreInput.trim();
+      }
 
-    if (success) {
-      setIsApprovalModalOpen(false);
-      setCurrentRequestToAction(null);
+      if (commissionDecisionType === 'rejected') {
+        payload.rejectionReason = commissionRejectionReason;
+      }
+
+      const request = pendingRequests.find((req) => req.id === commissionDecisionRequestId);
+      const actionDescription = commissionDecisionType === 'approved'
+        ? `Promotion approved by Commission. Employee ${request?.Employee?.name || 'Unknown'} rank updated to "${finalCadreInput.trim()}".`
+        : 'Promotion request rejected by Commission';
+
+      await handleUpdateRequest(
+        commissionDecisionRequestId,
+        payload,
+        actionDescription
+      );
+
+      setIsCommissionDecisionModalOpen(false);
+      setCommissionLetterFile('');
+      setCommissionRejectionReason('');
+      setCommissionDecisionRequestId(null);
+      setCommissionDecisionType(null);
       setApprovalReasonInput('');
       setFinalCadreInput('');
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Imeshindwa kufanya uamuzi. Tafadhali jaribu tena.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCommissionSubmitting(false);
     }
   };
 
@@ -921,7 +986,7 @@ export default function PromotionPage() {
         body: JSON.stringify({
           id: request.id,
           userRole: role,
-          status: 'Pending HRRP Review', // Resubmitted requests go to HRRP review
+          status: 'Pending HRRP Review',
           reviewStage: 'initial',
           proposedCadre: correctedProposedCadre,
           promotionType:
@@ -934,7 +999,6 @@ export default function PromotionPage() {
               ? studiedOutsideCountry
               : undefined,
           rejectionReason: null,
-          reviewedById: user.id, // Reset reviewer to allow fresh review
         }),
       });
 
@@ -1477,7 +1541,8 @@ export default function PromotionPage() {
                   ? 'View and manage your submitted promotion requests.'
                   : role === ROLES.HRRP
                     ? 'Review HRO-submitted requests and forward approved ones to the Commission.'
-                    : 'Review, approve, or reject pending employee promotion requests.'}
+                    : 'Review, approve, or reject pending promotion requests.'}{' '}
+                {pendingRequests.length} request(s) found.
               </CardDescription>
             </div>
             <Button
@@ -1523,7 +1588,7 @@ export default function PromotionPage() {
             paginatedRequests.map((request) => {
               // Skip requests with missing employee data
               if (!request.Employee) {
-                log.error({ requestId: request.id }, 'Promotion request missing employee data');
+                console.error('Promotion request missing employee data:', request.id);
                 return null;
               }
 
@@ -1590,6 +1655,30 @@ export default function PromotionPage() {
                     : 'N/A'}{' '}
                   by {request.submittedBy?.name || 'N/A'}
                 </p>
+                {request.reviewedBy && (
+                  <p className="text-sm text-muted-foreground">
+                    Reviewed by: {request.reviewedBy.name || 'N/A'} (
+                    {request.reviewedBy.username || 'N/A'})
+                  </p>
+                )}
+                {request.hrrpReviewedBy && (
+                  <p className="text-sm text-muted-foreground">
+                    HRRP Reviewed by: {request.hrrpReviewedBy.name || 'N/A'} (
+                    {request.hrrpReviewedBy.username || 'N/A'})
+                  </p>
+                )}
+                {request.decisionDate && (
+                  <p className="text-sm text-muted-foreground">
+                    Initial Review Date:{' '}
+                    {format(parseISO(request.decisionDate), 'PPP')}
+                  </p>
+                )}
+                {request.commissionDecisionDate && (
+                  <p className="text-sm text-muted-foreground">
+                    Commission Decision Date:{' '}
+                    {format(parseISO(request.commissionDecisionDate), 'PPP')}
+                  </p>
+                )}
                 <div className="flex items-center space-x-2">
                   <p className="text-sm">
                     <span className="font-medium">Status:</span>
@@ -1608,11 +1697,10 @@ export default function PromotionPage() {
                                 ? 'bg-purple-100 text-purple-800'
                                 : request.status.includes('Pending HRMO/HHRMD')
                                   ? 'bg-orange-100 text-orange-800'
-                                  : request.status.includes('Awaiting HRO')
+                                  : request.status.includes('Awaiting HRO') ||
+                                    request.status.includes('Correction')
                                     ? 'bg-yellow-100 text-yellow-800'
-                                    : request.status.includes('Correction')
-                                      ? 'bg-yellow-100 text-yellow-800'
-                                      : 'bg-gray-100 text-gray-800'
+                                    : 'bg-gray-100 text-gray-800'
                     }`}
                   >
                     {request.status}
@@ -1683,18 +1771,6 @@ export default function PromotionPage() {
                     </div>
                   </div>
                 </div>
-                {request.reviewedBy && (
-                  <p className="text-sm text-muted-foreground">
-                    Reviewed by: {request.reviewedBy.name || 'N/A'} (
-                    {request.reviewedBy.username || 'N/A'})
-                  </p>
-                )}
-                {request.hrrpReviewedBy && (
-                  <p className="text-sm text-muted-foreground">
-                    HRRP Reviewed by: {request.hrrpReviewedBy.name || 'N/A'} (
-                    {request.hrrpReviewedBy.username || 'N/A'})
-                  </p>
-                )}
                 {request.rejectionReason && (
                   <p className="text-sm text-destructive">
                     <span className="font-medium">Rejection Reason:</span>{' '}
@@ -1730,62 +1806,57 @@ export default function PromotionPage() {
                       </Button>
                     </>
                   )}
-                  {/* HRMO/HHRMD Commission Review Actions */}
-                  {(role === ROLES.HHRMD || role === ROLES.HRMO) && (
-                    <>
-                      {/* Commission initial review - for HRRP-approved and legacy requests */}
-                      {(role === ROLES.HRMO || role === ROLES.HHRMD) &&
-                        (request.status === 'Approved by HRRP - Awaiting Commission Review' ||
-                         request.status === 'Pending HRMO/HHRMD Review') && (
-                          <>
-                            <Button
-                              size="sm"
-                              onClick={() =>
-                                handleInitialAction(request.id, 'forward')
-                              }
-                            >
-                              Verify &amp; Forward to Commission
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() =>
-                                handleInitialAction(request.id, 'reject')
-                              }
-                            >
-                              Reject &amp; Return to HRO
-                            </Button>
-                          </>
-                        )}
-                      {/* Commission decision */}
-                      {(role === ROLES.HHRMD || role === ROLES.HRMO) &&
-                        request.reviewStage === 'commission_review' &&
-                        request.status ===
-                          'Request Received – Awaiting Commission Decision' && (
-                          <>
-                            <Button
-                              size="sm"
-                              className="bg-green-600 hover:bg-green-700 text-white"
-                              onClick={() =>
-                                handleCommissionDecision(request.id, 'approved')
-                              }
-                            >
-                              Approved by Commission
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() =>
-                                handleCommissionDecision(request.id, 'rejected')
-                              }
-                            >
-                              Rejected by Commission
-                            </Button>
-                          </>
-                        )}
-                    </>
-                  )}
-                  {/* HRO Correction Actions */}
+
+                  {/* HRMO/HHRMD Review Actions */}
+                  {(role === ROLES.HRMO || role === ROLES.HHRMD) &&
+                    (request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                     request.status === 'Pending HRMO/HHRMD Review') && (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            handleInitialAction(request.id, 'forward')
+                          }
+                        >
+                          Verify &amp; Forward to Commission
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() =>
+                            handleInitialAction(request.id, 'reject')
+                          }
+                        >
+                          Reject &amp; Return to HRO
+                        </Button>
+                      </>
+                    )}
+
+                  {/* Commission Decision Actions */}
+                  {(role === ROLES.HRMO || role === ROLES.HHRMD) &&
+                    request.reviewStage === 'commission_review' &&
+                    request.status.includes('Awaiting Commission Decision') && (
+                      <>
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          onClick={() =>
+                            handleCommissionDecision(request.id, 'approved')
+                          }
+                        >
+                          Approved by Commission
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() =>
+                            handleCommissionDecision(request.id, 'rejected')
+                          }
+                        >
+                          Rejected by Commission
+                        </Button>
+                      </>
+                    )}
                   {role === ROLES.HRO &&
                     (request.status ===
                       'Rejected by HRMO - Awaiting HRO Correction' ||
@@ -1991,6 +2062,26 @@ export default function PromotionPage() {
                     </p>
                   </div>
                 )}
+                {selectedRequest.decisionDate && (
+                  <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
+                    <Label className="text-right font-semibold">
+                      Initial Review:
+                    </Label>
+                    <p className="col-span-2">
+                      {format(parseISO(selectedRequest.decisionDate), 'PPP')}
+                    </p>
+                  </div>
+                )}
+                {selectedRequest.commissionDecisionDate && (
+                  <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
+                    <Label className="text-right font-semibold">
+                      Commission Date:
+                    </Label>
+                    <p className="col-span-2">
+                      {format(parseISO(selectedRequest.commissionDecisionDate), 'PPP')}
+                    </p>
+                  </div>
+                )}
                 <div className="grid grid-cols-3 items-center gap-x-4 gap-y-2">
                   <Label className="text-right font-semibold">Status:</Label>
                   <p className="col-span-2 text-primary">
@@ -2080,7 +2171,7 @@ export default function PromotionPage() {
                                     });
                                   }
                                 } catch (error) {
-                                  log.error({ err: error }, 'Download failed:');
+                                  console.error('Download failed:', error);
                                   toast({
                                     title: 'Download Failed',
                                     description:
@@ -2103,6 +2194,72 @@ export default function PromotionPage() {
                   )}
                 </div>
               </div>
+
+              {/* Commission Letter */}
+              {selectedRequest.commissionLetterKey && (
+                <div className="pt-3 mt-3 border-t">
+                  <Label className="font-semibold">Barua Rasmi ya Tume</Label>
+                  <div className="mt-2 space-y-2">
+                    <div className="flex items-center justify-between p-2 rounded-md border bg-blue-50 dark:bg-blue-950/30 text-sm">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <span className="font-medium text-foreground">
+                          Barua Rasmi ya Tume
+                        </span>
+                      </div>
+                      <div className="flex gap-1 flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={() => handlePreviewFile(selectedRequest.commissionLetterKey!)}
+                        >
+                          Preview
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={async () => {
+                            try {
+                              const response = await fetch(
+                                `/api/files/download/${selectedRequest.commissionLetterKey}`,
+                                { credentials: 'include' }
+                              );
+                              if (response.ok) {
+                                const blob = await response.blob();
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = 'Barua-Rasmi-ya-Tume.pdf';
+                                document.body.appendChild(a);
+                                a.click();
+                                window.URL.revokeObjectURL(url);
+                                document.body.removeChild(a);
+                              } else {
+                                toast({
+                                  title: 'Download Failed',
+                                  description: 'Could not download the file. Please try again.',
+                                  variant: 'destructive',
+                                });
+                              }
+                            } catch (error) {
+                              toast({
+                                title: 'Download Failed',
+                                description: 'Could not download the file. Please try again.',
+                                variant: 'destructive',
+                              });
+                            }
+                          }}
+                        >
+                          Download
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
             </div>
             <DialogFooter>
               <DialogClose asChild>
@@ -2183,105 +2340,127 @@ export default function PromotionPage() {
         </Dialog>
       )}
 
-      {/* Commission Approval Modal */}
-      {currentRequestToAction && currentRequestToAction.Employee && (
-        <Dialog
-          open={isApprovalModalOpen}
-          onOpenChange={(open) => {
-            setIsApprovalModalOpen(open);
-            if (!open) {
-              setCurrentRequestToAction(null);
-              setApprovalReasonInput('');
-              setFinalCadreInput('');
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Commission Decision: Approval</DialogTitle>
-              <DialogDescription>
-                Approve the promotion request for{' '}
-                <strong>{currentRequestToAction.Employee.name}</strong> (
-                {currentRequestToAction.promotionType === 'Experience'
-                  ? 'Experience-based'
-                  : 'Education-based'}{' '}
-                promotion). This decision is final.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4 space-y-4">
-              <div>
-                <Label htmlFor="approvalReason" className="mb-2 block">
-                  Approval Reason <span className="text-destructive">*</span>
-                </Label>
+      {/* Commission Decision Modal */}
+      <Dialog
+        open={isCommissionDecisionModalOpen}
+        onOpenChange={setIsCommissionDecisionModalOpen}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {commissionDecisionType === 'approved'
+                ? 'Approved by Commission'
+                : 'Rejected by Commission'}
+            </DialogTitle>
+            <DialogDescription>
+              {commissionDecisionType === 'approved'
+                ? 'Pakia barua rasmi ya Tume ya kuidhinisha ombi hili na taja cadre ya mwisho.'
+                : 'Pakia barua rasmi ya Tume ya kukataa ombi hili na toa sababu.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {commissionDecisionType === 'rejected' && (
+              <div className="space-y-2">
+                <Label className="font-semibold">Sababu ya Kukataa *</Label>
                 <Textarea
-                  id="approvalReason"
-                  placeholder="Enter Commission's approval reason..."
-                  value={approvalReasonInput}
-                  onChange={(e) => setApprovalReasonInput(e.target.value)}
-                  rows={4}
+                  value={commissionRejectionReason}
+                  onChange={(e) => setCommissionRejectionReason(e.target.value)}
+                  placeholder="Toa sababu ya kukataa ombi hili..."
+                  rows={3}
                 />
               </div>
-
-              {/* Show proposed cadre for reference (experience-based only) */}
-              {currentRequestToAction.promotionType === 'Experience' && (
-                <div>
-                  <Label className="mb-2 block">
-                    Proposed Cadre (from HRO submission)
+            )}
+            {commissionDecisionType === 'approved' && (
+              <>
+                <div className="space-y-2">
+                  <Label className="font-semibold">
+                    Approval Reason <span className="text-destructive">*</span>
+                  </Label>
+                  <Textarea
+                    value={approvalReasonInput}
+                    onChange={(e) => setApprovalReasonInput(e.target.value)}
+                    placeholder="Enter Commission's approval reason..."
+                    rows={3}
+                  />
+                </div>
+                {(() => {
+                  const request = pendingRequests.find((req) => req.id === commissionDecisionRequestId);
+                  return request?.promotionType === 'Experience' ? (
+                    <div>
+                      <Label className="mb-2 block">
+                        Proposed Cadre (from HRO submission)
+                      </Label>
+                      <Input
+                        value={request?.proposedCadre || ''}
+                        disabled
+                        className="bg-muted"
+                      />
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Reference only. You must specify the final cadre below.
+                      </p>
+                    </div>
+                  ) : null;
+                })()}
+                <div className="space-y-2">
+                  <Label className="font-semibold">
+                    Final Cadre and Rank <span className="text-destructive">*</span>
                   </Label>
                   <Input
-                    value={currentRequestToAction.proposedCadre}
-                    disabled
-                    className="bg-muted"
+                    placeholder="e.g., Principal Officer Grade II"
+                    value={finalCadreInput}
+                    onChange={(e) => setFinalCadreInput(e.target.value)}
                   />
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Reference only. You must specify the final cadre below.
+                  <p className="text-sm text-muted-foreground">
+                    Specify the final cadre and rank that will be assigned to the
+                    employee upon approval.
                   </p>
                 </div>
-              )}
-
-              {/* Final Cadre input - required for all promotion types */}
-              <div>
-                <Label htmlFor="finalCadre" className="mb-2 block">
-                  Final Cadre and Rank{' '}
-                  <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="finalCadre"
-                  placeholder="e.g., Principal Officer Grade II"
-                  value={finalCadreInput}
-                  onChange={(e) => setFinalCadreInput(e.target.value)}
-                />
-                <p className="text-sm text-muted-foreground mt-2">
-                  Specify the final cadre and rank that will be assigned to the
-                  employee upon approval.
-                </p>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsApprovalModalOpen(false);
-                  setCurrentRequestToAction(null);
-                  setApprovalReasonInput('');
-                  setFinalCadreInput('');
+              </>
+            )}
+            <div className="space-y-2">
+              <FileUpload
+                label="Barua Rasmi ya Tume *"
+                description="Pakia barua rasmi ya Tume (PDF pekee, max 1MB)"
+                accept=".pdf"
+                maxSize={1}
+                folder="promotion/commission-letters"
+                value={commissionLetterFile}
+                onChange={(value) => setCommissionLetterFile(value as string)}
+                onPreview={(objectKey) => {
+                  setPreviewObjectKey(objectKey);
+                  setIsPreviewModalOpen(true);
                 }}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="bg-green-600 hover:bg-green-700"
-                onClick={handleApprovalSubmit}
-                disabled={
-                  !approvalReasonInput.trim() || !finalCadreInput.trim()
-                }
-              >
-                Approve & Submit Final Decision
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsCommissionDecisionModalOpen(false)}
+              disabled={isCommissionSubmitting}
+            >
+              Ghairi
+            </Button>
+            <Button
+              className={
+                commissionDecisionType === 'approved'
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : ''
+              }
+              variant={commissionDecisionType === 'rejected' ? 'destructive' : 'default'}
+              onClick={handleCommissionDecisionSubmit}
+              disabled={
+                isCommissionSubmitting ||
+                !commissionLetterFile ||
+                (commissionDecisionType === 'rejected' && !commissionRejectionReason.trim()) ||
+                (commissionDecisionType === 'approved' && (!approvalReasonInput.trim() || !finalCadreInput.trim()))
+              }
+            >
+              {isCommissionSubmitting ? 'Inawasilisha...' : 'Wasilisha Uamuzi'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {requestToCorrect && requestToCorrect.Employee && (
         <Dialog

@@ -15,8 +15,8 @@ export async function GET(
     const objectKey = decodeURIComponent(resolvedParams.objectKey.join('/'));
 
     logger.info(
-      'Download API - Object key segments:',
-      resolvedParams.objectKey
+      { objectKeySegments: resolvedParams.objectKey },
+      'Download API - Object key segments'
     );
     logger.info({ value: objectKey }, 'Download API - Reconstructed object key');
 
