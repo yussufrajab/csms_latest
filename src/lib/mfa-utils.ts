@@ -25,7 +25,8 @@ export async function createMfaToken(
   tokenType: 'OTP' | 'MAGIC_LINK',
   email: string,
   ipAddress: string | null,
-  userAgent: string | null
+  userAgent: string | null,
+  expiryMinutes?: number
 ): Promise<{ token: string; expiresAt: Date }> {
   // Invalidate existing unused tokens of the same type for this user
   await db.mfaToken.updateMany({
@@ -38,7 +39,7 @@ export async function createMfaToken(
   });
 
   const token = tokenType === 'OTP' ? generateOtpToken() : generateMagicLinkToken();
-  const expiresAt = new Date(Date.now() + MFA_TOKEN_EXPIRY_MINUTES * 60 * 1000);
+  const expiresAt = new Date(Date.now() + (expiryMinutes ?? MFA_TOKEN_EXPIRY_MINUTES) * 60 * 1000);
 
   await db.mfaToken.create({
     data: {

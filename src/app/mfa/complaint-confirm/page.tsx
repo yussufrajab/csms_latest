@@ -16,7 +16,7 @@ interface VerificationResponse {
   error?: string;
 }
 
-function MagicLinkConfirmationContent() {
+function ComplaintConfirmContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [state, setState] = useState<VerificationState>('loading');
@@ -25,33 +25,21 @@ function MagicLinkConfirmationContent() {
   const [countdown, setCountdown] = useState<number>(3);
 
   const token = searchParams.get('token');
-  const action = searchParams.get('action');
   const complaintData = searchParams.get('complaintData');
 
   useEffect(() => {
-    // Validate URL parameters
     if (!token) {
       setState('error');
-      setErrorMessage('Kiungo kisicho sahiki. Hakuna tokeni iliyopatikana.');
+      setErrorMessage('Link kisicho sahiki. Hakuna tokeni iliyopatikana.');
       return;
     }
 
-    if (action !== 'complaint') {
-      setState('error');
-      setErrorMessage('Kitendo kisicho sahiki. Kiungo hiki hakiruhusiwi.');
-      return;
-    }
-
-    // Call the verification API
     verifyMagicLink();
-  }, [token, action, complaintData]);
+  }, [token, complaintData]);
 
-  // Handle success redirect countdown
   useEffect(() => {
     if (state === 'success' && countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown(countdown - 1);
-      }, 1000);
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
       return () => clearTimeout(timer);
     } else if (state === 'success' && countdown === 0) {
       router.push('/dashboard/complaints');
@@ -62,9 +50,7 @@ function MagicLinkConfirmationContent() {
     try {
       const response = await fetch(`/api/complaints/magic-link-verify?complaintData=${encodeURIComponent(complaintData || '')}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token }),
       });
 
@@ -79,31 +65,25 @@ function MagicLinkConfirmationContent() {
         });
       } else {
         setState('error');
-        // Map error codes to Swahili messages
-        const errorCode = data.error;
-        switch (errorCode) {
+        switch (data.error) {
           case 'TOKEN_EXPIRED':
           case 'INVALID_TOKEN':
-            setErrorMessage('Kiungo kilikuwa kimekalify. Wasilisha lalamiko tena.');
+            setErrorMessage('Link ilikuwa imekalify. Wasilisha lalamiko tena.');
             break;
           case 'TOKEN_USED':
             setErrorMessage('Hii ombi tayari limetumwa. Angalia malalamiko yako.');
             break;
           case 'TOKEN_NOT_FOUND':
-            setErrorMessage('Kiungo kisicho sahiki. Hakuna tokeni iliyopatikana.');
+            setErrorMessage('Link kisicho sahiki. Hakuna tokeni iliyopatikana.');
             break;
           default:
             setErrorMessage(data.message || 'Hitilafu imetokea. Tafadhali jaribu tena.');
         }
       }
-    } catch (error) {
+    } catch {
       setState('error');
       setErrorMessage('Hitilafu ya mtandao. Wasilisha lalamiko tena.');
     }
-  };
-
-  const handleGoBack = () => {
-    router.push('/dashboard/complaints');
   };
 
   return (
@@ -116,9 +96,9 @@ function MagicLinkConfirmationContent() {
             {state === 'error' && 'Hitilafu'}
           </CardTitle>
           <CardDescription>
-            {state === 'loading' && 'Tunathibitisha kiungo chako...'}
+            {state === 'loading' && 'Tunathibitisha link chako...'}
             {state === 'success' && 'Lalamiko lako limepokelewa kikamilifu.'}
-            {state === 'error' && 'Kuna tatizo na kiungo chako.'}
+            {state === 'error' && 'Kuna tatizo na link chako.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center space-y-6">
@@ -147,7 +127,7 @@ function MagicLinkConfirmationContent() {
                   Kuelekezwa baada ya sekunde {countdown}...
                 </p>
               </div>
-              <Button onClick={() => router.push('/complaints/submitted')} className="w-full">
+              <Button onClick={() => router.push('/dashboard/complaints')} className="w-full">
                 Angalia Lalamiko
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -158,7 +138,7 @@ function MagicLinkConfirmationContent() {
             <>
               <XCircle className="h-16 w-16 text-red-500" />
               <p className="text-center text-muted-foreground">{errorMessage}</p>
-              <Button onClick={handleGoBack} variant="outline" className="w-full">
+              <Button onClick={() => router.push('/dashboard/complaints')} variant="outline" className="w-full">
                 Rudi Kwenye Malalamiko
               </Button>
             </>
@@ -169,7 +149,7 @@ function MagicLinkConfirmationContent() {
   );
 }
 
-export default function MagicLinkConfirmationPage() {
+export default function ComplaintConfirmPage() {
   return (
     <Suspense
       fallback={
@@ -177,19 +157,17 @@ export default function MagicLinkConfirmationPage() {
           <Card className="w-full max-w-md">
             <CardHeader className="text-center">
               <CardTitle className="text-2xl">Inathibitisha...</CardTitle>
-              <CardDescription>Tunathibitisha kiungo chako...</CardDescription>
+              <CardDescription>Tunathibitisha link chako...</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center space-y-6">
               <Loader2 className="h-16 w-16 animate-spin text-primary" />
-              <p className="text-muted-foreground text-center">
-                Tafadhali subiri...
-              </p>
+              <p className="text-muted-foreground text-center">Tafadhali subiri...</p>
             </CardContent>
           </Card>
         </div>
       }
     >
-      <MagicLinkConfirmationContent />
+      <ComplaintConfirmContent />
     </Suspense>
   );
 }

@@ -639,11 +639,11 @@ git commit -m "feat: update complaints page to use magic link MFA flow"
 
 Add a complaint-specific magic link email template.
 
-- [ ] **Step 1: Read current email.ts to find existing MFA email function**
+- [x] **Step 1: Read current email.ts to find existing MFA email function**
 
 Read: `src/lib/email.ts` - find `sendMfaEmail` function to understand the current implementation
 
-- [ ] **Step 2: Add complaint magic link email function**
+- [x] **Step 2: Add complaint magic link email function**
 
 After the existing `sendMfaEmail` function, add:
 
@@ -746,7 +746,7 @@ Ikiwa una maswali, wasiliana na ofisi ya HR yako.
 }
 ```
 
-- [ ] **Step 3: Update mfa-initiate route to use new email function**
+- [x] **Step 3: Update mfa-initiate route to use new email function**
 
 Read: `src/app/api/complaints/mfa-initiate/route.ts`
 
@@ -779,12 +779,12 @@ const emailResult = await sendComplaintMagicLinkEmail({
 });
 ```
 
-- [ ] **Step 4: Run TypeScript check**
+- [x] **Step 4: Run TypeScript check**
 
 Run: `npm run typecheck`
 Expected: No errors
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit** (pending user commit)
 
 ```bash
 git add src/lib/email.ts src/app/api/complaints/mfa-initiate/route.ts

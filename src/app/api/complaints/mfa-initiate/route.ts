@@ -4,7 +4,7 @@ import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
 import { authLogger } from '@/lib/logger';
 import { createMfaToken, checkOtpRateLimit, maskEmail } from '@/lib/mfa-utils';
-import { sendMfaEmail } from '@/lib/email';
+import { sendComplaintMagicLinkEmail } from '@/lib/email';
 import { getClientIp } from '@/lib/audit-logger';
 
 export const POST = withRateLimit(withAuth(async (request, { auth }) => {
@@ -82,33 +82,27 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
       );
     }
 
-    const mfaTokenExpiryMinutes = Number(process.env.MFA_TOKEN_EXPIRY_MINUTES) || 15;
-    const { token: otpToken } = await createMfaToken(
-      user.id,
-      'OTP',
-      userEmail,
-      ipAddress,
-      userAgent
-    );
+    const mfaTokenExpiryMinutes = Number(process.env.MFA_TOKEN_EXPIRY_MINUTES) || 20;
     const { token: magicLinkToken } = await createMfaToken(
       user.id,
       'MAGIC_LINK',
       userEmail,
       ipAddress,
-      userAgent
+      userAgent,
+      mfaTokenExpiryMinutes
     );
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
-    const magicLinkUrl = `${appUrl}/mfa/magic-link-confirm?token=${magicLinkToken}&action=complaint&complaintData=${encodeURIComponent(complaintDataParam)}`;
+    const magicLinkUrl = `${appUrl}/mfa/complaint-confirm?token=${magicLinkToken}&complaintData=${encodeURIComponent(complaintDataParam)}`;
 
-    // Send MFA email
-    const emailResult = await sendMfaEmail(
-      userEmail,
-      otpToken,
-      magicLinkUrl,
-      user.name || 'Employee',
-      mfaTokenExpiryMinutes
-    );
+    // Send complaint magic link email
+    const emailResult = await sendComplaintMagicLinkEmail({
+      email: userEmail,
+      magicLink: magicLinkUrl,
+      employeeName: user.name || 'Employee',
+      expiryMinutes: mfaTokenExpiryMinutes,
+      complaintSubject: complaintData.subject,
+    });
 
     if (!emailResult.success) {
       authLogger.error({ err: emailResult.error }, 'Failed to send MFA email for complaint');

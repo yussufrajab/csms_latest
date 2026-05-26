@@ -382,7 +382,7 @@ export default function ComplaintsPage() {
     if (!hasValidDomain) {
       toast({
         title: 'Domain ya Email Isiyo Sahihi',
-        description: 'Barua pepe yako lazima iwe na domain ya .go.tz au .ac.tz. Tafadhali sasisha barua pepe yako.',
+        description: 'Barua pepe yako lazima iwe na domain ya .go.tz au .ac.tz. Tafadhali refresh barua pepe yako.',
         variant: 'destructive',
       });
       return;
@@ -412,7 +412,7 @@ export default function ComplaintsPage() {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        toast({ title: 'Imeshindikana', description: result.message || 'Imeshindwa kutuma kiungo cha kuthibitisha.', variant: 'destructive' });
+        toast({ title: 'Imeshindikana', description: result.message || 'Imeshindwa kutuma link cha kuthibitisha.', variant: 'destructive' });
         setIsMagicLinkSending(false);
         return;
       }
@@ -429,7 +429,7 @@ export default function ComplaintsPage() {
       setComplaintLetterFile('');
       setEvidenceFile('');
 
-      toast({ title: 'Kiungo Kimetumwa', description: 'Tumetuma kiungo cha kuthibitisha kwenye barua pepe yako. Bonyeza kiungo hicho kuwasilisha lalamiko.' });
+      toast({ title: 'Link Imetumwa', description: 'Tumetuma link cha kuthibitisha kwenye barua pepe yako. Bonyeza link hicho kuwasilisha lalamiko.' });
     } catch {
       toast({ title: 'Hitilafu', description: 'Hitilafu imetokea. Tafadhali jaribu tena.', variant: 'destructive' });
       setIsMagicLinkSending(false);
@@ -1104,7 +1104,7 @@ export default function ComplaintsPage() {
                   <RefreshCw
                     className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
                   />
-                  Sasisha
+                  Refresh
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2 mt-3">
@@ -1441,13 +1441,13 @@ export default function ComplaintsPage() {
                   <div>
                     <h3 className="text-xl font-semibold mb-2">Barua Pepe Imetumwa!</h3>
                     <p className="text-muted-foreground max-w-md mx-auto">
-                      Tumetuma kiungo cha kuthibitisha kwenye <strong>{magicLinkEmail}</strong>.
-                      Bonyeza kiungo hicho katika email yako kuwasilisha lalamiko lako.
+                      Tumetuma link cha kuthibitisha kwenye <strong>{magicLinkEmail}</strong>.
+                      Bonyeza link hicho katika email yako kuwasilisha lalamiko lako.
                     </p>
                   </div>
                   <Card className="bg-blue-50 border-blue-200 max-w-md mx-auto">
                     <CardContent className="pt-4 pb-4">
-                      <p className="text-sm text-blue-700"><strong>Muda:</strong> Kiungo kitakalifya baada ya dakika 15.</p>
+                      <p className="text-sm text-blue-700"><strong>Muda:</strong> Link itamaliza muda baada ya dakika 20.</p>
                       <p className="text-sm text-blue-700 mt-1"><strong>Notisi:</strong> Angalia folda yako ya spam ikiwa hujaona email.</p>
                     </CardContent>
                   </Card>
@@ -1457,7 +1457,7 @@ export default function ComplaintsPage() {
                     </Button>
                     <Button onClick={() => fetchComplaints(true)}>
                       <RefreshCw className="mr-2 h-4 w-4" />
-                      Sasisha Orodha
+                      Refresh
                     </Button>
                   </div>
                 </div>
@@ -1687,7 +1687,7 @@ export default function ComplaintsPage() {
                       ) : (
                         <Send className="mr-2 h-4 w-4" />
                       )}
-                      {isMagicLinkSending ? 'Inatuma Kiungo...' : 'Wasilisha Lalamiko'}
+                      {isMagicLinkSending ? 'Inatuma Link...' : 'Wasilisha Lalamiko'}
                     </Button>
                   </div>
                   {!hasUsedAI && (
@@ -1739,7 +1739,7 @@ export default function ComplaintsPage() {
                   <RefreshCw
                     className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
                   />
-                  Sasisha
+                  Refresh
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2 mt-3">
