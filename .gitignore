@@ -71,3 +71,8 @@ beky3a/database/*.backup
 
 # Log files
 logs/*.log
+
+# Database backup files (large files - use compressed archive instead)
+docs/database/nody_full_*.sql
+docs/database/nody_core_*.sql
+docs/database/schema_*.sql
