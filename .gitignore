@@ -76,3 +76,7 @@ logs/*.log
 docs/database/nody_full_*.sql
 docs/database/nody_core_*.sql
 docs/database/schema_*.sql
+
+# Database backup files with employees (large files - use compressed archive instead)
+docs/database/nody_with_employees_*.sql
+docs/database/schema_full_*.sql
