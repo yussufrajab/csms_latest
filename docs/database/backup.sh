@@ -1,6 +1,6 @@
 #!/bin/bash
 # Backup CSMS core database (User, Institution, SystemSettings only)
-# Excludes Employee, all request types, AuditLog, Notification, Complaint, Session
+# Excludes Employee, all request types, AuditLog, Notification, Complaint, Session, MfaToken
 
 set -euo pipefail
 
@@ -35,6 +35,8 @@ PGPASSWORD="${PGPASSWORD:-}" pg_dump \
   --exclude-table='"Notification"' \
   --exclude-table='"Complaint"' \
   --exclude-table='"Session"' \
+  --exclude-table='"MfaToken"' \
+  --exclude-schema='audit' \
   --clean --if-exists \
   -f "$BACKUP_FILE"
 

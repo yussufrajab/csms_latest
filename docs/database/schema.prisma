@@ -20,17 +20,24 @@ model CadreChangeRequest {
   employeeId                                  String
   submittedById                               String
   reviewedById                                String?
+  decisionDate                                DateTime?
+  commissionDecisionDate                       DateTime?
   createdAt                                   DateTime @default(now())
   updatedAt                                   DateTime
   originalCadre                               String?
+  hrrpReviewedById                            String?
+  hrrpReviewedAt                              DateTime?
+  commissionLetterKey                          String?
   Employee                                    Employee @relation(fields: [employeeId], references: [id])
   User_CadreChangeRequest_reviewedByIdToUser  User?    @relation("CadreChangeRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
   User_CadreChangeRequest_submittedByIdToUser User     @relation("CadreChangeRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_CadreChangeRequest_hrrpReviewedByToUser User?    @relation("CadreChangeRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
   @@index([createdAt(sort: Desc)])
+  @@index([hrrpReviewedById])
 }
 
 model Complaint {
@@ -70,15 +77,20 @@ model ConfirmationRequest {
   reviewedById                                 String?
   decisionDate                                 DateTime?
   commissionDecisionDate                       DateTime?
+  commissionLetterKey                           String?
+  hrrpReviewedById                             String?
+  hrrpReviewedAt                               DateTime?
   createdAt                                    DateTime  @default(now())
   updatedAt                                    DateTime
   Employee                                     Employee  @relation(fields: [employeeId], references: [id])
   User_ConfirmationRequest_reviewedByIdToUser  User?     @relation("ConfirmationRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
   User_ConfirmationRequest_submittedByIdToUser User      @relation("ConfirmationRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_ConfirmationRequest_hrrpReviewedByToUser User?     @relation("ConfirmationRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
+  @@index([hrrpReviewedById])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -94,6 +106,7 @@ model Employee {
   countryOfBirth          String?
   zanId                   String                    @unique
   phoneNumber             String?
+  email                   String?
   contactAddress          String?
   zssfNumber              String?
   payrollNumber           String?
@@ -170,17 +183,24 @@ model LwopRequest {
   employeeId                           String
   submittedById                        String
   reviewedById                         String?
+  decisionDate                         DateTime?
+  commissionDecisionDate               DateTime?
   createdAt                            DateTime  @default(now())
   updatedAt                            DateTime
   endDate                              DateTime?
   startDate                            DateTime?
+  hrrpReviewedById                     String?
+  hrrpReviewedAt                       DateTime?
+  commissionLetterKey                  String?
   Employee                             Employee  @relation(fields: [employeeId], references: [id])
   User_LwopRequest_reviewedByIdToUser  User?     @relation("LwopRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
   User_LwopRequest_submittedByIdToUser User      @relation("LwopRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_LwopRequest_hrrpReviewedByToUser User?    @relation("LwopRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
+  @@index([hrrpReviewedById])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -192,6 +212,10 @@ model Notification {
   userId    String
   createdAt DateTime @default(now())
   User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+  @@index([isRead])
 }
 
 model PromotionRequest {
@@ -206,18 +230,25 @@ model PromotionRequest {
   employeeId                                String
   submittedById                             String
   reviewedById                              String?
+  decisionDate                              DateTime?
+  commissionDecisionDate                     DateTime?
   createdAt                                 DateTime @default(now())
   updatedAt                                 DateTime
   commissionDecisionReason                  String?
   finalCadre                                String?
+  hrrpReviewedById                          String?
+  hrrpReviewedAt                            DateTime?
+  commissionLetterKey                        String?
   Employee                                  Employee @relation(fields: [employeeId], references: [id])
   User_PromotionRequest_reviewedByIdToUser  User?    @relation("PromotionRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
   User_PromotionRequest_submittedByIdToUser User     @relation("PromotionRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_PromotionRequest_hrrpReviewedByToUser User?    @relation("PromotionRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
   @@index([createdAt(sort: Desc)])
+  @@index([hrrpReviewedById])
 }
 
 model ResignationRequest {
@@ -234,12 +265,19 @@ model ResignationRequest {
   createdAt                                   DateTime @default(now())
   updatedAt                                   DateTime
   Employee                                    Employee @relation(fields: [employeeId], references: [id])
-  User_ResignationRequest_reviewedByIdToUser  User?    @relation("ResignationRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
-  User_ResignationRequest_submittedByIdToUser User     @relation("ResignationRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  hrrpReviewedById                                String?
+  hrrpReviewedAt                                  DateTime?
+  commissionLetterKey                             String?
+  decisionDate                                    DateTime?
+  commissionDecisionDate                         DateTime?
+  User_ResignationRequest_reviewedByIdToUser      User?    @relation("ResignationRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
+  User_ResignationRequest_submittedByIdToUser     User     @relation("ResignationRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_ResignationRequest_hrrpReviewedByToUser    User?    @relation("ResignationRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
+  @@index([hrrpReviewedById])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -259,12 +297,19 @@ model RetirementRequest {
   createdAt                                  DateTime @default(now())
   updatedAt                                  DateTime
   Employee                                   Employee @relation(fields: [employeeId], references: [id])
-  User_RetirementRequest_reviewedByIdToUser  User?    @relation("RetirementRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
-  User_RetirementRequest_submittedByIdToUser User     @relation("RetirementRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  hrrpReviewedById                                String?
+  hrrpReviewedAt                                 DateTime?
+  commissionLetterKey                            String?
+  decisionDate                                   DateTime?
+  commissionDecisionDate                         DateTime?
+  User_RetirementRequest_reviewedByIdToUser      User?    @relation("RetirementRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
+  User_RetirementRequest_submittedByIdToUser     User     @relation("RetirementRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_RetirementRequest_hrrpReviewedByToUser    User?    @relation("RetirementRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
+  @@index([hrrpReviewedById])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -282,12 +327,19 @@ model SeparationRequest {
   createdAt                                  DateTime @default(now())
   updatedAt                                  DateTime
   Employee                                   Employee @relation(fields: [employeeId], references: [id])
-  User_SeparationRequest_reviewedByIdToUser  User?    @relation("SeparationRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
-  User_SeparationRequest_submittedByIdToUser User     @relation("SeparationRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  hrrpReviewedById                               String?
+  hrrpReviewedAt                                DateTime?
+  commissionLetterKey                           String?
+  decisionDate                                  DateTime?
+  commissionDecisionDate                        DateTime?
+  User_SeparationRequest_reviewedByIdToUser      User?    @relation("SeparationRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
+  User_SeparationRequest_submittedByIdToUser     User     @relation("SeparationRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_SeparationRequest_hrrpReviewedByToUser    User?    @relation("SeparationRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
+  @@index([hrrpReviewedById])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -306,12 +358,19 @@ model ServiceExtensionRequest {
   createdAt                                        DateTime @default(now())
   updatedAt                                        DateTime
   Employee                                         Employee @relation(fields: [employeeId], references: [id])
-  User_ServiceExtensionRequest_reviewedByIdToUser  User?    @relation("ServiceExtensionRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
-  User_ServiceExtensionRequest_submittedByIdToUser User     @relation("ServiceExtensionRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  hrrpReviewedById                                      String?
+  hrrpReviewedAt                                       DateTime?
+  commissionLetterKey                                  String?
+  decisionDate                                         DateTime?
+  commissionDecisionDate                               DateTime?
+  User_ServiceExtensionRequest_reviewedByIdToUser        User?    @relation("ServiceExtensionRequest_reviewedByIdToUser", fields: [reviewedById], references: [id])
+  User_ServiceExtensionRequest_submittedByIdToUser       User     @relation("ServiceExtensionRequest_submittedByIdToUser", fields: [submittedById], references: [id])
+  User_ServiceExtensionRequest_hrrpReviewedByToUser      User?    @relation("ServiceExtensionRequest_hrrpReviewedByToUser", fields: [hrrpReviewedById], references: [id])
 
   @@index([status])
   @@index([reviewStage])
   @@index([employeeId])
+  @@index([hrrpReviewedById])
   @@index([createdAt(sort: Desc)])
 }
 
@@ -347,56 +406,40 @@ model User {
   loginLockoutReason                                                  String?
   loginLockoutType                                                    String?
   lastActivity                                                        DateTime?
-  AuditLog                                                            AuditLog[]
   CadreChangeRequest_CadreChangeRequest_reviewedByIdToUser            CadreChangeRequest[]      @relation("CadreChangeRequest_reviewedByIdToUser")
   CadreChangeRequest_CadreChangeRequest_submittedByIdToUser           CadreChangeRequest[]      @relation("CadreChangeRequest_submittedByIdToUser")
+  CadreChangeRequest_hrrpReviewedByToUser                            CadreChangeRequest[]      @relation("CadreChangeRequest_hrrpReviewedByToUser")
   Complaint_Complaint_complainantIdToUser                             Complaint[]               @relation("Complaint_complainantIdToUser")
   Complaint_Complaint_reviewedByIdToUser                              Complaint[]               @relation("Complaint_reviewedByIdToUser")
   ConfirmationRequest_ConfirmationRequest_reviewedByIdToUser          ConfirmationRequest[]     @relation("ConfirmationRequest_reviewedByIdToUser")
   ConfirmationRequest_ConfirmationRequest_submittedByIdToUser         ConfirmationRequest[]     @relation("ConfirmationRequest_submittedByIdToUser")
+  ConfirmationRequest_hrrpReviewedByToUser                            ConfirmationRequest[]     @relation("ConfirmationRequest_hrrpReviewedByToUser")
   LwopRequest_LwopRequest_reviewedByIdToUser                          LwopRequest[]             @relation("LwopRequest_reviewedByIdToUser")
   LwopRequest_LwopRequest_submittedByIdToUser                         LwopRequest[]             @relation("LwopRequest_submittedByIdToUser")
+  LwopRequest_hrrpReviewedByToUser                                     LwopRequest[]             @relation("LwopRequest_hrrpReviewedByToUser")
   Notification                                                        Notification[]
   PromotionRequest_PromotionRequest_reviewedByIdToUser                PromotionRequest[]        @relation("PromotionRequest_reviewedByIdToUser")
   PromotionRequest_PromotionRequest_submittedByIdToUser               PromotionRequest[]        @relation("PromotionRequest_submittedByIdToUser")
+  PromotionRequest_hrrpReviewedByToUser                              PromotionRequest[]        @relation("PromotionRequest_hrrpReviewedByToUser")
   ResignationRequest_ResignationRequest_reviewedByIdToUser            ResignationRequest[]      @relation("ResignationRequest_reviewedByIdToUser")
   ResignationRequest_ResignationRequest_submittedByIdToUser           ResignationRequest[]      @relation("ResignationRequest_submittedByIdToUser")
+  ResignationRequest_hrrpReviewedByToUser                              ResignationRequest[]      @relation("ResignationRequest_hrrpReviewedByToUser")
   RetirementRequest_RetirementRequest_reviewedByIdToUser              RetirementRequest[]       @relation("RetirementRequest_reviewedByIdToUser")
   RetirementRequest_RetirementRequest_submittedByIdToUser             RetirementRequest[]       @relation("RetirementRequest_submittedByIdToUser")
+  RetirementRequest_hrrpReviewedByToUser                              RetirementRequest[]       @relation("RetirementRequest_hrrpReviewedByToUser")
   SeparationRequest_SeparationRequest_reviewedByIdToUser              SeparationRequest[]       @relation("SeparationRequest_reviewedByIdToUser")
   SeparationRequest_SeparationRequest_submittedByIdToUser             SeparationRequest[]       @relation("SeparationRequest_submittedByIdToUser")
+  SeparationRequest_hrrpReviewedByToUser                              SeparationRequest[]       @relation("SeparationRequest_hrrpReviewedByToUser")
   ServiceExtensionRequest_ServiceExtensionRequest_reviewedByIdToUser  ServiceExtensionRequest[] @relation("ServiceExtensionRequest_reviewedByIdToUser")
   ServiceExtensionRequest_ServiceExtensionRequest_submittedByIdToUser ServiceExtensionRequest[] @relation("ServiceExtensionRequest_submittedByIdToUser")
+  ServiceExtensionRequest_hrrpReviewedByToUser                        ServiceExtensionRequest[] @relation("ServiceExtensionRequest_hrrpReviewedByToUser")
   Session                                                             Session[]
+  MfaToken                                                            MfaToken[]
   Employee                                                            Employee?                 @relation(fields: [employeeId], references: [id])
   Institution                                                         Institution               @relation(fields: [institutionId], references: [id])
-}
 
-model AuditLog {
-  id              String   @id @default(cuid())
-  eventType       String
-  eventCategory   String
-  severity        String
-  userId          String?
-  username        String?
-  userRole        String?
-  ipAddress       String?
-  userAgent       String?
-  attemptedRoute  String
-  requestMethod   String?
-  isAuthenticated Boolean  @default(false)
-  wasBlocked      Boolean  @default(true)
-  blockReason     String?
-  timestamp       DateTime @default(now())
-  additionalData  Json?
-  User            User?    @relation(fields: [userId], references: [id])
-
-  @@index([userId])
-  @@index([timestamp])
-  @@index([eventType])
-  @@index([eventCategory])
-  @@index([severity])
-  @@index([attemptedRoute])
+  @@index([role])
+  @@index([institutionId])
 }
 
 model Session {
@@ -426,4 +469,23 @@ model SystemSettings {
   updatedAt DateTime
 
   @@index([key])
+}
+
+model MfaToken {
+  id           String    @id @default(cuid())
+  userId       String
+  token        String    @unique
+  tokenType    String    // "OTP" or "MAGIC_LINK"
+  email        String    // email address the token was sent to (audit trail)
+  attempts     Int       @default(0)
+  expiresAt    DateTime
+  usedAt       DateTime?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime  @default(now())
+  User         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
 }
