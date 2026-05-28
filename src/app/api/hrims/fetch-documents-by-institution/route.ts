@@ -3,6 +3,8 @@ import { getHrimsApiConfig } from '@/lib/hrims-config';
 import { db as prisma } from '@/lib/db';
 import { uploadFile } from '@/lib/minio';
 import { hrimsLogger } from '@/lib/logger';
+import { verifyAuth } from '@/lib/api-auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
 
 // Configure route for long-running operations
 export const maxDuration = 900; // 15 minutes for large institutions
@@ -55,7 +57,7 @@ interface DocumentResult {
  fileUrl: string;
  }>;
  status: 'success' | 'partial' | 'failed';
- message?: string;
+  message?: string;
 }
 
 // Fetch documents from HRIMS using RequestId 206 with 3 separate API calls
@@ -498,9 +500,32 @@ async function processEmployeeDocuments(
 }
 
 export async function POST(request: NextRequest) {
- try {
- const HRIMS_CONFIG = await getHrimsApiConfig();
- const { institutionId } = await request.json();
+  const authResult = await verifyAuth(request);
+  if (!authResult.authenticated) {
+    return authResult.response!;
+  }
+  const auth = authResult.context!;
+
+  const rateLimitResult = await checkRateLimit(`ratelimit:${getClientIp(request)}:write`, 'write');
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests', errorCode: 'RATE_LIMIT_EXCEEDED', retryAfter: rateLimitResult.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rateLimitResult.retryAfter) } }
+    );
+  }
+
+  // Role restriction for bulk document fetch
+  const allowedRoles = ['HHRMD', 'ADMIN', 'CSCS'];
+  if (!allowedRoles.includes(auth.role.toUpperCase())) {
+    return NextResponse.json(
+      { success: false, message: 'Insufficient permissions' },
+      { status: 403 }
+    );
+  }
+
+  try {
+    const HRIMS_CONFIG = await getHrimsApiConfig();
+    const { institutionId } = await request.json();
 
  if (!institutionId) {
  return NextResponse.json(

@@ -58,6 +58,8 @@ export enum AuditEventType {
   ADMIN_PASSWORD_RESET = 'ADMIN_PASSWORD_RESET',
   FILE_UPLOADED = 'FILE_UPLOADED',
   FILE_DELETED = 'FILE_DELETED',
+  FILE_DOWNLOADED = 'FILE_DOWNLOADED',
+  FILE_PREVIEWED = 'FILE_PREVIEWED',
   INSTITUTION_CREATED = 'INSTITUTION_CREATED',
   INSTITUTION_UPDATED = 'INSTITUTION_UPDATED',
 }
@@ -635,7 +637,7 @@ export async function logComplaintAction(data: {
  * Log file operation
  */
 export async function logFileAction(data: {
-  action: 'UPLOADED' | 'DELETED';
+  action: 'UPLOADED' | 'DELETED' | 'DOWNLOADED' | 'PREVIEWED';
   fileName?: string;
   objectKey?: string;
   performedById: string;
@@ -648,6 +650,14 @@ export async function logFileAction(data: {
   const eventTypeMap = {
     UPLOADED: AuditEventType.FILE_UPLOADED,
     DELETED: AuditEventType.FILE_DELETED,
+    DOWNLOADED: AuditEventType.FILE_DOWNLOADED,
+    PREVIEWED: AuditEventType.FILE_PREVIEWED,
+  };
+  const requestMethodMap = {
+    UPLOADED: 'POST',
+    DELETED: 'DELETE',
+    DOWNLOADED: 'GET',
+    PREVIEWED: 'GET',
   };
   await logAuditEvent({
     eventType: eventTypeMap[data.action],
@@ -658,8 +668,8 @@ export async function logFileAction(data: {
     userRole: data.performedByRole,
     ipAddress: data.ipAddress,
     deviceInfo: data.deviceInfo,
-    attemptedRoute: `/api/files/${data.action === 'UPLOADED' ? 'upload' : 'delete'}`,
-    requestMethod: data.action === 'UPLOADED' ? 'POST' : 'DELETE',
+    attemptedRoute: `/api/files/${data.action === 'UPLOADED' ? 'upload' : data.action === 'DELETED' ? 'delete' : 'download'}/${data.objectKey || ''}`,
+    requestMethod: requestMethodMap[data.action],
     isAuthenticated: true,
     wasBlocked: false,
     blockReason: null,

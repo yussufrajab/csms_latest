@@ -187,10 +187,11 @@ class ApiClient {
 
     if (requiresCSRF && typeof window !== 'undefined') {
       // Get CSRF token from cookie
-      const csrfToken = document.cookie
+      // Use indexOf + substring to preserve '=' characters in base64 value
+      const csrfRow = document.cookie
         .split('; ')
-        .find((row) => row.startsWith('csrf-token='))
-        ?.split('=')[1];
+        .find((row) => row.startsWith('csrf-token='));
+      const csrfToken = csrfRow ? csrfRow.substring(csrfRow.indexOf('=') + 1) : undefined;
 
       if (csrfToken) {
         headers['x-csrf-token'] = csrfToken;

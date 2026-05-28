@@ -221,56 +221,17 @@ export default function DashboardPage() {
 
     const fetchDashboardData = async () => {
       try {
-        log.info('=== Testing API connectivity ===');
-        // First test a simple endpoint
-        try {
-          const testResponse = await fetch('/api/test');
-          const testData = await testResponse.json();
-          log.info({ testData }, 'Test API response:');
-        } catch (testError) {
-          log.error({ testError }, 'Test API failed:');
-        }
+        const response = await fetch(
+          `/api/dashboard/metrics?userRole=${role}&userInstitutionId=${user.institutionId}`,
+          { credentials: 'include' }
+        );
+        const data = await response.json();
 
-        log.info('=== Fetching dashboard data ===');
-
-        // Test direct API call to bypass API client
-        try {
-          const directResponse = await fetch(
-            `/api/dashboard/metrics?userRole=${role}&userInstitutionId=${user.institutionId}`,
-            {
-              credentials: 'include',
-            }
-          );
-          const directData = await directResponse.json();
-          log.info({ directData }, 'Direct API response:');
-
-          if (directData.success && directData.data) {
-            setStats(directData.data.stats);
-            setRecentActivities(directData.data.recentActivities || []);
-            return; // Skip the API client call if direct call works
-          }
-        } catch (directError) {
-          log.error({ directError }, 'Direct API call failed:');
-        }
-
-        const response = await apiClient.getDashboardSummary();
-        log.info({ response }, 'Dashboard response:');
-
-        if (!response.success || !response.data) {
-          throw new Error(
-            response.message || 'Failed to fetch dashboard summary'
-          );
-        }
-
-        // Check the response structure and handle accordingly
-        if (response.data.stats) {
-          setStats(response.data.stats);
-          setRecentActivities(response.data.recentActivities || []);
+        if (data.success && data.data) {
+          setStats(data.data.stats);
+          setRecentActivities(data.data.recentActivities || []);
         } else {
-          // Handle case where data structure is different
-          log.info({ data: response.data }, 'Unexpected data structure');
-          setStats(response.data.stats || null);
-          setRecentActivities(response.data.recentActivities || []);
+          throw new Error(data.message || 'Failed to fetch dashboard summary');
         }
       } catch (error) {
         log.error({ err: error }, 'Dashboard fetch error:');

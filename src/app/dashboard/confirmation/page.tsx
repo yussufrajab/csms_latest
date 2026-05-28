@@ -286,16 +286,9 @@ export default function ConfirmationPage() {
 
   useEffect(() => {
     if (!isAuthLoading && user && role) {
-      fetchRequests();
-    }
-  }, [user, role, isAuthLoading, fetchRequests, statusFilter]);
-
-  // Fetch new data when page changes
-  useEffect(() => {
-    if (currentPage > 1 && user && role) {
       fetchRequests(false, currentPage);
     }
-  }, [currentPage, fetchRequests, user, role]);
+  }, [user, role, isAuthLoading, fetchRequests, statusFilter, currentPage]);
 
   // Check for pending confirmation whenever employee or requests change
   useEffect(() => {

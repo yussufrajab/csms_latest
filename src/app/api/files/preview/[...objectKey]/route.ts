@@ -5,31 +5,42 @@ import {
   getFileMetadata,
   generatePresignedUrl,
 } from '@/lib/minio';
+import { verifyAuth } from '@/lib/api-auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
+import { logFileAction } from '@/lib/audit-logger';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ objectKey: string[] }> }
 ) {
-  try {
-    // Await params in Next.js 15+
-    const resolvedParams = await params;
+  const authResult = await verifyAuth(request);
+  if (!authResult.authenticated) {
+    return authResult.response!;
+  }
+  const auth = authResult.context!;
 
-    // Reconstruct the object key from the dynamic route segments
+  const rateLimitResult = await checkRateLimit(`ratelimit:${getClientIp(request)}:download`, 'download');
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests', errorCode: 'RATE_LIMIT_EXCEEDED', retryAfter: rateLimitResult.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rateLimitResult.retryAfter) } }
+    );
+  }
+
+  try {
+    const resolvedParams = await params;
     const objectKey = decodeURIComponent(resolvedParams.objectKey.join('/'));
 
     logger.info({ value: resolvedParams.objectKey }, 'Preview API - Object key segments');
     logger.info({ value: objectKey }, 'Preview API - Reconstructed object key');
 
-    // Get query parameters
     const searchParams = request.nextUrl.searchParams;
-    const expiry = parseInt(searchParams.get('expiry') || '3600'); // 1 hour default
-    const mode = searchParams.get('mode') || 'inline'; // inline or presigned
+    const expiry = parseInt(searchParams.get('expiry') || '3600');
+    const mode = searchParams.get('mode') || 'inline';
 
-    // Get file metadata first to validate existence and get content type
     const metadata = await getFileMetadata(objectKey);
 
     if (mode === 'presigned') {
-      // Generate presigned URL for client-side access
       const presignedUrl = await generatePresignedUrl(objectKey, expiry);
 
       return NextResponse.json({
@@ -45,10 +56,8 @@ export async function GET(
       });
     }
 
-    // For inline preview, stream the file directly
     const fileStream = await downloadFile(objectKey);
 
-    // Convert Node.js stream to ReadableStream for NextResponse
     const readable = new ReadableStream({
       start(controller) {
         fileStream.on('data', (chunk: Buffer) => {
@@ -65,19 +74,27 @@ export async function GET(
       },
     });
 
-    // Set response headers for inline display
     const headers = new Headers();
     headers.set('Content-Type', metadata.contentType);
     headers.set('Content-Length', metadata.size.toString());
 
-    // For PDF files, set inline disposition to display in browser
     if (metadata.contentType === 'application/pdf') {
       headers.set('Content-Disposition', 'inline');
     }
 
-    // Set cache headers
     headers.set('Cache-Control', 'public, max-age=3600');
     headers.set('Last-Modified', metadata.lastModified.toUTCString());
+
+    await logFileAction({
+      action: 'PREVIEWED',
+      fileName: objectKey.split('/').pop() || 'preview',
+      objectKey: objectKey,
+      performedById: auth.userId,
+      performedByUsername: auth.username,
+      performedByRole: auth.role,
+      ipAddress: getClientIp(request),
+      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+    }).catch(() => {});
 
     return new NextResponse(readable, {
       status: 200,

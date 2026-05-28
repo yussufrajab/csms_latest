@@ -1,17 +1,37 @@
 import { NextResponse } from 'next/server';
 import { uploadFile, generateObjectKey } from '@/lib/minio';
-import { logFileAction, getClientIp } from '@/lib/audit-logger';
+import { logFileAction, getClientIp as getAuditClientIp } from '@/lib/audit-logger';
 import { validateFileUpload } from '@/lib/file-validation';
-import { withAuth } from '@/lib/api-auth';
-import { withRateLimit } from '@/lib/rate-limiter';
+import { verifyAuth } from '@/lib/api-auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
+import { validateCSRF } from '@/lib/api-csrf-middleware';
 import { logger } from '@/lib/logger';
 
-export const POST = withRateLimit(withAuth(async (request, { auth }) => {
-  try {
-    // Get the multipart form data
-    const formData = await request.formData();
+export async function POST(request: Request) {
+  // 1. Verify authentication
+  const authResult = await verifyAuth(request);
+  if (!authResult.authenticated) {
+    return authResult.response!;
+  }
+  const auth = authResult.context!;
 
-    // Get the file from form data
+  // 2. Check rate limit
+  const rateLimitResult = await checkRateLimit(`ratelimit:${getClientIp(request)}:upload`, 'upload');
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests', errorCode: 'RATE_LIMIT_EXCEEDED', retryAfter: rateLimitResult.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rateLimitResult.retryAfter) } }
+    );
+  }
+
+  // 3. Validate CSRF
+  const csrfCheck = await validateCSRF(request);
+  if (!csrfCheck.valid) {
+    return csrfCheck.response!;
+  }
+
+  try {
+    const formData = await request.formData();
     const file = formData.get('file') as File;
     const folder = (formData.get('folder') as string) || 'documents';
 
@@ -22,7 +42,6 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
       );
     }
 
-    // Convert file to buffer first for validation
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
@@ -34,30 +53,21 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
       );
     }
 
-    // Generate unique object key
     const objectKey = generateObjectKey(folder, file.name);
-
-    // Upload to MinIO
     const uploadResult = await uploadFile(
       buffer,
       objectKey,
       file.type || 'application/octet-stream'
     );
 
-    // Audit log: file uploaded
-    // Auth context from verified session
-    const auditUserId = auth.userId;
-    const auditUsername = auth.username;
-    const auditUserRole = auth.role;
-
     await logFileAction({
       action: 'UPLOADED',
       fileName: file.name,
       objectKey: uploadResult.objectKey,
-      performedById: auditUserId || 'unknown',
-      performedByUsername: auditUsername || 'unknown',
-      performedByRole: auditUserRole || 'unknown',
-      ipAddress: getClientIp(request.headers),
+      performedById: auth.userId || 'unknown',
+      performedByUsername: auth.username || 'unknown',
+      performedByRole: auth.role || 'unknown',
+      ipAddress: getAuditClientIp(request.headers),
       deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
     }).catch(() => {});
 
@@ -80,4 +90,4 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
       { status: 500 }
     );
   }
-}), 'upload');
+}

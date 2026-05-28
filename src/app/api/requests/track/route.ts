@@ -2,6 +2,84 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 
+const employeeSelect = {
+  id: true,
+  name: true,
+  zanId: true,
+  gender: true,
+  Institution: { select: { id: true, name: true } },
+} as const;
+
+const userSelect = {
+  select: { id: true, name: true, username: true },
+} as const;
+
+const requestInclude = (submittedRelation: string, reviewedRelation: string) =>
+  ({
+    Employee: { select: employeeSelect },
+    [submittedRelation]: userSelect,
+    [reviewedRelation]: userSelect,
+  }) as any;
+
+const REQUEST_TYPES = [
+  {
+    key: 'promotion',
+    model: db.promotionRequest,
+    submittedRelation: 'User_PromotionRequest_submittedByIdToUser',
+    reviewedRelation: 'User_PromotionRequest_reviewedByIdToUser',
+    label: 'Promotion',
+  },
+  {
+    key: 'confirmation',
+    model: db.confirmationRequest,
+    submittedRelation: 'User_ConfirmationRequest_submittedByIdToUser',
+    reviewedRelation: 'User_ConfirmationRequest_reviewedByIdToUser',
+    label: 'Confirmation',
+  },
+  {
+    key: 'lwop',
+    model: db.lwopRequest,
+    submittedRelation: 'User_LwopRequest_submittedByIdToUser',
+    reviewedRelation: 'User_LwopRequest_reviewedByIdToUser',
+    label: 'LWOP',
+  },
+  {
+    key: 'cadre-change',
+    model: db.cadreChangeRequest,
+    submittedRelation: 'User_CadreChangeRequest_submittedByIdToUser',
+    reviewedRelation: 'User_CadreChangeRequest_reviewedByIdToUser',
+    label: 'Cadre Change',
+  },
+  {
+    key: 'retirement',
+    model: db.retirementRequest,
+    submittedRelation: 'User_RetirementRequest_submittedByIdToUser',
+    reviewedRelation: 'User_RetirementRequest_reviewedByIdToUser',
+    label: 'Retirement',
+  },
+  {
+    key: 'resignation',
+    model: db.resignationRequest,
+    submittedRelation: 'User_ResignationRequest_submittedByIdToUser',
+    reviewedRelation: 'User_ResignationRequest_reviewedByIdToUser',
+    label: 'Resignation',
+  },
+  {
+    key: 'service-extension',
+    model: db.serviceExtensionRequest,
+    submittedRelation: 'User_ServiceExtensionRequest_submittedByIdToUser',
+    reviewedRelation: 'User_ServiceExtensionRequest_reviewedByIdToUser',
+    label: 'Service Extension',
+  },
+  {
+    key: 'termination',
+    model: db.separationRequest,
+    submittedRelation: 'User_SeparationRequest_submittedByIdToUser',
+    reviewedRelation: 'User_SeparationRequest_reviewedByIdToUser',
+    label: 'Termination',
+  },
+] as const;
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -11,324 +89,67 @@ export async function GET(req: Request) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '100');
 
-    logger.info({ 
-      institutionName,
-      requestType,
-      status,
-      page,
-      limit,
-     }, 'Track requests API called with');
+    logger.info(
+      { institutionName, requestType, status, page, limit },
+      'Track requests API called with'
+    );
 
-    // Build where clause for institution filtering
     let institutionFilter: any = {};
     if (institutionName) {
       institutionFilter = {
         Employee: {
           Institution: {
-            name: {
-              contains: institutionName,
-              mode: 'insensitive',
-            },
+            name: { contains: institutionName, mode: 'insensitive' },
           },
         },
       };
     }
 
-    // Build status filter
     const statusFilter: any = {};
     if (status) {
       statusFilter.status = status;
     }
 
-    // Combine filters
-    const whereClause = {
-      ...institutionFilter,
-      ...statusFilter,
-    };
-
-    // Calculate pagination
+    const whereClause = { ...institutionFilter, ...statusFilter };
     const skip = (page - 1) * limit;
 
-    // If no specific request type is provided, get all types
-    const allRequests = [];
+    // Determine which request types to query
+    const typesToQuery = REQUEST_TYPES.filter(
+      (t) => !requestType || t.key === requestType
+    );
 
-    // Get promotion requests
-    if (!requestType || requestType === 'promotion') {
-      const promotionRequests = await db.promotionRequest
-        .findMany({
+    // Parallelize all queries with database-level pagination
+    const results = await Promise.allSettled(
+      typesToQuery.map(({ model, submittedRelation, reviewedRelation }) =>
+        (model as any).findMany({
           where: whereClause,
-          include: {
-            Employee: {
-              select: {
-                id: true,
-                name: true,
-                zanId: true,
-                gender: true,
-                Institution: { select: { id: true, name: true } },
-              },
-            },
-            User_PromotionRequest_submittedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-            User_PromotionRequest_reviewedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-          },
+          include: requestInclude(submittedRelation, reviewedRelation),
           orderBy: { createdAt: 'desc' },
+          take: limit,
+          skip,
         })
-        .catch(() => []);
+      )
+    );
 
-      allRequests.push(
-        ...promotionRequests.map((req) => ({
-          ...req,
-          requestType: 'Promotion',
-        }))
-      );
-    }
+    // Collect results with their labels
+    const allRequests: any[] = [];
+    results.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        const label = typesToQuery[i].label;
+        allRequests.push(
+          ...result.value.map((req: any) => ({ ...req, requestType: label }))
+        );
+      }
+    });
 
-    // Get confirmation requests
-    if (!requestType || requestType === 'confirmation') {
-      const confirmationRequests = await db.confirmationRequest
-        .findMany({
-          where: whereClause,
-          include: {
-            Employee: {
-              select: {
-                id: true,
-                name: true,
-                zanId: true,
-                gender: true,
-                Institution: { select: { id: true, name: true } },
-              },
-            },
-            User_ConfirmationRequest_submittedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-            User_ConfirmationRequest_reviewedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        })
-        .catch(() => []);
-
-      allRequests.push(
-        ...confirmationRequests.map((req) => ({
-          ...req,
-          requestType: 'Confirmation',
-        }))
-      );
-    }
-
-    // Get LWOP requests
-    if (!requestType || requestType === 'lwop') {
-      const lwopRequests = await db.lwopRequest
-        .findMany({
-          where: whereClause,
-          include: {
-            Employee: {
-              select: {
-                id: true,
-                name: true,
-                zanId: true,
-                gender: true,
-                Institution: { select: { id: true, name: true } },
-              },
-            },
-            User_LwopRequest_submittedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-            User_LwopRequest_reviewedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        })
-        .catch(() => []);
-
-      allRequests.push(
-        ...lwopRequests.map((req) => ({ ...req, requestType: 'LWOP' }))
-      );
-    }
-
-    // Get cadre change requests
-    if (!requestType || requestType === 'cadre-change') {
-      const cadreChangeRequests = await db.cadreChangeRequest
-        .findMany({
-          where: whereClause,
-          include: {
-            Employee: {
-              select: {
-                id: true,
-                name: true,
-                zanId: true,
-                gender: true,
-                Institution: { select: { id: true, name: true } },
-              },
-            },
-            User_CadreChangeRequest_submittedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-            User_CadreChangeRequest_reviewedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        })
-        .catch(() => []);
-
-      allRequests.push(
-        ...cadreChangeRequests.map((req) => ({
-          ...req,
-          requestType: 'Cadre Change',
-        }))
-      );
-    }
-
-    // Get retirement requests
-    if (!requestType || requestType === 'retirement') {
-      const retirementRequests = await db.retirementRequest
-        .findMany({
-          where: whereClause,
-          include: {
-            Employee: {
-              select: {
-                id: true,
-                name: true,
-                zanId: true,
-                gender: true,
-                Institution: { select: { id: true, name: true } },
-              },
-            },
-            User_RetirementRequest_submittedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-            User_RetirementRequest_reviewedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        })
-        .catch(() => []);
-
-      allRequests.push(
-        ...retirementRequests.map((req) => ({
-          ...req,
-          requestType: 'Retirement',
-        }))
-      );
-    }
-
-    // Get resignation requests
-    if (!requestType || requestType === 'resignation') {
-      const resignationRequests = await db.resignationRequest
-        .findMany({
-          where: whereClause,
-          include: {
-            Employee: {
-              select: {
-                id: true,
-                name: true,
-                zanId: true,
-                gender: true,
-                Institution: { select: { id: true, name: true } },
-              },
-            },
-            User_ResignationRequest_submittedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-            User_ResignationRequest_reviewedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        })
-        .catch(() => []);
-
-      allRequests.push(
-        ...resignationRequests.map((req) => ({
-          ...req,
-          requestType: 'Resignation',
-        }))
-      );
-    }
-
-    // Get service extension requests
-    if (!requestType || requestType === 'service-extension') {
-      const serviceExtensionRequests = await db.serviceExtensionRequest
-        .findMany({
-          where: whereClause,
-          include: {
-            Employee: {
-              select: {
-                id: true,
-                name: true,
-                zanId: true,
-                gender: true,
-                Institution: { select: { id: true, name: true } },
-              },
-            },
-            User_ServiceExtensionRequest_submittedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-            User_ServiceExtensionRequest_reviewedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        })
-        .catch(() => []);
-
-      allRequests.push(
-        ...serviceExtensionRequests.map((req) => ({
-          ...req,
-          requestType: 'Service Extension',
-        }))
-      );
-    }
-
-    // Get separation requests (termination)
-    if (!requestType || requestType === 'termination') {
-      const separationRequests = await db.separationRequest
-        .findMany({
-          where: whereClause,
-          include: {
-            Employee: {
-              select: {
-                id: true,
-                name: true,
-                zanId: true,
-                gender: true,
-                Institution: { select: { id: true, name: true } },
-              },
-            },
-            User_SeparationRequest_submittedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-            User_SeparationRequest_reviewedByIdToUser: {
-              select: { id: true, name: true, username: true },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-        })
-        .catch(() => []);
-
-      allRequests.push(
-        ...separationRequests.map((req) => ({
-          ...req,
-          requestType: 'Termination',
-        }))
-      );
-    }
-
-    // Sort all requests by creation date (most recent first)
+    // Sort merged results by creation date (most recent first)
     allRequests.sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
 
-    // Map to TrackedRequest format
-    const mappedRequests = allRequests.map((req) => ({
+    // Slice to requested limit after merge (each table returned up to `limit` rows)
+    const paginatedRequests = allRequests.slice(0, limit).map((req) => ({
       id: req.id,
       employeeName: req.Employee?.name || 'Unknown',
       zanId: req.Employee?.zanId || 'Unknown',
@@ -342,18 +163,14 @@ export async function GET(req: Request) {
       rejectionReason: req.rejectionReason,
     }));
 
-    // Apply pagination
-    const paginatedRequests = mappedRequests.slice(skip, skip + limit);
-    const totalCount = mappedRequests.length;
-
     return NextResponse.json({
       success: true,
       data: paginatedRequests,
       pagination: {
         page,
         limit,
-        total: totalCount,
-        totalPages: Math.ceil(totalCount / limit),
+        total: paginatedRequests.length,
+        totalPages: Math.ceil(paginatedRequests.length / limit) || 1,
       },
     });
   } catch (error) {

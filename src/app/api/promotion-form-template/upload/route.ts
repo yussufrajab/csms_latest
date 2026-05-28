@@ -2,33 +2,47 @@ import { NextRequest, NextResponse } from 'next/server';
 import { uploadFile } from '@/lib/minio';
 import { validateFileUpload } from '@/lib/file-validation';
 import { logger } from '@/lib/logger';
+import { verifyAuth } from '@/lib/api-auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
+import { logFileAction } from '@/lib/audit-logger';
 
 const TEMPLATE_OBJECT_KEY = 'templates/promotion-form-template.docx';
 
 export async function POST(request: NextRequest) {
+  const authResult = await verifyAuth(request);
+  if (!authResult.authenticated) {
+    return authResult.response!;
+  }
+  const auth = authResult.context!;
+
+  const rateLimitResult = await checkRateLimit(`ratelimit:${getClientIp(request)}:upload`, 'upload');
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests', errorCode: 'RATE_LIMIT_EXCEEDED', retryAfter: rateLimitResult.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rateLimitResult.retryAfter) } }
+    );
+  }
+
   try {
-    // Get the multipart form data
-    const formData = await request.formData();
-
-    // Get the file and user role from form data
-    const file = formData.get('file') as File;
-    const userRole = formData.get('userRole') as string;
-
-    if (!file) {
-      return NextResponse.json(
-        { success: false, message: 'No file provided' },
-        { status: 400 }
-      );
-    }
-
     // Authorization check - only HHRMD can upload
-    if (userRole !== 'HHRMD') {
+    if (auth.role !== 'HHRMD') {
       return NextResponse.json(
         {
           success: false,
           message: 'Unauthorized: Only HHRMD can upload the promotion form template',
         },
         { status: 403 }
+      );
+    }
+
+    // Get the multipart form data
+    const formData = await request.formData();
+    const file = formData.get('file') as File;
+
+    if (!file) {
+      return NextResponse.json(
+        { success: false, message: 'No file provided' },
+        { status: 400 }
       );
     }
 
@@ -50,6 +64,18 @@ export async function POST(request: NextRequest) {
       TEMPLATE_OBJECT_KEY,
       file.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     );
+
+    // Audit logging (fire and forget)
+    await logFileAction({
+      action: 'UPLOADED',
+      fileName: file.name,
+      objectKey: uploadResult.objectKey,
+      performedById: auth.userId,
+      performedByUsername: auth.username,
+      performedByRole: auth.role,
+      ipAddress: getClientIp(request),
+      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

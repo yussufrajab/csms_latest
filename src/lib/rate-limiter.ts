@@ -6,7 +6,7 @@ import { rateLimitLogger } from '@/lib/logger';
 // Types
 // ---------------------------------------------------------------------------
 
-export type RateLimitTier = 'auth' | 'write' | 'read' | 'upload';
+export type RateLimitTier = 'auth' | 'write' | 'read' | 'upload' | 'download';
 
 // ---------------------------------------------------------------------------
 // Rate-limit configuration per tier
@@ -17,6 +17,7 @@ export const RATE_LIMITS: Record<RateLimitTier, { limit: number; windowSeconds: 
   write: { limit: 30, windowSeconds: 60 },
   read: { limit: 100, windowSeconds: 60 },
   upload: { limit: 10, windowSeconds: 60 },
+  download: { limit: 60, windowSeconds: 60 },
 };
 
 // ---------------------------------------------------------------------------

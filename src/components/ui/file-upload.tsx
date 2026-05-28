@@ -221,6 +221,20 @@ export function FileUpload({
 
               xhr.open('POST', '/api/files/upload');
               xhr.withCredentials = true; // Include cookies for session-based auth
+
+              // Add CSRF token for state-changing request
+              // Use indexOf + substring to preserve '=' characters in base64 value
+              const csrfRow = document.cookie
+                .split('; ')
+                .find((row) => row.startsWith('csrf-token='));
+              const csrfToken = csrfRow ? csrfRow.substring(csrfRow.indexOf('=') + 1) : undefined;
+              if (csrfToken) {
+                xhr.setRequestHeader('x-csrf-token', csrfToken);
+                log.info({ hasToken: true, tokenPrefix: csrfToken.substring(0, 10) }, 'CSRF token added to request');
+              } else {
+                log.warn({ cookies: document.cookie }, 'CSRF token NOT found in cookies for upload - request will likely fail');
+              }
+
               xhr.send(formData);
             } catch (error: any) {
               log.error({ err: error, fileName: file.name }, 'Upload error');

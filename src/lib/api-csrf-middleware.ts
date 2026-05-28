@@ -36,7 +36,10 @@ export async function validateCSRF(request: NextRequest | Request): Promise<{
 
   // Get CSRF token from cookie and header
   const cookieToken = getCookieToken(request);
-  const headerToken = request.headers.get(CSRF_HEADER_NAME) || undefined;
+  // Header token may be URL-encoded (document.cookie returns URL-encoded values
+  // since Next.js response.cookies.set() URL-encodes cookie values)
+  const rawHeaderToken = request.headers.get(CSRF_HEADER_NAME) || undefined;
+  const headerToken = rawHeaderToken ? safeDecode(rawHeaderToken) : undefined;
 
   // Validate tokens
   const isValid = validateCSRFTokens(cookieToken, headerToken);
@@ -102,16 +105,29 @@ function getCookieToken(request: NextRequest | Request): string | undefined {
 
 /**
  * Helper to parse cookie header
+ * URL-decodes values to match NextRequest.cookies.get() behavior
  */
 function parseCookies(cookieHeader: string): Record<string, string> {
   return cookieHeader.split(';').reduce(
     (cookies, cookie) => {
       const [name, ...rest] = cookie.split('=');
-      cookies[name.trim()] = rest.join('=').trim();
+      const rawValue = rest.join('=').trim();
+      cookies[name.trim()] = safeDecode(rawValue);
       return cookies;
     },
     {} as Record<string, string>
   );
+}
+
+/**
+ * Safely URL-decode a value, returning the raw value if decoding fails
+ */
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 /**
@@ -138,8 +154,8 @@ function extractUserInfo(request: NextRequest | Request): {
       return { userId: null, username: null };
     }
 
-    const decoded = decodeURIComponent(authCookie);
-    const authData = JSON.parse(decoded);
+    // authCookie is already URL-decoded (by NextRequest.cookies.get or parseCookies)
+    const authData = JSON.parse(authCookie);
     const state = authData.state || authData;
 
     return {

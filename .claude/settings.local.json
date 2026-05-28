@@ -170,7 +170,8 @@
       "mcp__plugin_chrome-devtools-mcp_chrome-devtools__take_snapshot",
       "mcp__plugin_playwright_playwright__browser_snapshot",
       "Bash(git checkout *)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(npx vitest *)"
     ],
     "deny": []
   }

@@ -4,6 +4,8 @@ import { uploadFile } from '@/lib/minio';
 import { validateFileUpload } from '@/lib/file-validation';
 import { getHrimsApiConfig } from '@/lib/hrims-config';
 import { logger } from '@/lib/logger';
+import { verifyAuth } from '@/lib/api-auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
 
 // Valid educational certificate types (excluding primary education)
 const VALID_CERTIFICATE_TYPES = [
@@ -204,9 +206,23 @@ async function storeDocumentInMinIO(
 }
 
 export async function POST(
- request: NextRequest,
- { params }: { params: Promise<{ id: string }> }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const authResult = await verifyAuth(request);
+  if (!authResult.authenticated) {
+    return authResult.response!;
+  }
+  const auth = authResult.context!;
+
+  const rateLimitResult = await checkRateLimit(`ratelimit:${getClientIp(request)}:write`, 'write');
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests', errorCode: 'RATE_LIMIT_EXCEEDED', retryAfter: rateLimitResult.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rateLimitResult.retryAfter) } }
+    );
+  }
+
  try {
  const { id: employeeId } = await params;
 

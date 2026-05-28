@@ -1,35 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { downloadFile, getFileMetadata } from '@/lib/minio';
 import { Readable } from 'stream';
-import { logger } from '@/lib/logger';
+import { fileLogger } from '@/lib/logger';
+import { verifyAuth } from '@/lib/api-auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
+import { logFileAction } from '@/lib/audit-logger';
+
+function getObjectKeyFromUrl(url: string): string | null {
+  const match = url.match(/\/api\/files\/download\/(.+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ objectKey: string[] }> }
 ) {
-  try {
-    // Await params in Next.js 15+
-    const resolvedParams = await params;
+  const authResult = await verifyAuth(request);
+  if (!authResult.authenticated) {
+    return authResult.response!;
+  }
+  const auth = authResult.context!;
 
-    // Reconstruct the object key from the dynamic route segments
+  const rateLimitResult = await checkRateLimit(`ratelimit:${getClientIp(request)}:download`, 'download');
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests', errorCode: 'RATE_LIMIT_EXCEEDED', retryAfter: rateLimitResult.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rateLimitResult.retryAfter) } }
+    );
+  }
+
+  try {
+    const resolvedParams = await params;
     const objectKey = decodeURIComponent(resolvedParams.objectKey.join('/'));
 
-    logger.info(
+    fileLogger.info(
       { objectKeySegments: resolvedParams.objectKey },
       'Download API - Object key segments'
     );
-    logger.info({ value: objectKey }, 'Download API - Reconstructed object key');
+    fileLogger.info({ value: objectKey }, 'Download API - Reconstructed object key');
 
-    // Get file metadata first to validate existence
     const metadata = await getFileMetadata(objectKey);
-
-    // Get file stream from MinIO
     const fileStream = await downloadFile(objectKey);
-
-    // Extract filename from object key
     const filename = objectKey.split('/').pop() || 'download';
 
-    // Convert Node.js stream to ReadableStream for NextResponse
     const readable = new ReadableStream({
       start(controller) {
         fileStream.on('data', (chunk: Buffer) => {
@@ -46,18 +59,28 @@ export async function GET(
       },
     });
 
-    // Set response headers
     const headers = new Headers();
     headers.set('Content-Type', metadata.contentType);
     headers.set('Content-Disposition', `attachment; filename="${filename}"`);
     headers.set('Content-Length', metadata.size.toString());
+
+    await logFileAction({
+      action: 'DOWNLOADED',
+      fileName: filename,
+      objectKey: objectKey,
+      performedById: auth.userId,
+      performedByUsername: auth.username,
+      performedByRole: auth.role,
+      ipAddress: getClientIp(request),
+      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+    }).catch(() => {});
 
     return new NextResponse(readable, {
       status: 200,
       headers,
     });
   } catch (error) {
-    logger.error({ value: error }, 'File download error');
+    fileLogger.error({ value: error }, 'File download error');
     return NextResponse.json(
       { success: false, message: 'File not found or internal server error' },
       { status: 404 }

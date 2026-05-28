@@ -1,22 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { downloadFile } from '@/lib/minio';
+import { db as prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { verifyAuth } from '@/lib/api-auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
+import { logFileAction } from '@/lib/audit-logger';
 
-/**
- * API endpoint to serve employee documents from MinIO storage
- *
- * GET /api/files/employee-documents/[filename]
- *
- * Returns the document file with proper headers for download or inline viewing
- */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ filename: string }> }
 ) {
+  const authResult = await verifyAuth(request);
+  if (!authResult.authenticated) {
+    return authResult.response!;
+  }
+  const auth = authResult.context!;
+
+  const rateLimitResult = await checkRateLimit(`ratelimit:${getClientIp(request)}:download`, 'download');
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests', errorCode: 'RATE_LIMIT_EXCEEDED', retryAfter: rateLimitResult.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rateLimitResult.retryAfter) } }
+    );
+  }
+
   try {
     const { filename } = await params;
 
-    // Validate filename format
     if (!filename || filename.includes('..') || filename.includes('/')) {
       return NextResponse.json(
         { success: false, message: 'Invalid filename' },
@@ -24,10 +34,23 @@ export async function GET(
       );
     }
 
-    // Construct the full file path in MinIO
+    const employeeId = filename.substring(0, filename.indexOf('_'));
+
+    if (auth.role === 'HRO') {
+      const employee = await prisma.employee.findUnique({
+        where: { id: employeeId },
+        select: { institutionId: true },
+      });
+      if (!employee || employee.institutionId !== auth.institutionId) {
+        return NextResponse.json(
+          { success: false, message: 'Access denied' },
+          { status: 403 }
+        );
+      }
+    }
+
     const filePath = `employee-documents/${filename}`;
 
-    // Download file from MinIO (returns a stream)
     let fileStream: any;
     try {
       fileStream = await downloadFile(filePath);
@@ -42,14 +65,12 @@ export async function GET(
       );
     }
 
-    // Convert stream to buffer
     const chunks: Buffer[] = [];
     for await (const chunk of fileStream) {
       chunks.push(Buffer.from(chunk));
     }
     const fileBuffer = Buffer.concat(chunks);
 
-    // Determine content type from file extension
     const extension = filename.split('.').pop()?.toLowerCase();
     const contentTypeMap: { [key: string]: string } = {
       pdf: 'application/pdf',
@@ -65,12 +86,23 @@ export async function GET(
     const contentType =
       contentTypeMap[extension || 'pdf'] || 'application/octet-stream';
 
-    // Return the document with proper headers
+    await logFileAction({
+      action: 'DOWNLOADED',
+      fileName: filename,
+      objectKey: filePath,
+      performedById: auth.userId,
+      performedByUsername: auth.username,
+      performedByRole: auth.role,
+      ipAddress: getClientIp(request),
+      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+      additionalData: { employeeId },
+    }).catch(() => {});
+
     return new NextResponse(fileBuffer, {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=31536000, immutable', // Cache for 1 year
+        'Cache-Control': 'public, max-age=31536000, immutable',
         'Content-Disposition': `inline; filename="${filename}"`,
         'Content-Length': fileBuffer.length.toString(),
       },

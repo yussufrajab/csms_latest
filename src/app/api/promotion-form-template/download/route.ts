@@ -1,18 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { downloadFile, getFileMetadata } from '@/lib/minio';
 import { logger } from '@/lib/logger';
+import { verifyAuth } from '@/lib/api-auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
 
 const TEMPLATE_OBJECT_KEY = 'templates/promotion-form-template.docx';
 
 export async function GET(request: NextRequest) {
-  try {
-    // Check if the template file exists by getting metadata
-    const metadata = await getFileMetadata(TEMPLATE_OBJECT_KEY);
+  const authResult = await verifyAuth(request);
+  if (!authResult.authenticated) {
+    return authResult.response!;
+  }
 
-    // Get file stream from MinIO
+  const rateLimitResult = await checkRateLimit(`ratelimit:${getClientIp(request)}:download`, 'download');
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests', errorCode: 'RATE_LIMIT_EXCEEDED', retryAfter: rateLimitResult.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rateLimitResult.retryAfter) } }
+    );
+  }
+
+  try {
+    const metadata = await getFileMetadata(TEMPLATE_OBJECT_KEY);
     const fileStream = await downloadFile(TEMPLATE_OBJECT_KEY);
 
-    // Convert Node.js stream to ReadableStream for NextResponse
     const readable = new ReadableStream({
       start(controller) {
         fileStream.on('data', (chunk: Buffer) => {
@@ -29,7 +40,6 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Set response headers
     const headers = new Headers();
     headers.set('Content-Type', metadata.contentType);
     headers.set(

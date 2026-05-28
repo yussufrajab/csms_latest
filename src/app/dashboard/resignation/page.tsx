@@ -240,20 +240,7 @@ export default function ResignationPage() {
   useEffect(() => {
     fetchRequests();
     setMinEffectiveDate(format(new Date(), 'yyyy-MM-dd'));
-  }, [fetchRequests]);
-
-  useEffect(() => {
-    if (currentPage > 1) {
-      fetchRequests(false, currentPage);
-    }
-  }, [currentPage]);
-
-  // Re-fetch when status filter changes
-  useEffect(() => {
-    setCurrentPage(1);
-    fetchRequests(false, 1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter]);
+  }, [fetchRequests, currentPage, statusFilter]);
 
   const resetFormFields = () => {
     setEffectiveDate('');

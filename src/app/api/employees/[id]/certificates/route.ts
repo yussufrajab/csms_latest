@@ -6,6 +6,7 @@ import { validateFileUpload } from '@/lib/file-validation';
 import { logger } from '@/lib/logger';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { logFileAction, getClientIp } from '@/lib/audit-logger';
 
 // Valid certificate types
 const VALID_CERTIFICATE_TYPES = [
@@ -173,6 +174,19 @@ export const POST = withRateLimit(withAuth(async (
         },
       });
     }
+
+    // Audit logging (fire and forget)
+    await logFileAction({
+      action: 'UPLOADED',
+      fileName: file.name,
+      objectKey: uploadResult.objectKey,
+      performedById: auth.userId,
+      performedByUsername: auth.username,
+      performedByRole: auth.role,
+      ipAddress: getClientIp(request.headers),
+      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+      additionalData: { certificateType, certificateName, employeeId },
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

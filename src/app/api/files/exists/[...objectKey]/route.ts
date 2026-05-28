@@ -1,15 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFileMetadata } from '@/lib/minio';
 import { logger } from '@/lib/logger';
+import { verifyAuth } from '@/lib/api-auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ objectKey: string[] }> }
 ) {
+  const authResult = await verifyAuth(request);
+  if (!authResult.authenticated) {
+    return authResult.response!;
+  }
+
+  const rateLimitResult = await checkRateLimit(`ratelimit:${getClientIp(request)}:download`, 'download');
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests', errorCode: 'RATE_LIMIT_EXCEEDED', retryAfter: rateLimitResult.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rateLimitResult.retryAfter) } }
+    );
+  }
+
   try {
-    // Await params to get the actual value
     const resolvedParams = await params;
-    // Reconstruct the object key from the dynamic route segments
     const objectKey = decodeURIComponent(resolvedParams.objectKey.join('/'));
 
     logger.info(
@@ -18,7 +31,6 @@ export async function GET(
     );
     logger.info({ value: objectKey }, 'File exists API - Reconstructed object key');
 
-    // Try to get file metadata to check if file exists
     const metadata = await getFileMetadata(objectKey);
 
     return NextResponse.json({
@@ -32,7 +44,6 @@ export async function GET(
     });
   } catch (error) {
     logger.error({ value: error }, 'File exists check error');
-    // If file doesn't exist or any error occurs, return exists: false
     return NextResponse.json({
       success: true,
       exists: false,

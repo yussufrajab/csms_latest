@@ -5,6 +5,7 @@ import { validateFileUpload } from '@/lib/file-validation';
 import { withAuth, AuthContext } from '@/lib/api-auth';
 import { logger } from '@/lib/logger';
 import { withRateLimit } from '@/lib/rate-limiter';
+import { logFileAction, getClientIp } from '@/lib/audit-logger';
 
 // Document type mapping to database fields
 const DOCUMENT_FIELD_MAPPING = {
@@ -125,6 +126,19 @@ export const POST = withRateLimit(withAuth(async (
         [fieldName]: documentUrl,
       },
     });
+
+    // Audit logging (fire and forget)
+    await logFileAction({
+      action: 'UPLOADED',
+      fileName: file.name,
+      objectKey: uploadResult.objectKey,
+      performedById: auth.userId,
+      performedByUsername: auth.username,
+      performedByRole: auth.role,
+      ipAddress: getClientIp(request.headers),
+      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+      additionalData: { documentType, employeeId },
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

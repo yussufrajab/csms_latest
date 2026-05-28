@@ -3,428 +3,453 @@ import { getHrimsApiConfig } from '@/lib/hrims-config';
 import { db as prisma } from '@/lib/db';
 import { uploadFile } from '@/lib/minio';
 import { hrimsLogger } from '@/lib/logger';
+import { verifyAuth } from '@/lib/api-auth';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
 
 // Configure route for long-running operations
 export const maxDuration = 300; // 5 minutes (increase if needed)
 export const dynamic = 'force-dynamic';
 
 interface PhotoFetchResult {
- employeeName: string;
- payrollNumber: string;
- status: 'success' | 'failed' | 'skipped';
- message?: string;
+  employeeName: string;
+  payrollNumber: string;
+  status: 'success' | 'failed' | 'skipped';
+  message?: string;
 }
 
 export async function POST(request: NextRequest) {
- try {
- const HRIMS_CONFIG = await getHrimsApiConfig();
- const body = await request.json();
- const { institutionId } = body;
+  const authResult = await verifyAuth(request);
+  if (!authResult.authenticated) {
+    return authResult.response!;
+  }
+  const auth = authResult.context!;
 
- if (!institutionId) {
- return NextResponse.json(
- {
- success: false,
- message: 'Institution ID is required',
- },
- { status: 400 }
- );
- }
+  const rateLimitResult = await checkRateLimit(`ratelimit:${getClientIp(request)}:write`, 'write');
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests', errorCode: 'RATE_LIMIT_EXCEEDED', retryAfter: rateLimitResult.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rateLimitResult.retryAfter) } }
+    );
+  }
 
- hrimsLogger.info(`Starting bulk photo fetch for institution: ${institutionId}`);
+  // Role restriction for bulk photo fetch
+  const allowedRoles = ['HHRMD', 'ADMIN', 'CSCS'];
+  if (!allowedRoles.includes(auth.role.toUpperCase())) {
+    return NextResponse.json(
+      { success: false, message: 'Insufficient permissions' },
+      { status: 403 }
+    );
+  }
 
- // Fetch all employees from database for this institution
- const employees = await prisma.employee.findMany({
- where: {
- institutionId: institutionId,
- },
- select: {
- id: true,
- name: true,
- payrollNumber: true,
- profileImageUrl: true,
- },
- });
+  try {
+    const HRIMS_CONFIG = await getHrimsApiConfig();
+    const body = await request.json();
+    const { institutionId } = body;
 
- hrimsLogger.info(` Total employees found in database: ${employees.length}`);
+    if (!institutionId) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Institution ID is required',
+        },
+        { status: 400 }
+      );
+    }
 
- if (employees.length === 0) {
- return NextResponse.json(
- {
- success: false,
- message: 'No employees found for this institution in database',
- },
- { status: 404 }
- );
- }
+    hrimsLogger.info(`Starting bulk photo fetch for institution: ${institutionId} by user ${auth.userId}`);
 
- // Create a streaming response
- const encoder = new TextEncoder();
- const stream = new ReadableStream({
- async start(controller) {
- const results: PhotoFetchResult[] = [];
- let successCount = 0;
- let failedCount = 0;
- let skippedCount = 0;
+    // Fetch all employees from database for this institution
+    const employees = await prisma.employee.findMany({
+      where: {
+        institutionId: institutionId,
+      },
+      select: {
+        id: true,
+        name: true,
+        payrollNumber: true,
+        profileImageUrl: true,
+      },
+    });
 
- // Send initial progress update
- const initialData = {
- type: 'progress',
- current: 0,
- total: employees.length,
- message: 'Starting photo fetch...',
- };
- controller.enqueue(
- encoder.encode(`data: ${JSON.stringify(initialData)}\n\n`)
- );
+    hrimsLogger.info(` Total employees found in database: ${employees.length}`);
 
- // Process each employee
- for (let i = 0; i < employees.length; i++) {
- const employee = employees[i];
- const { id, name, payrollNumber, profileImageUrl } = employee;
+    if (employees.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'No employees found for this institution in database',
+        },
+        { status: 404 }
+      );
+    }
 
- if (!payrollNumber) {
- results.push({
- employeeName: name,
- payrollNumber: 'N/A',
- status: 'skipped',
- message: 'No payroll number',
- });
- skippedCount++;
+    // Create a streaming response
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const results: PhotoFetchResult[] = [];
+        let successCount = 0;
+        let failedCount = 0;
+        let skippedCount = 0;
 
- // Send progress update
- const progressData = {
- type: 'progress',
- current: i + 1,
- total: employees.length,
- employee: name,
- status: 'skipped',
- message: 'No payroll number',
- summary: {
- success: successCount,
- failed: failedCount,
- skipped: skippedCount,
- },
- };
- controller.enqueue(
- encoder.encode(`data: ${JSON.stringify(progressData)}\n\n`)
- );
- continue;
- }
+        // Send initial progress update
+        const initialData = {
+          type: 'progress',
+          current: 0,
+          total: employees.length,
+          message: 'Starting photo fetch...',
+        };
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify(initialData)}\n\n`)
+        );
 
- // Check if photo already exists
- if (
- profileImageUrl &&
- (profileImageUrl.startsWith('data:image') ||
- profileImageUrl.startsWith('/api/files/employee-photos/'))
- ) {
- results.push({
- employeeName: name,
- payrollNumber,
- status: 'skipped',
- message: 'Photo already exists in storage',
- });
- skippedCount++;
+        // Process each employee
+        for (let i = 0; i < employees.length; i++) {
+          const employee = employees[i];
+          const { id, name, payrollNumber, profileImageUrl } = employee;
 
- // Send progress update
- const progressData = {
- type: 'progress',
- current: i + 1,
- total: employees.length,
- employee: name,
- status: 'skipped',
- message: 'Photo already exists',
- summary: {
- success: successCount,
- failed: failedCount,
- skipped: skippedCount,
- },
- };
- controller.enqueue(
- encoder.encode(`data: ${JSON.stringify(progressData)}\n\n`)
- );
- continue;
- }
+          if (!payrollNumber) {
+            results.push({
+              employeeName: name,
+              payrollNumber: 'N/A',
+              status: 'skipped',
+              message: 'No payroll number',
+            });
+            skippedCount++;
 
- // Fetch photo from HRIMS
- try {
- hrimsLogger.info(
- ` Fetching photo for ${name} (Payroll: ${payrollNumber})`
- );
+            // Send progress update
+            const progressData = {
+              type: 'progress',
+              current: i + 1,
+              total: employees.length,
+              employee: name,
+              status: 'skipped',
+              message: 'No payroll number',
+              summary: {
+                success: successCount,
+                failed: failedCount,
+                skipped: skippedCount,
+              },
+            };
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify(progressData)}\n\n`)
+            );
+            continue;
+          }
 
- const photoPayload = {
- RequestId: '203',
- SearchCriteria: payrollNumber,
- };
+          // Check if photo already exists
+          if (
+            profileImageUrl &&
+            (profileImageUrl.startsWith('data:image') ||
+            profileImageUrl.startsWith('/api/files/employee-photos/'))
+          ) {
+            results.push({
+              employeeName: name,
+              payrollNumber,
+              status: 'skipped',
+              message: 'Photo already exists in storage',
+            });
+            skippedCount++;
 
- const photoResponse = await fetch(
- `${HRIMS_CONFIG.BASE_URL}/Employees`,
- {
- method: 'POST',
- headers: {
- ApiKey: HRIMS_CONFIG.API_KEY,
- Token: HRIMS_CONFIG.TOKEN,
- 'Content-Type': 'application/json',
- },
- body: JSON.stringify(photoPayload),
- signal: AbortSignal.timeout(30000),
- }
- );
+            // Send progress update
+            const progressData = {
+              type: 'progress',
+              current: i + 1,
+              total: employees.length,
+              employee: name,
+              status: 'skipped',
+              message: 'Photo already exists',
+              summary: {
+                success: successCount,
+                failed: failedCount,
+                skipped: skippedCount,
+              },
+            };
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify(progressData)}\n\n`)
+            );
+            continue;
+          }
 
- if (!photoResponse.ok) {
- results.push({
- employeeName: name,
- payrollNumber,
- status: 'failed',
- message: `HRIMS API error: ${photoResponse.status}`,
- });
- failedCount++;
+          // Fetch photo from HRIMS
+          try {
+            hrimsLogger.info(
+              ` Fetching photo for ${name} (Payroll: ${payrollNumber})`
+            );
 
- // Send progress update
- const progressData = {
- type: 'progress',
- current: i + 1,
- total: employees.length,
- employee: name,
- status: 'failed',
- message: `HRIMS API error: ${photoResponse.status}`,
- summary: {
- success: successCount,
- failed: failedCount,
- skipped: skippedCount,
- },
- };
- controller.enqueue(
- encoder.encode(`data: ${JSON.stringify(progressData)}\n\n`)
- );
- continue;
- }
+            const photoPayload = {
+              RequestId: '203',
+              SearchCriteria: payrollNumber,
+            };
 
- const photoData = await photoResponse.json();
- let photoBase64: string | null = null;
+            const photoResponse = await fetch(
+              `${HRIMS_CONFIG.BASE_URL}/Employees`,
+              {
+                method: 'POST',
+                headers: {
+                  ApiKey: HRIMS_CONFIG.API_KEY,
+                  Token: HRIMS_CONFIG.TOKEN,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(photoPayload),
+                signal: AbortSignal.timeout(30000),
+              }
+            );
 
- // Extract photo from response
- if (photoData.data && typeof photoData.data === 'string') {
- photoBase64 = photoData.data;
- } else if (photoData.photo && photoData.photo.content) {
- photoBase64 = photoData.photo.content;
- } else if (
- photoData.data &&
- photoData.data.photo &&
- photoData.data.photo.content
- ) {
- photoBase64 = photoData.data.photo.content;
- } else if (photoData.data && photoData.data.Picture) {
- photoBase64 = photoData.data.Picture;
- } else if (photoData.Picture) {
- photoBase64 = photoData.Picture;
- }
+            if (!photoResponse.ok) {
+              results.push({
+                employeeName: name,
+                payrollNumber,
+                status: 'failed',
+                message: `HRIMS API error: ${photoResponse.status}`,
+              });
+              failedCount++;
 
- if (!photoBase64) {
- results.push({
- employeeName: name,
- payrollNumber,
- status: 'failed',
- message: 'No photo data in HRIMS response',
- });
- failedCount++;
+              // Send progress update
+              const progressData = {
+                type: 'progress',
+                current: i + 1,
+                total: employees.length,
+                employee: name,
+                status: 'failed',
+                message: `HRIMS API error: ${photoResponse.status}`,
+                summary: {
+                  success: successCount,
+                  failed: failedCount,
+                  skipped: skippedCount,
+                },
+              };
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify(progressData)}\n\n`)
+              );
+              continue;
+            }
 
- // Send progress update
- const progressData = {
- type: 'progress',
- current: i + 1,
- total: employees.length,
- employee: name,
- status: 'failed',
- message: 'No photo data in HRIMS response',
- summary: {
- success: successCount,
- failed: failedCount,
- skipped: skippedCount,
- },
- };
- controller.enqueue(
- encoder.encode(`data: ${JSON.stringify(progressData)}\n\n`)
- );
- continue;
- }
+            const photoData = await photoResponse.json();
+            let photoBase64: string | null = null;
 
- // Convert base64 to buffer
- let base64Data = photoBase64;
- let mimeType = 'image/jpeg';
+            // Extract photo from response
+            if (photoData.data && typeof photoData.data === 'string') {
+              photoBase64 = photoData.data;
+            } else if (photoData.photo && photoData.photo.content) {
+              photoBase64 = photoData.photo.content;
+            } else if (
+              photoData.data &&
+              photoData.data.photo &&
+              photoData.data.photo.content
+            ) {
+              photoBase64 = photoData.data.photo.content;
+            } else if (photoData.data && photoData.data.Picture) {
+              photoBase64 = photoData.data.Picture;
+            } else if (photoData.Picture) {
+              photoBase64 = photoData.Picture;
+            }
 
- if (photoBase64.startsWith('data:image')) {
- const matches = photoBase64.match(/^data:([^;]+);base64,(.+)$/);
- if (matches) {
- mimeType = matches[1];
- base64Data = matches[2];
- }
- }
+            if (!photoBase64) {
+              results.push({
+                employeeName: name,
+                payrollNumber,
+                status: 'failed',
+                message: 'No photo data in HRIMS response',
+              });
+              failedCount++;
 
- const photoBuffer = Buffer.from(base64Data, 'base64');
+              // Send progress update
+              const progressData = {
+                type: 'progress',
+                current: i + 1,
+                total: employees.length,
+                employee: name,
+                status: 'failed',
+                message: 'No photo data in HRIMS response',
+                summary: {
+                  success: successCount,
+                  failed: failedCount,
+                  skipped: skippedCount,
+                },
+              };
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify(progressData)}\n\n`)
+              );
+              continue;
+            }
 
- // Determine file extension
- const extensionMap: { [key: string]: string } = {
- 'image/jpeg': 'jpg',
- 'image/jpg': 'jpg',
- 'image/png': 'png',
- 'image/gif': 'gif',
- 'image/webp': 'webp',
- };
- const extension = extensionMap[mimeType.toLowerCase()] || 'jpg';
+            // Convert base64 to buffer
+            let base64Data = photoBase64;
+            let mimeType = 'image/jpeg';
 
- // Upload to MinIO
- const fileName = `${id}.${extension}`;
- const filePath = `employee-photos/${fileName}`;
+            if (photoBase64.startsWith('data:image')) {
+              const matches = photoBase64.match(/^data:([^;]+);base64,(.+)$/);
+              if (matches) {
+                mimeType = matches[1];
+                base64Data = matches[2];
+              }
+            }
 
- try {
- await uploadFile(photoBuffer, filePath, mimeType);
- hrimsLogger.info(` Photo uploaded to MinIO: ${filePath}`);
- } catch (uploadError) {
- hrimsLogger.error(
- { err: uploadError },
- `Failed to upload photo to MinIO for ${name}:`
- );
- results.push({
- employeeName: name,
- payrollNumber,
- status: 'failed',
- message: 'Failed to upload photo to storage',
- });
- failedCount++;
+            const photoBuffer = Buffer.from(base64Data, 'base64');
 
- // Send progress update
- const progressData = {
- type: 'progress',
- current: i + 1,
- total: employees.length,
- employee: name,
- status: 'failed',
- message: 'Failed to upload photo to storage',
- summary: {
- success: successCount,
- failed: failedCount,
- skipped: skippedCount,
- },
- };
- controller.enqueue(
- encoder.encode(`data: ${JSON.stringify(progressData)}\n\n`)
- );
- continue;
- }
+            // Determine file extension
+            const extensionMap: { [key: string]: string } = {
+              'image/jpeg': 'jpg',
+              'image/jpg': 'jpg',
+              'image/png': 'png',
+              'image/gif': 'gif',
+              'image/webp': 'webp',
+            };
+            const extension = extensionMap[mimeType.toLowerCase()] || 'jpg';
 
- // Store MinIO URL in database
- const minioUrl = `/api/files/employee-photos/${fileName}`;
+            // Upload to MinIO
+            const fileName = `${id}.${extension}`;
+            const filePath = `employee-photos/${fileName}`;
 
- await prisma.employee.update({
- where: { id: id },
- data: { profileImageUrl: minioUrl },
- });
+            try {
+              await uploadFile(photoBuffer, filePath, mimeType);
+              hrimsLogger.info(` Photo uploaded to MinIO: ${filePath}`);
+            } catch (uploadError) {
+              hrimsLogger.error(
+                { err: uploadError },
+                `Failed to upload photo to MinIO for ${name}:`
+              );
+              results.push({
+                employeeName: name,
+                payrollNumber,
+                status: 'failed',
+                message: 'Failed to upload photo to storage',
+              });
+              failedCount++;
 
- results.push({
- employeeName: name,
- payrollNumber,
- status: 'success',
- message: 'Photo fetched and stored in MinIO',
- });
- successCount++;
+              // Send progress update
+              const progressData = {
+                type: 'progress',
+                current: i + 1,
+                total: employees.length,
+                employee: name,
+                status: 'failed',
+                message: 'Failed to upload photo to storage',
+                summary: {
+                  success: successCount,
+                  failed: failedCount,
+                  skipped: skippedCount,
+                },
+              };
+              controller.enqueue(
+                encoder.encode(`data: ${JSON.stringify(progressData)}\n\n`)
+              );
+              continue;
+            }
 
- hrimsLogger.info(
- ` Photo stored in MinIO for ${name} (${payrollNumber})`
- );
+            // Store MinIO URL in database
+            const minioUrl = `/api/files/employee-photos/${fileName}`;
 
- // Send progress update
- const progressData = {
- type: 'progress',
- current: i + 1,
- total: employees.length,
- employee: name,
- status: 'success',
- message: 'Photo stored successfully',
- summary: {
- success: successCount,
- failed: failedCount,
- skipped: skippedCount,
- },
- };
- controller.enqueue(
- encoder.encode(`data: ${JSON.stringify(progressData)}\n\n`)
- );
- } catch (error) {
- results.push({
- employeeName: name,
- payrollNumber,
- status: 'failed',
- message: error instanceof Error ? error.message : 'Unknown error',
- });
- failedCount++;
- hrimsLogger.error({ err: error }, `Failed to fetch photo for ${name}:`);
+            await prisma.employee.update({
+              where: { id: id },
+              data: { profileImageUrl: minioUrl },
+            });
 
- // Send progress update
- const progressData = {
- type: 'progress',
- current: i + 1,
- total: employees.length,
- employee: name,
- status: 'failed',
- message: error instanceof Error ? error.message : 'Unknown error',
- summary: {
- success: successCount,
- failed: failedCount,
- skipped: skippedCount,
- },
- };
- controller.enqueue(
- encoder.encode(`data: ${JSON.stringify(progressData)}\n\n`)
- );
- }
+            results.push({
+              employeeName: name,
+              payrollNumber,
+              status: 'success',
+              message: 'Photo fetched and stored in MinIO',
+            });
+            successCount++;
 
- // Add a small delay to avoid overwhelming the HRIMS API
- await new Promise((resolve) => setTimeout(resolve, 100));
- }
+            hrimsLogger.info(
+              ` Photo stored in MinIO for ${name} (${payrollNumber})`
+            );
 
- const summary = {
- total: employees.length,
- success: successCount,
- failed: failedCount,
- skipped: skippedCount,
- };
+            // Send progress update
+            const progressData = {
+              type: 'progress',
+              current: i + 1,
+              total: employees.length,
+              employee: name,
+              status: 'success',
+              message: 'Photo stored successfully',
+              summary: {
+                success: successCount,
+                failed: failedCount,
+                skipped: skippedCount,
+              },
+            };
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify(progressData)}\n\n`)
+            );
+          } catch (error) {
+            results.push({
+              employeeName: name,
+              payrollNumber,
+              status: 'failed',
+              message: error instanceof Error ? error.message : 'Unknown error',
+            });
+            failedCount++;
+            hrimsLogger.error({ err: error }, `Failed to fetch photo for ${name}:`);
 
- hrimsLogger.info(summary, 'Photo fetch complete. Summary:');
+            // Send progress update
+            const progressData = {
+              type: 'progress',
+              current: i + 1,
+              total: employees.length,
+              employee: name,
+              status: 'failed',
+              message: error instanceof Error ? error.message : 'Unknown error',
+              summary: {
+                success: successCount,
+                failed: failedCount,
+                skipped: skippedCount,
+              },
+            };
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify(progressData)}\n\n`)
+            );
+          }
 
- // Send final result
- const finalData = {
- type: 'complete',
- success: true,
- message: 'Photo fetch completed',
- data: {
- summary,
- results,
- },
- };
- controller.enqueue(
- encoder.encode(`data: ${JSON.stringify(finalData)}\n\n`)
- );
- controller.close();
- },
- });
+          // Add a small delay to avoid overwhelming the HRIMS API
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
 
- return new Response(stream, {
- headers: {
- 'Content-Type': 'text/event-stream',
- 'Cache-Control': 'no-cache',
- Connection: 'keep-alive',
- },
- });
- } catch (error) {
- hrimsLogger.error({ err: error }, 'Error in bulk photo fetch:');
- return NextResponse.json(
- {
- success: false,
- message: 'Failed to fetch photos',
- error: error instanceof Error ? error.message : 'Unknown error',
- },
- { status: 500 }
- );
- }
+        const summary = {
+          total: employees.length,
+          success: successCount,
+          failed: failedCount,
+          skipped: skippedCount,
+        };
+
+        hrimsLogger.info(summary, 'Photo fetch complete. Summary:');
+
+        // Send final result
+        const finalData = {
+          type: 'complete',
+          success: true,
+          message: 'Photo fetch completed',
+          data: {
+            summary,
+            results,
+          },
+        };
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify(finalData)}\n\n`)
+        );
+        controller.close();
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    });
+  } catch (error) {
+    hrimsLogger.error({ err: error }, 'Error in bulk photo fetch:');
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Failed to fetch photos',
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
+  }
 }
