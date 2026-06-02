@@ -78,38 +78,6 @@ export const PATCH = withRateLimit(withAuth(async (request, { auth }) => {
       );
     }
 
-    // Check for duplicate email — another user already has this email
-    const existingUser = await db.user.findFirst({
-      where: {
-        email: trimmedEmail,
-        NOT: { employeeId: employeeId },
-      },
-      select: { id: true, name: true },
-    });
-
-    if (existingUser) {
-      return NextResponse.json(
-        { success: false, message: 'This email address is already in use by another employee' },
-        { status: 409 }
-      );
-    }
-
-    // Also check Employee table for duplicates
-    const existingEmployee = await db.employee.findFirst({
-      where: {
-        email: trimmedEmail,
-        NOT: { id: employeeId },
-      },
-      select: { id: true, name: true },
-    });
-
-    if (existingEmployee) {
-      return NextResponse.json(
-        { success: false, message: 'This email address is already in use by another employee' },
-        { status: 409 }
-      );
-    }
-
     // Check if employee exists
     const employee = await db.employee.findUnique({
       where: { id: employeeId },
@@ -123,27 +91,16 @@ export const PATCH = withRateLimit(withAuth(async (request, { auth }) => {
       );
     }
 
-    // Update employee email on BOTH User and Employee records
-    const [updatedUser, updatedEmployee] = await Promise.all([
-      db.user.update({
-        where: { employeeId: employeeId },
-        data: { email: trimmedEmail },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      }),
-      db.employee.update({
-        where: { id: employeeId },
-        data: { email: trimmedEmail },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      }),
-    ]);
+    // Update employee email on the User record linked to this employee
+    const updatedUser = await db.user.update({
+      where: { employeeId: employeeId },
+      data: { email: trimmedEmail },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+    });
 
     authLogger.info({
       employeeId,
@@ -158,7 +115,6 @@ export const PATCH = withRateLimit(withAuth(async (request, { auth }) => {
       data: {
         id: updatedUser.id,
         email: updatedUser.email,
-        employeeEmail: updatedEmployee.email,
       },
     });
   } catch (error) {

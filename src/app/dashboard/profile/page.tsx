@@ -19,7 +19,6 @@ import {
 } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/use-auth';
-import { useAuthStore } from '@/store/auth-store';
 import { ROLES } from '@/lib/constants';
 import type { Employee, EmployeeCertificate } from '@/lib/types';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -50,14 +49,6 @@ import {
   TableRow,
   TableCaption,
 } from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Pagination } from '@/components/shared/pagination';
 import { Badge } from '@/components/ui/badge';
 import { useSearchParams } from 'next/navigation';
@@ -164,13 +155,6 @@ const EmployeeDetailsCard = ({
   const [profileImageUrl, setProfileImageUrl] = useState(emp.profileImageUrl);
   const [isFetchingPhoto, setIsFetchingPhoto] = useState(false);
   const [isFetchingDocuments, setIsFetchingDocuments] = useState(false);
-
-  // Email editing state for EMPLOYEE role
-  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
-  const [emailInput, setEmailInput] = useState((emp as any).email || '');
-  const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
-  const [emailError, setEmailError] = useState('');
-  const [emailChecking, setEmailChecking] = useState(false);
 
   // Sync state with emp prop when it changes (e.g., after data refresh)
   useEffect(() => {
@@ -392,67 +376,6 @@ const EmployeeDetailsCard = ({
     );
   };
 
-  const handleEmailUpdate = async () => {
-    const trimmedEmail = emailInput.trim().toLowerCase();
-
-    // Client-side validation
-    if (!trimmedEmail) {
-      setEmailError('Email address is required');
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(trimmedEmail)) {
-      setEmailError('Please enter a valid email address');
-      return;
-    }
-
-    // Validate domain (.go.tz or .ac.tz only)
-    const allowedDomains = ['.go.tz', '.ac.tz'];
-    const hasValidDomain = allowedDomains.some(domain => trimmedEmail.endsWith(domain));
-    if (!hasValidDomain) {
-      setEmailError('Email must end with .go.tz or .ac.tz (government or academic domain only)');
-      return;
-    }
-
-    setIsUpdatingEmail(true);
-    setEmailError('');
-
-    try {
-      const response = await fetch(`/api/employees/email?employeeId=${emp.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: trimmedEmail }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        setEmailError(result.message || 'Failed to update email');
-        setIsUpdatingEmail(false);
-        return;
-      }
-
-      // Update the emp object by triggering a re-render
-      (emp as any).email = trimmedEmail;
-      setEmailInput(trimmedEmail);
-      setIsEmailModalOpen(false);
-
-      // Refresh auth store so complaints page sees the updated email
-      useAuthStore.getState().refreshUserData();
-
-      toast({
-        title: 'Email Updated',
-        description: 'Your email address has been saved successfully. You can now submit complaints with MFA verification.',
-      });
-    } catch (error) {
-      log.error({ err: error }, 'Email update error');
-      setEmailError('An error occurred while updating your email. Please try again.');
-    } finally {
-      setIsUpdatingEmail(false);
-    }
-  };
-
   return (
     <Card className="mt-6 shadow-lg">
       <CardHeader className="border-b pb-6">
@@ -546,44 +469,6 @@ const EmployeeDetailsCard = ({
                 <p className="font-medium text-foreground">
                   {emp.phoneNumber || 'N/A'}
                 </p>
-              </div>
-              <div>
-                <Label className="text-muted-foreground">Email Address:</Label>
-                {(emp as any).email ? (
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-foreground">{(emp as any).email}</p>
-                    {userRole === 'EMPLOYEE' && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-xs"
-                        onClick={() => {
-                          setEmailInput((emp as any).email || '');
-                          setIsEmailModalOpen(true);
-                        }}
-                      >
-                        Edit
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-amber-600 italic">Not provided - required for MFA complaints</p>
-                    {userRole === 'EMPLOYEE' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-6 px-2 text-xs border-amber-400 text-amber-600 hover:bg-amber-50"
-                        onClick={() => {
-                          setEmailInput('');
-                          setIsEmailModalOpen(true);
-                        }}
-                      >
-                        Add Email
-                      </Button>
-                    )}
-                  </div>
-                )}
               </div>
               <div>
                 <Label className="text-muted-foreground">
@@ -852,86 +737,6 @@ const EmployeeDetailsCard = ({
           </Card>
         </section>
       </CardContent>
-
-      {/* Email Update Modal for EMPLOYEE role */}
-      {userRole === 'EMPLOYEE' && (
-        <Dialog open={isEmailModalOpen} onOpenChange={setIsEmailModalOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Update Email Address</DialogTitle>
-              <DialogDescription>
-                Enter your government or academic email address. This email will be used for MFA verification when submitting complaints.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="employeeEmail">
-                  Email Address <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="employeeEmail"
-                  type="email"
-                  placeholder="yourname@ministry.go.tz"
-                  value={emailInput}
-                  onChange={(e) => {
-                    setEmailInput(e.target.value);
-                    setEmailError('');
-                  }}
-                  onBlur={async () => {
-                    const val = emailInput.trim().toLowerCase();
-                    if (!val || val === (emp as any).email?.toLowerCase()) return;
-                    const allowedDomains = ['.go.tz', '.ac.tz'];
-                    if (!allowedDomains.some(d => val.endsWith(d))) return;
-                    setEmailChecking(true);
-                    try {
-                      const res = await fetch(`/api/employees/email/check?email=${encodeURIComponent(val)}`);
-                      const data = await res.json();
-                      if (data.inUse) {
-                        setEmailError('This email address is already in use by another employee');
-                      }
-                    } catch { /* ignore */ }
-                    setEmailChecking(false);
-                  }}
-                  disabled={isUpdatingEmail}
-                  className={emailError ? 'border-red-500' : ''}
-                />
-                {emailChecking && (
-                  <p className="text-sm text-muted-foreground">Checking email availability...</p>
-                )}
-                {emailError && (
-                  <p className="text-sm text-red-500">{emailError}</p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Must end with <strong>.go.tz</strong> (government) or <strong>.ac.tz</strong> (academic)
-                </p>
-              </div>
-              <Card className="bg-blue-50 border-blue-200">
-                <CardContent className="pt-4 pb-4">
-                  <p className="text-sm text-blue-700">
-                    <strong>Why do I need an email?</strong><br />
-                    Your email is required for MFA (Multi-Factor Authentication) when submitting complaints. This ensures secure verification of your identity.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEmailModalOpen(false)} disabled={isUpdatingEmail}>
-                Cancel
-              </Button>
-              <Button onClick={handleEmailUpdate} disabled={isUpdatingEmail}>
-                {isUpdatingEmail ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  'Save Email'
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
     </Card>
   );
 };

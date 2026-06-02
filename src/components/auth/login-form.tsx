@@ -103,17 +103,6 @@ export function LoginForm() {
         }
       }
     } catch (error: any) {
-      // Check if MFA is required
-      if (error.message === 'MFA_REQUIRED') {
-        const params = new URLSearchParams({
-          userId: error.userId || '',
-          email: error.email || '',
-        });
-        router.push(`/mfa-verify?${params.toString()}`);
-        setIsLoading(false);
-        return;
-      }
-
       // Check if error is session limit reached
       if (error.message === 'SESSION_LIMIT_REACHED') {
         log.info('Session limit reached, showing dialog');

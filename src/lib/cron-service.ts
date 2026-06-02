@@ -12,7 +12,6 @@ import {
   AuditEventCategory,
   AuditSeverity,
 } from '@/lib/audit-logger';
-import { cleanupExpiredMfaTokens } from '@/lib/mfa-utils';
 import { ensurePartitions } from '@/lib/audit-db';
 
 let cronJobRunning = false;
@@ -296,17 +295,7 @@ export function startPasswordExpirationCron(): void {
     await checkPasswordExpirations();
   });
 
-  // Schedule MFA token cleanup: every hour
-  cron.schedule('0 * * * *', async () => {
-    cronLogger.info('Triggered MFA token cleanup (scheduled)');
-    const count = await cleanupExpiredMfaTokens();
-    if (count > 0) {
-      cronLogger.info({ count }, 'Cleaned up expired MFA tokens');
-    }
-  });
-
   cronLogger.info('Password expiration check scheduled: Daily at 6:00 AM');
-  cronLogger.info('MFA token cleanup scheduled: Every hour');
 
   // Schedule audit partition creation: 1st of every month at 00:01
   cron.schedule('1 0 1 * *', async () => {

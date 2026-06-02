@@ -45,7 +45,6 @@ import {
   Users,
   FileText,
   RefreshCw,
-  Mail,
 } from 'lucide-react';
 import {
   Dialog,
@@ -186,11 +185,6 @@ export default function ComplaintsPage() {
     selectedComplaintForResubmission,
     setSelectedComplaintForResubmission,
   ] = useState<SubmittedComplaint | null>(null);
-
-  // Magic link MFA state for complaint submission
-  const [isMagicLinkSending, setIsMagicLinkSending] = useState(false);
-  const [showMagicLinkConfirmation, setShowMagicLinkConfirmation] = useState(false);
-  const [magicLinkEmail, setMagicLinkEmail] = useState('');
 
   // Employee not satisfied / appeal modal
   const [isNotSatisfiedModalOpen, setIsNotSatisfiedModalOpen] = useState(false);
@@ -349,80 +343,57 @@ export default function ComplaintsPage() {
 
   const onEmployeeSubmit = async (data: ComplaintFormValues) => {
     if (!user) {
-      toast({ title: 'Hitilafu', description: 'Maelezo ya mtumiaji hayajapatikana.', variant: 'destructive' });
-      return;
-    }
-
-    // Check if user has email
-    if (!user.email) {
       toast({
-        title: 'Barua Pepe Inahitajika',
-        description: 'Tafadhali ongeza barua pepe yako ya serikali kwenye ukurufi wako kabla ya kuwasilisha malalamiko.',
+        title: 'Hitilafu',
+        description: 'Maelezo ya mtumiaji hayajapatikana.',
         variant: 'destructive',
       });
       return;
     }
+    setIsSubmitting(true);
 
-    // Validate email domain
-    const allowedDomains = ['.go.tz', '.ac.tz'];
-    const hasValidDomain = allowedDomains.some(domain => user.email?.endsWith(domain));
-    if (!hasValidDomain) {
-      toast({
-        title: 'Domain ya Email Isiyo Sahihi',
-        description: 'Barua pepe yako lazima iwe na domain ya .go.tz au .ac.tz. Tafadhali refresh barua pepe yako.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsMagicLinkSending(true);
-
-    // Build complaint data
-    const complaintData = {
-      ...data,
-      attachments: complaintLetterFile || evidenceFile
-        ? [complaintLetterFile, evidenceFile].filter(Boolean)
-        : [],
-      complainantId: user.id,
-    };
-
-    // Store in sessionStorage as fallback
-    sessionStorage.setItem('pendingComplaint', JSON.stringify(complaintData));
-
-    const complaintDataParam = encodeURIComponent(JSON.stringify(complaintData));
+    // Create array of uploaded document object keys
+    const documentObjectKeys: string[] = [];
+    if (complaintLetterFile) documentObjectKeys.push(complaintLetterFile);
+    if (evidenceFile) documentObjectKeys.push(evidenceFile);
 
     try {
-      const response = await fetch(`/api/complaints/mfa-initiate?complaintData=${complaintDataParam}`, {
+      const response = await fetch('/api/complaints', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...data,
+          attachments: documentObjectKeys,
+          complainantId: user.id,
+        }),
       });
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        toast({ title: 'Imeshindikana', description: result.message || 'Imeshindwa kutuma link ya kuthibitisha.', variant: 'destructive' });
-        setIsMagicLinkSending(false);
-        return;
+      if (!response.ok) {
+        throw new Error('Failed to submit complaint');
       }
 
-      // Show success state
-      setMagicLinkEmail(user.email);
-      setShowMagicLinkConfirmation(true);
-      setIsMagicLinkSending(false);
+      await fetchComplaints(); // Refresh list immediately
+      toast({
+        title: 'Lalamiko Limewasilishwa',
+        description: 'Lalamiko lako limewasilishwa kwa mafanikio.',
+      });
 
-      // Clear form
+      // Reset form after successful submission
       form.reset();
       setRewrittenComplaint(null);
       setHasUsedAI(false);
       setComplaintLetterFile('');
       setEvidenceFile('');
-
-      toast({ title: 'Link Imetumwa', description: 'Tumetuma link ya kuthibitisha kwenye barua pepe yako. Bonyeza link hiyo kuwasilisha lalamiko.' });
-    } catch {
-      toast({ title: 'Hitilafu', description: 'Hitilafu imetokea. Tafadhali jaribu tena.', variant: 'destructive' });
-      setIsMagicLinkSending(false);
+    } catch (error) {
+      toast({
+        title: 'Kuwasilisha Kumeshindikana',
+        description: 'Hitilafu imetokea wakati wa kuwasilisha lalamiko lako.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
-
 
   const updateComplaintState = (updatedComplaint: SubmittedComplaint) => {
     setComplaints((prev) =>
@@ -1091,7 +1062,7 @@ export default function ComplaintsPage() {
                   <RefreshCw
                     className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
                   />
-                  Refresh
+                  Sasisha
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2 mt-3">
@@ -1419,39 +1390,8 @@ export default function ComplaintsPage() {
                 kusaidia kuboresha maandishi katika sehemu ya maelezo.
               </CardDescription>
             </CardHeader>
-            {showMagicLinkConfirmation ? (
-              <CardContent>
-                <div className="text-center space-y-6 py-8">
-                  <div className="mx-auto w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
-                    <Mail className="w-10 h-10 text-green-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-semibold mb-2">Barua Pepe Imetumwa!</h3>
-                    <p className="text-muted-foreground max-w-md mx-auto">
-                      Tumetuma link ya kuthibitisha kwenye <strong>{magicLinkEmail}</strong>.
-                      Bonyeza link hiyo katika email yako kuwasilisha lalamiko lako.
-                    </p>
-                  </div>
-                  <Card className="bg-blue-50 border-blue-200 max-w-md mx-auto">
-                    <CardContent className="pt-4 pb-4">
-                      <p className="text-sm text-blue-700"><strong>Muda:</strong> Link itamaliza muda baada ya dakika 20.</p>
-                      <p className="text-sm text-blue-700 mt-1"><strong>Notisi:</strong> Angalia folda yako ya spam ikiwa hujaona email.</p>
-                    </CardContent>
-                  </Card>
-                  <div className="flex gap-4 justify-center">
-                    <Button variant="outline" onClick={() => setShowMagicLinkConfirmation(false)}>
-                      Andika Lalamiko Jingine
-                    </Button>
-                    <Button onClick={() => fetchComplaints(true)}>
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                      Refresh
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            ) : (
-              <CardContent>
-                <Form {...form}>
+            <CardContent>
+              <Form {...form}>
                 <form
                   onSubmit={form.handleSubmit(onEmployeeSubmit)}
                   className="space-y-6"
@@ -1663,18 +1603,18 @@ export default function ComplaintsPage() {
                       ) : (
                         <Edit3 className="mr-2 h-4 w-4" />
                       )}
-                      {hasUsedAI ? "Fanya tena ili kupata maelezo mazuri zaidi kwa kutumia AI" : "Fanya Maelezo Yawe Mazuri Zaidi kwa kutumia AI"}
+                      {hasUsedAI ? "Boresha Tena kwa AI" : "Boresha Maelezo kwa AI"}
                     </Button>
                     <Button
                       type="submit"
-                      disabled={isRewriting || isMagicLinkSending || !hasUsedAI}
+                      disabled={isRewriting || isSubmitting || !hasUsedAI}
                     >
-                      {isMagicLinkSending ? (
+                      {isSubmitting ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : (
                         <Send className="mr-2 h-4 w-4" />
                       )}
-                      {isMagicLinkSending ? 'Inatuma Link...' : 'Wasilisha Lalamiko'}
+                      Wasilisha Lalamiko
                     </Button>
                   </div>
                   {!hasUsedAI && (
@@ -1698,7 +1638,6 @@ export default function ComplaintsPage() {
                 </Card>
               )}
             </CardContent>
-          )}
           </Card>
         </>
       )}
@@ -1726,7 +1665,7 @@ export default function ComplaintsPage() {
                   <RefreshCw
                     className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
                   />
-                  Refresh
+                  Sasisha
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2 mt-3">

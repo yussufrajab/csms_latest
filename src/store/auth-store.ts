@@ -93,14 +93,6 @@ export const useAuthStore = create<AuthState>()(
             throw error;
           }
 
-          // Check if MFA is required
-          if (response.code === 'MFA_REQUIRED') {
-            const mfaError: any = new Error('MFA_REQUIRED');
-            mfaError.userId = response.data?.userId;
-            mfaError.email = response.data?.email;
-            throw mfaError;
-          }
-
           if (!response.success || !response.data) {
             log.error({ message: response.message }, 'Login failed');
             // Throw error with the server's message so the form can display it

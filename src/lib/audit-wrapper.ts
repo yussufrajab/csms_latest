@@ -75,10 +75,6 @@ function detectEventType(
   if (path.includes('/auth/change-password')) {
     return { eventType: 'PASSWORD_CHANGED', eventCategory: 'SECURITY', severity: 'INFO' };
   }
-  if (path.includes('/auth/mfa')) {
-    return { eventType: 'AUTHENTICATION', eventCategory: 'AUTHENTICATION', severity: 'INFO' };
-  }
-
   // Admin routes
   if (path.includes('/admin/reset-password')) {
     return { eventType: 'ADMIN_PASSWORD_RESET', eventCategory: 'SECURITY', severity: 'WARNING' };
