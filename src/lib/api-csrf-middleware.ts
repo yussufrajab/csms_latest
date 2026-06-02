@@ -9,6 +9,7 @@ import {
   getClientIp,
 } from '@/lib/csrf-utils';
 import { csrfLogger } from '@/lib/logger';
+import { parseDeviceInfo } from '@/lib/audit-logger';
 
 /**
  * CSRF Protection Middleware for API Routes
@@ -48,7 +49,7 @@ export async function validateCSRF(request: NextRequest | Request): Promise<{
     // Extract user info for logging (if available from auth cookie)
     const { userId, username } = extractUserInfo(request);
     const ipAddress = getClientIp(request.headers);
-    const deviceInfo = JSON.parse(request.headers.get('x-device-info') || 'null');
+    const deviceInfo = parseDeviceInfo(request.headers);
     const url =
       request instanceof NextRequest
         ? request.nextUrl.pathname

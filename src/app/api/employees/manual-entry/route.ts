@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
-import { logEmployeeAction, getClientIp } from '@/lib/audit-logger';
+import { logEmployeeAction, getClientIp, parseDeviceInfo } from '@/lib/audit-logger';
 import { logger } from '@/lib/logger';
 
 const prisma = new PrismaClient();
@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
       performedByUsername: username || 'HRO',
       performedByRole: role,
       ipAddress: getClientIp(request.headers),
-      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+      deviceInfo: parseDeviceInfo(request.headers),
       additionalData: { dataSource: 'MANUAL_ENTRY', institutionId },
     }).catch(() => {});
 

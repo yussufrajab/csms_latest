@@ -728,16 +728,24 @@ export default function RetirementPage() {
     }
 
     try {
+      // Only include reviewedById for review actions (not for HRO resubmissions
+      // where status is reset to 'Pending HRRP Review' and reviewedById must be absent
+      // for the backend to correctly classify it as a resubmission)
+      const isResubmission = payload.status === 'Pending HRRP Review' && !payload.hrrpReviewedById;
+      const patchBody: any = {
+        id: requestId,
+        userRole: role,
+        userId: user?.id,
+        ...payload,
+      };
+      if (!payload.hrrpReviewedById && !isResubmission) {
+        patchBody.reviewedById = user?.id;
+      }
+
       const response = await fetch(`/api/retirement`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: requestId,
-          userRole: role,
-          userId: user?.id,
-          ...payload,
-          ...(payload.hrrpReviewedById ? {} : { reviewedById: user?.id }),
-        }),
+        body: JSON.stringify(patchBody),
       });
       if (!response.ok) throw new Error('Failed to update request');
 
@@ -998,7 +1006,6 @@ export default function RetirementPage() {
         delayReason: correctedDelayReason || null,
         documents: correctedDocumentObjectKeys,
         rejectionReason: null,
-        reviewedById: user.id,
       };
 
       // Use the optimistic update pattern for consistency
@@ -1577,12 +1584,7 @@ export default function RetirementPage() {
                     <div className="flex items-center space-x-1">
                       <div
                         className={`w-2 h-2 rounded-full ${
-                          [
-                            'Pending HRMO/HHRMD Review',
-                            'Request Received – Awaiting Commission Decision',
-                            'Approved by Commission',
-                            'Rejected by Commission - Request Concluded',
-                          ].includes(request.status)
+                          request.status !== 'Pending'
                             ? 'bg-green-500'
                             : 'bg-gray-300'
                         }`}
@@ -1591,27 +1593,47 @@ export default function RetirementPage() {
                       <div className="w-3 h-px bg-gray-300"></div>
                       <div
                         className={`w-2 h-2 rounded-full ${
-                          [
-                            'Request Received – Awaiting Commission Decision',
-                            'Approved by Commission',
-                            'Rejected by Commission - Request Concluded',
-                          ].includes(request.status)
+                          request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                          request.status.includes('Awaiting Commission') ||
+                          request.status.includes('Approved by Commission') ||
+                          request.status.includes('Rejected by Commission')
                             ? 'bg-green-500'
-                            : request.status.includes('Pending HRMO/HHRMD')
-                              ? 'bg-orange-500'
-                              : 'bg-gray-300'
+                            : request.status === 'Pending HRRP Review'
+                              ? 'bg-purple-500'
+                              : request.status === 'Rejected by HRRP - Awaiting HRO Correction'
+                                ? 'bg-red-500'
+                                : 'bg-gray-300'
                         }`}
                       ></div>
-                      <span className="text-[10px]">HRMO/HHRMD Review</span>
+                      <span className="text-[10px]">HRRP Review</span>
                       <div className="w-3 h-px bg-gray-300"></div>
                       <div
                         className={`w-2 h-2 rounded-full ${
-                          [
-                            'Approved by Commission',
-                            'Rejected by Commission - Request Concluded',
-                          ].includes(request.status)
+                          request.status.includes('Approved by HRMO')
                             ? 'bg-green-500'
-                            : request.status.includes('Awaiting Commission')
+                            : request.status.includes('Approved by HHRMD')
+                              ? 'bg-green-500'
+                              : request.status === 'Approved by HRRP - Awaiting Commission Review' ||
+                                request.status === 'Pending HRMO/HHRMD Review'
+                                  ? 'bg-orange-500'
+                                  : request.status.includes('Awaiting Commission Decision')
+                                    ? 'bg-blue-500'
+                                    : 'bg-gray-300'
+                        }`}
+                      ></div>
+                      <span className="text-[10px]">
+                        {request.status.includes('Approved by HRMO')
+                          ? 'HRMO ✓'
+                          : request.status.includes('Approved by HHRMD')
+                            ? 'HHRMD ✓'
+                            : 'HRMO/HHRMD Review'}
+                      </span>
+                      <div className="w-3 h-px bg-gray-300"></div>
+                      <div
+                        className={`w-2 h-2 rounded-full ${
+                          ['Approved by Commission', 'Rejected by Commission - Request Concluded'].includes(request.status)
+                            ? 'bg-green-500'
+                            : request.status.includes('Awaiting Commission Decision')
                               ? 'bg-blue-500'
                               : 'bg-gray-300'
                         }`}
@@ -2188,8 +2210,8 @@ export default function RetirementPage() {
                           key={index}
                           className="flex items-center justify-between p-2 rounded-md border bg-secondary/50 text-sm"
                         >
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                             <span
                               className="font-medium text-foreground truncate"
                               title={fileName}
@@ -2403,7 +2425,7 @@ export default function RetirementPage() {
         open={isCommissionDecisionModalOpen}
         onOpenChange={setIsCommissionDecisionModalOpen}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>
               {commissionDecisionType === 'approved'

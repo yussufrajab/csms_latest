@@ -9,7 +9,7 @@ import {
   calculateTemporaryPasswordExpiry,
 } from '@/lib/password-utils';
 import { completeLogin } from '@/lib/auth-helpers';
-import { logLoginAttempt, getClientIp } from '@/lib/audit-logger';
+import { logLoginAttempt, getClientIp, parseDeviceInfo } from '@/lib/audit-logger';
 import { withRateLimit } from '@/lib/rate-limiter';
 import { authLogger } from '@/lib/logger';
 
@@ -36,7 +36,7 @@ export const POST = withRateLimit(async (request) => {
     // Get client info for audit logging
     const ipAddress = getClientIp(request.headers);
     const userAgent = request.headers.get('user-agent') || null;
-    const deviceInfo: Record<string, any> | null = JSON.parse(request.headers.get('x-device-info') || 'null');
+    const deviceInfo: Record<string, any> | null = parseDeviceInfo(request.headers);
 
     // Trim whitespace and normalize input
     const normalizedZanId = zanId.trim();

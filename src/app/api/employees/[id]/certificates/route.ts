@@ -6,7 +6,7 @@ import { validateFileUpload } from '@/lib/file-validation';
 import { logger } from '@/lib/logger';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
-import { logFileAction, getClientIp } from '@/lib/audit-logger';
+import { logFileAction, getClientIp, parseDeviceInfo } from '@/lib/audit-logger';
 
 // Valid certificate types
 const VALID_CERTIFICATE_TYPES = [
@@ -184,7 +184,7 @@ export const POST = withRateLimit(withAuth(async (
       performedByUsername: auth.username,
       performedByRole: auth.role,
       ipAddress: getClientIp(request.headers),
-      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+      deviceInfo: parseDeviceInfo(request.headers),
       additionalData: { certificateType, certificateName, employeeId },
     }).catch(() => {});
 

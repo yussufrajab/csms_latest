@@ -195,7 +195,7 @@ export const POST = withRateLimit(async (request) => {
     await resetPasswordExpiration(userId, user.role);
 
     // Log password change with audit
-    const { logAuditEvent, AuditEventCategory, AuditSeverity, getClientIp } =
+    const { logAuditEvent, AuditEventCategory, AuditSeverity, getClientIp, parseDeviceInfo } =
       await import('@/lib/audit-logger');
     await logAuditEvent({
       eventType: 'PASSWORD_CHANGED',
@@ -205,7 +205,7 @@ export const POST = withRateLimit(async (request) => {
       username: user.username,
       userRole: user.role,
       ipAddress: getClientIp(request.headers),
-      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+      deviceInfo: parseDeviceInfo(request.headers),
       attemptedRoute: '/api/auth/change-password',
       requestMethod: 'POST',
       isAuthenticated: true,

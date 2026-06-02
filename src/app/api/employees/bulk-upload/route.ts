@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
-import { logEmployeeAction, getClientIp } from '@/lib/audit-logger';
+import { logEmployeeAction, getClientIp, parseDeviceInfo } from '@/lib/audit-logger';
 import { validateFileUpload } from '@/lib/file-validation';
 import { withAuth, AuthContext } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
@@ -556,7 +556,7 @@ export const PUT = withRateLimit(withAuth(async (
         performedByUsername: username || 'HRO',
         performedByRole: role,
         ipAddress: getClientIp(request.headers),
-        deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+        deviceInfo: parseDeviceInfo(request.headers),
         additionalData: { dataSource: 'BULK_UPLOAD', institutionId, batchRow: emp.rowNumber },
       }).catch(() => {});
     }

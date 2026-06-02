@@ -89,6 +89,19 @@ const initialMockPendingDismissalRequests: MockPendingDismissalRequest[] = [
 ];
 
 export default function DismissalPage() {
+  const getShortDocumentName = (fullPath: string): string => {
+    const fileName = fullPath.split('/').pop() || fullPath;
+    const cleanName = fileName
+      .replace(/^\d+_[a-zA-Z0-9]+_/, '')
+      .replace(/^[a-zA-Z0-9]+_/, '');
+    if (cleanName.length > 25) {
+      const extension = cleanName.split('.').pop();
+      const nameWithoutExt = cleanName.replace(/\.[^/.]+$/, '');
+      return `${nameWithoutExt.substring(0, 20)}...${extension ? '.' + extension : ''}`;
+    }
+    return cleanName;
+  };
+
   const { role, user } = useAuth();
   const [zanId, setZanId] = useState('');
   const [employeeDetails, setEmployeeDetails] = useState<Employee | null>(null);
@@ -1285,11 +1298,25 @@ export default function DismissalPage() {
                   <div className="col-span-2">
                     {selectedRequest.documents &&
                     selectedRequest.documents.length > 0 ? (
-                      <ul className="list-disc pl-5 text-muted-foreground">
-                        {selectedRequest.documents.map((doc, index) => (
-                          <li key={index}>{doc}</li>
-                        ))}
-                      </ul>
+                      <div className="space-y-2">
+                        {selectedRequest.documents.map((doc, index) => {
+                          const shortName = getShortDocumentName(doc);
+                          return (
+                            <div
+                              key={index}
+                              className="flex items-center gap-2 p-2 rounded-md border bg-secondary/50 text-sm"
+                            >
+                              <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                              <span
+                                className="font-medium text-foreground truncate"
+                                title={doc}
+                              >
+                                {shortName}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
                     ) : (
                       <p className="text-muted-foreground">
                         No documents listed.

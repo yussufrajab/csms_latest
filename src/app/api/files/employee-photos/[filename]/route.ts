@@ -4,7 +4,7 @@ import { db as prisma } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { verifyAuth } from '@/lib/api-auth';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
-import { logFileAction } from '@/lib/audit-logger';
+import { logFileAction, parseDeviceInfo } from '@/lib/audit-logger';
 
 export async function GET(
   request: NextRequest,
@@ -90,7 +90,7 @@ export async function GET(
       performedByUsername: auth.username,
       performedByRole: auth.role,
       ipAddress: getClientIp(request),
-      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+      deviceInfo: parseDeviceInfo(request.headers),
       additionalData: { employeeId },
     }).catch(() => {});
 

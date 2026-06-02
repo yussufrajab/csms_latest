@@ -273,12 +273,9 @@ export function middleware(request: NextRequest) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/employee-login') ||
     pathname.startsWith('/change-password-required') ||
-    pathname.startsWith('/mfa-verify') ||
-    pathname.startsWith('/mfa/magic-link-confirm') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth/login') ||
     pathname.startsWith('/api/auth/employee-login') ||
-    pathname.startsWith('/api/auth/mfa') ||
     pathname.startsWith('/static') ||
     pathname === '/favicon.ico'
   ) {

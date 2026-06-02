@@ -82,7 +82,7 @@
     "next": "^16.0.7",
     "node-cron": "^4.2.1",
     "node-fetch": "^2.7.0",
-    "nodemailer": "^8.0.7",
+    "nodemailer": "^8.0.10",
     "patch-package": "^8.0.0",
     "pg": "^8.21.0",
     "pino": "^10.3.1",

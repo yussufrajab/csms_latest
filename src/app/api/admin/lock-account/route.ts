@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { lockAccountManually } from '@/lib/account-lockout-utils';
 import { createNotification } from '@/lib/notifications';
-import { logAccountAction, getClientIp } from '@/lib/audit-logger';
+import { logAccountAction, getClientIp, parseDeviceInfo } from '@/lib/audit-logger';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
 import { logger } from '@/lib/logger';
@@ -72,7 +72,7 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
       performedByRole: auth.role,
       reason,
       ipAddress: getClientIp(request.headers),
-      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+      deviceInfo: parseDeviceInfo(request.headers),
     }).catch(() => {});
 
     // Send notification to user

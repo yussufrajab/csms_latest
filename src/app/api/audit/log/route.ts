@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { logUnauthorizedAccess, getClientIp } from '@/lib/audit-logger';
+import { logUnauthorizedAccess, getClientIp, parseDeviceInfo } from '@/lib/audit-logger';
 import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     // Get IP address from request or use provided one
     const ipAddress = body.ipAddress || getClientIp(request.headers);
-    const deviceInfo = body.deviceInfo || JSON.parse(request.headers.get('x-device-info') || 'null');
+    const deviceInfo = body.deviceInfo || parseDeviceInfo(request.headers);
 
     // Log the unauthorized access attempt
     await logUnauthorizedAccess({

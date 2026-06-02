@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { uploadFile, generateObjectKey } from '@/lib/minio';
-import { logFileAction, getClientIp as getAuditClientIp } from '@/lib/audit-logger';
+import { logFileAction, getClientIp as getAuditClientIp, parseDeviceInfo as getDeviceInfo } from '@/lib/audit-logger';
 import { validateFileUpload } from '@/lib/file-validation';
 import { verifyAuth } from '@/lib/api-auth';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       performedByUsername: auth.username || 'unknown',
       performedByRole: auth.role || 'unknown',
       ipAddress: getAuditClientIp(request.headers),
-      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+      deviceInfo: getDeviceInfo(request.headers),
     }).catch(() => {});
 
     return NextResponse.json({
@@ -83,10 +83,11 @@ export async function POST(request: Request) {
         bucketName: uploadResult.bucketName,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     logger.error({ value: error }, 'File upload error');
+    console.error('[UPLOAD ERROR]', error?.message, error?.stack);
     return NextResponse.json(
-      { success: false, message: 'Internal server error' },
+      { success: false, message: 'Internal server error', debug: error?.message, stack: error?.stack },
       { status: 500 }
     );
   }

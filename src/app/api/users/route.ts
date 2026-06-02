@@ -7,7 +7,7 @@ import {
   hashPassword,
   calculateTemporaryPasswordExpiry,
 } from '@/lib/password-utils';
-import { logUserAction, getClientIp } from '@/lib/audit-logger';
+import { logUserAction, getClientIp, parseDeviceInfo } from '@/lib/audit-logger';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
 import { sanitizeUser, sanitizeUsers } from '@/lib/sanitize-response';
@@ -205,7 +205,7 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
       performedByUsername: adminUsername || 'system',
       performedByRole: adminRole || 'ADMIN',
       ipAddress: getClientIp(request.headers),
-      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+      deviceInfo: parseDeviceInfo(request.headers),
     }).catch(() => {});
 
     return NextResponse.json(sanitizeUser(response), { status: 201 });

@@ -101,10 +101,10 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
     });
 
     // Log password reset in audit trail using verified auth context
-    const { logAuditEvent, AuditEventCategory, AuditSeverity, getClientIp } =
+    const { logAuditEvent, AuditEventCategory, AuditSeverity, getClientIp, parseDeviceInfo } =
       await import('@/lib/audit-logger');
     const ipAddress = getClientIp(request.headers);
-    const deviceInfo = JSON.parse(request.headers.get('x-device-info') || 'null');
+    const deviceInfo = parseDeviceInfo(request.headers);
 
     await logAuditEvent({
       eventType: 'ADMIN_PASSWORD_RESET',

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { unlockAccount } from '@/lib/account-lockout-utils';
 import { createNotification } from '@/lib/notifications';
-import { logAccountAction, getClientIp } from '@/lib/audit-logger';
+import { logAccountAction, getClientIp, parseDeviceInfo } from '@/lib/audit-logger';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
 import { logger } from '@/lib/logger';
@@ -58,7 +58,7 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
       performedByUsername: auth.username,
       performedByRole: auth.role,
       ipAddress: getClientIp(request.headers),
-      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+      deviceInfo: parseDeviceInfo(request.headers),
       additionalData: { verificationNotes },
     }).catch(() => {});
 

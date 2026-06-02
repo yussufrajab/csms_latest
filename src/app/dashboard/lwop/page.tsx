@@ -1924,7 +1924,7 @@ export default function LwopPage() {
         open={isCommissionDecisionModalOpen}
         onOpenChange={setIsCommissionDecisionModalOpen}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>
               {commissionDecisionType === 'approved'

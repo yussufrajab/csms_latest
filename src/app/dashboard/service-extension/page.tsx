@@ -1864,8 +1864,8 @@ export default function ServiceExtensionPage() {
                           key={index}
                           className="flex items-center justify-between p-2 rounded-md border bg-secondary/50 text-sm"
                         >
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                             <span
                               className="font-medium text-foreground truncate"
                               title={fileName}
@@ -2010,7 +2010,7 @@ export default function ServiceExtensionPage() {
         open={isCommissionDecisionModalOpen}
         onOpenChange={setIsCommissionDecisionModalOpen}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>
               {commissionDecisionType === 'approved'

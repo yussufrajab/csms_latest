@@ -437,15 +437,18 @@ export default function CadreChangePage() {
       });
     }
 
-    // Build the PATCH body - only include reviewedById for non-HRRP actions
+    // Build the PATCH body
     const patchBody: any = {
       id: requestId,
       userRole: role,
       userId: user?.id,
       ...payload,
     };
-    // HRRP actions use hrrpReviewedById, not reviewedById
-    if (!payload.hrrpReviewedById) {
+    // Only include reviewedById for review actions (not for HRO resubmissions
+    // where status is reset to 'Pending HRRP Review' and reviewedById must be absent
+    // for the backend to correctly classify it as a resubmission)
+    const isResubmission = payload.status === 'Pending HRRP Review' && !payload.hrrpReviewedById;
+    if (!payload.hrrpReviewedById && !isResubmission) {
       patchBody.reviewedById = user?.id;
     }
 
@@ -1766,10 +1769,10 @@ export default function CadreChangePage() {
                               key={index}
                               className="flex items-center justify-between p-2 rounded-md border bg-secondary/50 text-sm"
                             >
-                              <div className="flex items-center gap-2">
-                                <FileText className="h-4 w-4 text-muted-foreground" />
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                                 <span
-                                  className="font-medium text-foreground"
+                                  className="font-medium text-foreground truncate"
                                   title={objectKey}
                                 >
                                   {shortName}
@@ -2038,7 +2041,7 @@ export default function CadreChangePage() {
         open={isCommissionDecisionModalOpen}
         onOpenChange={setIsCommissionDecisionModalOpen}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>
               {commissionDecisionType === 'approved'

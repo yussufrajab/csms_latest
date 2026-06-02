@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
-import { logInstitutionAction, getClientIp } from '@/lib/audit-logger';
+import { logInstitutionAction, getClientIp, parseDeviceInfo } from '@/lib/audit-logger';
 import { withAuth } from '@/lib/api-auth';
 import { withRateLimit } from '@/lib/rate-limiter';
 import { logger } from '@/lib/logger';
@@ -191,7 +191,7 @@ export const POST = withRateLimit(withAuth(async (request, { auth }) => {
       performedByUsername: auth.username || 'system',
       performedByRole: auth.role,
       ipAddress: getClientIp(request.headers),
-      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+      deviceInfo: parseDeviceInfo(request.headers),
     }).catch(() => {});
 
     return NextResponse.json(

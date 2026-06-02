@@ -4,7 +4,7 @@ import { validateFileUpload } from '@/lib/file-validation';
 import { logger } from '@/lib/logger';
 import { verifyAuth } from '@/lib/api-auth';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
-import { logFileAction } from '@/lib/audit-logger';
+import { logFileAction, parseDeviceInfo } from '@/lib/audit-logger';
 
 const TEMPLATE_OBJECT_KEY = 'templates/promotion-form-template.docx';
 
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
       performedByUsername: auth.username,
       performedByRole: auth.role,
       ipAddress: getClientIp(request),
-      deviceInfo: JSON.parse(request.headers.get('x-device-info') || 'null'),
+      deviceInfo: parseDeviceInfo(request.headers),
     }).catch(() => {});
 
     return NextResponse.json({

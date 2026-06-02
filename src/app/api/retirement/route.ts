@@ -13,6 +13,25 @@ import { sendRequestSubmissionEmails, sendRequestStatusUpdateEmail } from '@/lib
 import { ROLES } from '@/lib/constants';
 import { logger } from '@/lib/logger';
 
+// Role-based authorization helper
+function checkRoleAuthorization(
+  userRole: string | null,
+  allowedRoles: readonly string[]
+): { authorized: boolean; message?: string } {
+  if (!userRole) {
+    return { authorized: false, message: 'User role is required' };
+  }
+
+  if (!allowedRoles.includes(userRole)) {
+    return {
+      authorized: false,
+      message: `Unauthorized: ${userRole} cannot perform this action. Allowed roles: ${allowedRoles.join(', ')}`,
+    };
+  }
+
+  return { authorized: true };
+}
+
 // Cache configuration for retirement requests
 const CACHE_TTL = 30; // 30 seconds cache (request status changes frequently)
 
@@ -332,16 +351,45 @@ export async function PATCH(req: Request) {
       );
     }
 
-    // Determine HRRP action types before the update
-    const isHrrpApproval = updateData.status === 'Approved by HRRP - Awaiting Commission Review' && (updateData.hrrpReviewedById || userRole === 'HRRP');
-    const isHrrpRejection = updateData.status === 'Rejected by HRRP - Awaiting HRO Correction';
-    const isResubmission = updateData.status === 'Pending HRRP Review' && !updateData.reviewedById;
+    // Authorization: Different roles can perform different update actions
+    const isHrrpApproval =
+      updateData.status === 'Approved by HRRP - Awaiting Commission Review' &&
+      (updateData.hrrpReviewedById || userRole === 'HRRP');
+    const isHrrpRejection =
+      updateData.status === 'Rejected by HRRP - Awaiting HRO Correction';
+    const isHrrpAction = isHrrpApproval || isHrrpRejection;
+    const isCommissionDecision =
+      updateData.reviewedById !== undefined &&
+      !isHrrpAction &&
+      (updateData.status === 'Approved by Commission' || updateData.status === 'Rejected by Commission - Request Concluded');
+    const isInitialReviewAction =
+      updateData.reviewedById !== undefined && !isHrrpAction && !isCommissionDecision;
+    const isResubmission =
+      updateData.status === 'Pending HRRP Review' &&
+      !updateData.reviewedById;
+
+    let authCheck;
+    if (isHrrpAction) {
+      authCheck = checkRoleAuthorization(userRole, ['HRRP' as const]);
+    } else if (isCommissionDecision || isInitialReviewAction) {
+      authCheck = checkRoleAuthorization(userRole, ['HHRMD' as const, 'HRMO' as const]);
+    } else if (isResubmission) {
+      authCheck = checkRoleAuthorization(userRole, ['HRO' as const, 'HRRP' as const]);
+    } else {
+      authCheck = { authorized: false, message: 'Invalid update action' };
+    }
+
+    if (!authCheck.authorized) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: authCheck.message,
+        },
+        { status: 403 }
+      );
+    }
 
     // Validate that commission decisions include a commission letter
-    const isCommissionDecision = updateData.reviewedById && (
-      updateData.status?.includes('Approved by Commission') ||
-      updateData.status?.includes('Rejected by Commission')
-    );
     if (isCommissionDecision && !body.commissionLetterKey) {
       return NextResponse.json(
         { success: false, message: 'Commission letter is required for commission decisions' },

@@ -244,6 +244,20 @@ export async function logLoginAttempt(data: {
 }
 
 /**
+ * Safely parse the x-device-info header as JSON.
+ * Returns null if the header is missing or invalid JSON.
+ */
+export function parseDeviceInfo(headers: Headers): Record<string, any> | null {
+  const raw = headers.get('x-device-info');
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Get client IP address from request headers
  */
 export function getClientIp(headers: Headers): string | null {
