@@ -1583,7 +1583,7 @@ export default function ComplaintsPage() {
                               field.onChange(key);
                             }}
                             folder="complaints"
-                            maxSize={1.2}
+                            maxSize={1}
                             accept=".pdf"
                           />
                         </FormControl>
@@ -1613,7 +1613,7 @@ export default function ComplaintsPage() {
                               field.onChange(key);
                             }}
                             folder="complaints"
-                            maxSize={1.2}
+                            maxSize={1}
                             accept=".pdf"
                           />
                         </FormControl>
@@ -2418,7 +2418,7 @@ export default function ComplaintsPage() {
                       setOfficerAttachmentFile(objectKey as string)
                     }
                     folder="complaints/officer-responses"
-                    maxSize={1.2}
+                    maxSize={1}
                     accept=".pdf"
                   />
                 </div>
@@ -2556,11 +2556,11 @@ export default function ComplaintsPage() {
                   }
                   folder="complaints/additional-info"
                   multiple
-                  maxSize={5}
+                  maxSize={1}
                   accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
                 />
                 <p className="text-sm text-muted-foreground mt-1">
-                  Pakia hati, picha au nyaraka zozote zinazosaidia maelezo yako (hiari). Ukubwa wa juu: 5MB kwa kila faili.
+                  Pakia hati, picha au nyaraka zozote zinazosaidia maelezo yako (hiari). Ukubwa wa juu: 1MB kwa kila faili.
                 </p>
               </div>
             </div>
@@ -2766,11 +2766,11 @@ export default function ComplaintsPage() {
                       }
                       folder="complaints/resubmissions"
                       multiple
-                      maxSize={5}
+                      maxSize={1}
                       accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
                     />
                     <p className="text-sm text-muted-foreground mt-1">
-                      Pakia hati mpya, picha au nyaraka zozote zinazosaidia lalamiko lako (hiari). Ukubwa wa juu: 5MB kwa kila faili.
+                      Pakia hati mpya, picha au nyaraka zozote zinazosaidia lalamiko lako (hiari). Ukubwa wa juu: 1MB kwa kila faili.
                     </p>
                   </div>
 
