@@ -176,6 +176,7 @@ export default function ComplaintsPage() {
   // Employee provide more info modal
   const [isProvideInfoModalOpen, setIsProvideInfoModalOpen] = useState(false);
   const [additionalInfo, setAdditionalInfo] = useState('');
+  const [additionalInfoAttachments, setAdditionalInfoAttachments] = useState<string[]>([]);
   const [selectedComplaintForInfo, setSelectedComplaintForInfo] =
     useState<SubmittedComplaint | null>(null);
 
@@ -185,6 +186,7 @@ export default function ComplaintsPage() {
     selectedComplaintForResubmission,
     setSelectedComplaintForResubmission,
   ] = useState<SubmittedComplaint | null>(null);
+  const [resubmissionAttachments, setResubmissionAttachments] = useState<string[]>([]);
 
   // Employee not satisfied / appeal modal
   const [isNotSatisfiedModalOpen, setIsNotSatisfiedModalOpen] = useState(false);
@@ -711,11 +713,13 @@ export default function ComplaintsPage() {
   const openProvideInfoModal = (complaint: SubmittedComplaint) => {
     setSelectedComplaintForInfo(complaint);
     setAdditionalInfo('');
+    setAdditionalInfoAttachments([]);
     setIsProvideInfoModalOpen(true);
   };
 
   const openResubmissionModal = (complaint: SubmittedComplaint) => {
     setSelectedComplaintForResubmission(complaint);
+    setResubmissionAttachments([]);
     // Pre-populate form with existing complaint data
     form.reset({
       complaintType: complaint.complaintType,
@@ -739,6 +743,12 @@ export default function ComplaintsPage() {
 
     const newOfficerComments = `${selectedComplaintForInfo.officerComments || ''}\n\n--- Additional Information from Employee ---\n${additionalInfo}`;
 
+    // Merge existing attachments with newly uploaded ones
+    const mergedAttachments = [
+      ...(selectedComplaintForInfo.attachments || []),
+      ...additionalInfoAttachments,
+    ];
+
     // Optimistic update
     const optimisticUpdate = complaints.map((c) =>
       c.id === selectedComplaintForInfo.id
@@ -747,6 +757,7 @@ export default function ComplaintsPage() {
             status: 'Under Review - Additional Information Provided',
             officerComments: newOfficerComments,
             reviewStage: 'initial',
+            attachments: mergedAttachments,
           }
         : c
     );
@@ -756,6 +767,7 @@ export default function ComplaintsPage() {
     setIsProvideInfoModalOpen(false);
     setSelectedComplaintForInfo(null);
     setAdditionalInfo('');
+    setAdditionalInfoAttachments([]);
 
     // Show immediate feedback
     toast({
@@ -767,6 +779,7 @@ export default function ComplaintsPage() {
       status: 'Under Review - Additional Information Provided',
       officerComments: newOfficerComments,
       reviewStage: 'initial',
+      attachments: mergedAttachments,
     };
 
     try {
@@ -799,6 +812,12 @@ export default function ComplaintsPage() {
 
     setIsSubmitting(true);
 
+    // Merge existing attachments with newly uploaded ones
+    const mergedResubmitAttachments = [
+      ...(selectedComplaintForResubmission.attachments || []),
+      ...resubmissionAttachments,
+    ];
+
     // Optimistic update
     const optimisticUpdate = complaints.map((c) =>
       c.id === selectedComplaintForResubmission.id
@@ -812,6 +831,7 @@ export default function ComplaintsPage() {
             status: 'Submitted',
             rejectionReason: null,
             reviewStage: 'initial',
+            attachments: mergedResubmitAttachments,
           }
         : c
     );
@@ -822,6 +842,7 @@ export default function ComplaintsPage() {
     setSelectedComplaintForResubmission(null);
     form.reset();
     setRewrittenComplaint(null);
+    setResubmissionAttachments([]);
     setIsSubmitting(false);
 
     // Show immediate feedback
@@ -841,6 +862,7 @@ export default function ComplaintsPage() {
         status: 'Submitted',
         rejectionReason: null,
         reviewStage: 'initial',
+        attachments: mergedResubmitAttachments,
       };
 
       const updated = await handleUpdateComplaint(
@@ -942,8 +964,17 @@ export default function ComplaintsPage() {
         uploadFormData.append('file', commissionLetter);
         uploadFormData.append('folder', 'commission-letters');
 
+        // Get CSRF token from cookie (required by API middleware)
+        const csrfRow = document.cookie
+          .split('; ')
+          .find((row) => row.startsWith('csrf-token='));
+        const csrfToken = csrfRow ? csrfRow.substring(csrfRow.indexOf('=') + 1) : undefined;
+
         const uploadResponse = await fetch('/api/files/upload', {
           method: 'POST',
+          headers: {
+            ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
+          },
           body: uploadFormData,
         });
 
@@ -2514,6 +2545,24 @@ export default function ComplaintsPage() {
                   className="mt-1"
                 />
               </div>
+              <div>
+                <Label>Viwasha (Hati, Picha, n.k.)</Label>
+                <FileUpload
+                  value={additionalInfoAttachments}
+                  onChange={(value) =>
+                    setAdditionalInfoAttachments(
+                      Array.isArray(value) ? value : [value]
+                    )
+                  }
+                  folder="complaints/additional-info"
+                  multiple
+                  maxSize={5}
+                  accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Pakia hati, picha au nyaraka zozote zinazosaidia maelezo yako (hiari). Ukubwa wa juu: 5MB kwa kila faili.
+                </p>
+              </div>
             </div>
             <DialogFooter>
               <Button
@@ -2522,6 +2571,7 @@ export default function ComplaintsPage() {
                   setIsProvideInfoModalOpen(false);
                   setSelectedComplaintForInfo(null);
                   setAdditionalInfo('');
+                  setAdditionalInfoAttachments([]);
                 }}
               >
                 Ghairi
@@ -2704,6 +2754,25 @@ export default function ComplaintsPage() {
                       </FormItem>
                     )}
                   />
+
+                  <div>
+                    <Label>Viwasha Vipya (Hati, Picha, n.k.)</Label>
+                    <FileUpload
+                      value={resubmissionAttachments}
+                      onChange={(value) =>
+                        setResubmissionAttachments(
+                          Array.isArray(value) ? value : [value]
+                        )
+                      }
+                      folder="complaints/resubmissions"
+                      multiple
+                      maxSize={5}
+                      accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                    />
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Pakia hati mpya, picha au nyaraka zozote zinazosaidia lalamiko lako (hiari). Ukubwa wa juu: 5MB kwa kila faili.
+                    </p>
+                  </div>
 
                   <DialogFooter className="gap-2">
                     <Button
