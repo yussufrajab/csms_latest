@@ -708,7 +708,7 @@ export default function TrackStatusPage() {
 
       {selectedRequestDetails && isDetailsModalOpen && (
         <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
-          <DialogContent className="sm:max-w-2xl">
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 Request Details: {selectedRequestDetails.id}

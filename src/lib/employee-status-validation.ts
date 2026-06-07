@@ -35,7 +35,6 @@ const statusRestrictions: Record<string, RequestType[]> = {
     'lwop',
     'promotion',
     'cadre-change',
-    'service-extension',
   ],
   Retired: [
     'confirmation',

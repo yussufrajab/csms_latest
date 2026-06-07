@@ -121,13 +121,14 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       switch (role) {
         case 'HRO':
         case 'HRRP':
-          return ['Pending HRMO Review', 'Pending HRMO/HHRMD Review'];
+          return ['Pending HRRP Review', 'Pending HRMO Review', 'Pending HRMO/HHRMD Review'];
         case 'HHRMD':
           return ['Pending HRMO/HHRMD Review'];
         case 'CSCS':
         default:
           return [
             'PENDING',
+            'Pending HRRP Review',
             'Pending HRMO Review',
             'Pending HRMO/HHRMD Review',
             'Request Received – Awaiting Commission Decision',
@@ -141,6 +142,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
         case 'HRO':
         case 'HRRP':
           return [
+            'Pending HRRP Review',
             'Pending HRMO Review',
             'Pending HRMO/HHRMD Review',
             'Draft - Pending Review',
@@ -151,6 +153,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
         default:
           return [
             'PENDING',
+            'Pending HRRP Review',
             'Pending HRMO Review',
             'Pending HRMO/HHRMD Review',
             'Request Received – Awaiting Commission Decision',
@@ -165,6 +168,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
         case 'HRO':
         case 'HRRP':
           return [
+            'Pending HRRP Review',
             'Pending DO/HHRMD Review',
             'Rejected by HHRMD - Awaiting HRO Correction',
           ];
@@ -175,6 +179,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
         default:
           return [
             'PENDING',
+            'Pending HRRP Review',
             'Pending DO/HHRMD Review',
             'Request Received – Awaiting Commission Decision',
             'Rejected by HHRMD - Awaiting HRO Correction',
@@ -187,6 +192,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
         case 'HRO':
         case 'HRRP':
           return [
+            'Pending HRRP Review',
             'Pending HRMO Review',
             'Pending HRMO/HHRMD Review',
             'Rejected by HRMO - Awaiting HRO Correction',
@@ -196,6 +202,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
         case 'CSCS':
         default:
           return [
+            'Pending HRRP Review',
             'Pending HRMO Review',
             'Pending HRMO/HHRMD Review',
             'Request Received – Awaiting Commission Decision',
@@ -210,6 +217,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
         case 'HRO':
         case 'HRRP':
           return [
+            'Pending HRRP Review',
             'Pending HRMO Review',
             'Pending HRMO/HHRMD Review',
             'Rejected by HHRMD - Awaiting HRO Correction',
@@ -220,6 +228,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
         default:
           return [
             'PENDING',
+            'Pending HRRP Review',
             'Pending HRMO Review',
             'Pending HRMO/HHRMD Review',
             'Pending HHRMD Review',
@@ -235,6 +244,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
         case 'HRO':
         case 'HRRP':
           return [
+            'Pending HRRP Review',
             'Pending HRMO/HHRMD Review',
             'Rejected by HHRMD - Awaiting HRO Action',
           ];
@@ -243,6 +253,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
         case 'CSCS':
         default:
           return [
+            'Pending HRRP Review',
             'Pending HRMO/HHRMD Review',
             'Forwarded to Commission for Acknowledgment',
             'Rejected by HHRMD - Awaiting HRO Action',
@@ -256,6 +267,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
         case 'HRO':
         case 'HRRP':
           return [
+            'Pending HRRP Review',
             'Pending HRMO/HHRMD Review',
             'Rejected by HHRMD - Awaiting HRO Correction',
           ];
@@ -264,6 +276,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
         case 'CSCS':
         default:
           return [
+            'Pending HRRP Review',
             'Pending HRMO/HHRMD Review',
             'Request Received – Awaiting Commission Decision',
             'Rejected by HHRMD - Awaiting HRO Correction',

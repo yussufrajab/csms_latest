@@ -31,7 +31,14 @@
       "Bash(mc admin user list:*)",
       "Bash(git commit:*)",
       "Bash(npm run typecheck:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(psql:*)",
+      "Bash(PGPASSWORD=Mamlaka2020 psql:*)",
+      "Bash(mkdir:*)",
+      "Bash(fuser:*)",
+      "Bash(PORT=9002 npm run build:*)",
+      "Bash(PORT=9002 pm2 start:*)",
+      "Bash(pm2 status:*)"
     ],
     "deny": [],
     "ask": []

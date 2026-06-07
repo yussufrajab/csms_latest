@@ -15,6 +15,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/use-auth';
 import { ROLES } from '@/lib/constants';
 import React, { useState, useEffect } from 'react';
+import { WorkflowSteps } from '@/components/shared/workflow-steps';
+import type { WorkflowStep } from '@/components/shared/workflow-steps';
 import type { Employee } from '@/lib/types';
 import { toast } from '@/hooks/use-toast';
 import {
@@ -87,6 +89,45 @@ const initialMockPendingDismissalRequests: MockPendingDismissalRequest[] = [
     reviewStage: 'initial',
   },
 ];
+
+function getDismissalWorkflowSteps(status: string): WorkflowStep[] {
+  return [
+    {
+      label: 'HRO Submit',
+      status: status === 'Pending DO Review' ||
+              status === 'Pending HHRMD Review' ||
+              status === 'Pending Review'
+        ? 'active'
+        : status.includes('Awaiting HRO') || status.includes('Correction')
+          ? 'rejected'
+          : 'completed',
+    },
+    {
+      label: 'Officer Review',
+      status: status === 'Pending DO Review' ||
+              status === 'Pending HHRMD Review' ||
+              status === 'Pending Review'
+        ? 'active'
+        : status === 'Request Received \u2013 Awaiting Commission Decision' ||
+          status.includes('Approved by Commission') ||
+          status.includes('Rejected by Commission')
+          ? 'completed'
+          : status.includes('Rejected by')
+            ? 'rejected'
+            : 'pending',
+    },
+    {
+      label: 'Commission Decision',
+      status: status.includes('Approved by Commission') ||
+             status === 'Rejected by Commission - Request Concluded'
+        ? 'completed'
+        : status === 'Request Received \u2013 Awaiting Commission Decision' ||
+          status.includes('Awaiting Commission')
+          ? 'active'
+          : 'pending',
+    },
+  ];
+}
 
 export default function DismissalPage() {
   const getShortDocumentName = (fullPath: string): string => {
@@ -1020,57 +1061,9 @@ export default function DismissalPage() {
                       </span>
                     </div>
                     {/* Workflow Progress Indicator */}
-                    <div className="flex items-center space-x-2 mt-2">
-                      <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                        <span>Workflow:</span>
-                        <div className="flex items-center space-x-1">
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              request.status.includes('Pending') ||
-                              request.status.includes('Request Received') ||
-                              request.status.includes(
-                                'Approved by Commission'
-                              ) ||
-                              request.status.includes('Rejected by Commission')
-                                ? 'bg-green-500'
-                                : 'bg-gray-300'
-                            }`}
-                          ></div>
-                          <span className="text-[10px]">HRO Submit</span>
-                          <div className="w-3 h-px bg-gray-300"></div>
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              request.status.includes('Request Received') ||
-                              request.status.includes(
-                                'Approved by Commission'
-                              ) ||
-                              request.status.includes('Rejected by Commission')
-                                ? 'bg-green-500'
-                                : request.status.includes('Pending') &&
-                                    request.status.includes('Review')
-                                  ? 'bg-orange-500'
-                                  : 'bg-gray-300'
-                            }`}
-                          ></div>
-                          <span className="text-[10px]">Officer Review</span>
-                          <div className="w-3 h-px bg-gray-300"></div>
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              request.status.includes(
-                                'Approved by Commission'
-                              ) ||
-                              request.status.includes('Rejected by Commission')
-                                ? 'bg-green-500'
-                                : request.status.includes('Awaiting Commission')
-                                  ? 'bg-blue-500'
-                                  : 'bg-gray-300'
-                            }`}
-                          ></div>
-                          <span className="text-[10px]">
-                            Commission Decision
-                          </span>
-                        </div>
-                      </div>
+                    <div className="mt-2">
+                      <span className="text-xs text-muted-foreground font-medium mr-2">Workflow:</span>
+                      <WorkflowSteps steps={getDismissalWorkflowSteps(request.status)} />
                     </div>
                     {request.rejectionReason && (
                       <p className="text-sm text-destructive">
@@ -1150,7 +1143,7 @@ export default function DismissalPage() {
 
       {selectedRequest && (
         <Dialog open={isDetailsModalOpen} onOpenChange={setIsDetailsModalOpen}>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Request Details: {selectedRequest.id}</DialogTitle>
               <DialogDescription>

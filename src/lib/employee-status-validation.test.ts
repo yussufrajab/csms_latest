@@ -148,13 +148,12 @@ describe('employee-status-validation', () => {
         expect(result.message).toContain('On LWOP');
       });
 
-      it('should reject service extension request', () => {
+      it('should allow service extension request', () => {
         const result = validateEmployeeStatusForRequest(
           status,
           'service-extension'
         );
-        expect(result.isValid).toBe(false);
-        expect(result.message).toContain('On LWOP');
+        expect(result.isValid).toBe(true);
       });
     });
 
@@ -393,8 +392,7 @@ describe('employee-status-validation', () => {
       expect(result).toContain('lwop');
       expect(result).toContain('promotion');
       expect(result).toContain('cadre-change');
-      expect(result).toContain('service-extension');
-      expect(result).toHaveLength(5);
+      expect(result).toHaveLength(4);
     });
 
     it('should return restricted types for Retired', () => {

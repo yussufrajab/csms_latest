@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { WorkflowSteps } from '@/components/shared/workflow-steps';
+import type { WorkflowStep } from '@/components/shared/workflow-steps';
 import { useAuth } from '@/hooks/use-auth';
 import { useAuthStore } from '@/store/auth-store';
 import { ROLES, EMPLOYEES } from '@/lib/constants';
@@ -127,6 +129,57 @@ interface SubmittedComplaint {
   rejectionReason?: string | null;
   reviewedBy?: UserRole | null;
   institutionName?: string | null;
+}
+
+function getComplaintWorkflowSteps(status: string): WorkflowStep[] {
+  return [
+    {
+      label: 'Wasilisha',
+      status: status === 'Submitted'
+        ? 'active'
+        : status === 'Awaiting More Information'
+          ? 'rejected'
+          : 'completed',
+    },
+    {
+      label: 'Mkaguzi',
+      status: status === 'Submitted'
+        ? 'pending'
+        : status === 'lalamiko lako limepokelewa, linafanyiwa kazi' ||
+          status === 'Under Review' ||
+          status === 'Under Review - Additional Information Provided'
+          ? 'active'
+          : status === 'Resolved - Pending Employee Confirmation' ||
+            status === 'Rejected - Pending Employee Confirmation' ||
+            status === 'Mtumishi ameridhika na hatua' ||
+            status === 'Closed - Satisfied' ||
+            status === 'Closed - Commission Decision (Resolved)' ||
+            status === 'Closed - Commission Decision (Rejected)' ||
+            status === 'Appealed to Commission' ||
+            status.startsWith('Resolved') ||
+            status.startsWith('Rejected by')
+            ? 'completed'
+            : status === 'Awaiting More Information'
+              ? 'rejected'
+              : 'pending',
+    },
+    {
+      label: 'Malizika',
+      status: status === 'Mtumishi ameridhika na hatua' ||
+             status === 'Closed - Satisfied' ||
+             status === 'Closed - Commission Decision (Resolved)' ||
+             status === 'Closed - Commission Decision (Rejected)' ||
+             status.startsWith('Resolved') ||
+             status.startsWith('Rejected by') ||
+             status.startsWith('Closed - Commission')
+        ? 'completed'
+        : status === 'Resolved - Pending Employee Confirmation' ||
+          status === 'Rejected - Pending Employee Confirmation' ||
+          status === 'Appealed to Commission'
+          ? 'active'
+          : 'pending',
+    },
+  ];
 }
 
 export default function ComplaintsPage() {
@@ -1171,74 +1224,9 @@ export default function ComplaintsPage() {
                       </span>
                     </div>
                     {/* Workflow Progress Indicator for Complaints */}
-                    <div className="flex items-center space-x-2 mt-2">
-                      <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                        <span>Workflow:</span>
-                        <div className="flex items-center space-x-1">
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              [
-                                'Submitted',
-                                'lalamiko lako limepokelewa, linafanyiwa kazi',
-                                'Awaiting More Information',
-                                'Under Review - Additional Information Provided',
-                                'Resolved - Pending Employee Confirmation',
-                                'Rejected - Pending Employee Confirmation',
-                                'Appealed to Commission',
-                                'Mtumishi ameridhika na hatua',
-                                'Closed - Satisfied',
-                              ].includes(complaint.status) ||
-                              complaint.status.startsWith('Resolved') ||
-                              complaint.status.startsWith('Rejected by')
-                                ? 'bg-green-500'
-                                : 'bg-gray-300'
-                            }`}
-                          ></div>
-                          <span className="text-[10px]">Wasilisha</span>
-                          <div className="w-3 h-px bg-gray-300"></div>
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              [
-                                'lalamiko lako limepokelewa, linafanyiwa kazi',
-                                'Under Review - Additional Information Provided',
-                                'Resolved - Pending Employee Confirmation',
-                                'Rejected - Pending Employee Confirmation',
-                                'Appealed to Commission',
-                                'Mtumishi ameridhika na hatua',
-                                'Closed - Satisfied',
-                              ].includes(complaint.status) ||
-                              complaint.status.startsWith('Resolved') ||
-                              complaint.status.startsWith('Rejected by')
-                                ? 'bg-green-500'
-                                : complaint.status ===
-                                    'Awaiting More Information'
-                                  ? 'bg-orange-500'
-                                  : 'bg-gray-300'
-                            }`}
-                          ></div>
-                          <span className="text-[10px]">Mkaguzi</span>
-                          <div className="w-3 h-px bg-gray-300"></div>
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              [
-                                'Mtumishi ameridhika na hatua',
-                                'Closed - Satisfied',
-                              ].includes(complaint.status)
-                                ? 'bg-green-500'
-                                : complaint.status ===
-                                      'Resolved - Pending Employee Confirmation' ||
-                                    complaint.status ===
-                                      'Rejected - Pending Employee Confirmation'
-                                  ? 'bg-blue-500'
-                                  : complaint.status.startsWith('Resolved') ||
-                                      complaint.status.startsWith('Rejected by')
-                                    ? 'bg-orange-500'
-                                    : 'bg-gray-300'
-                            }`}
-                          ></div>
-                          <span className="text-[10px]">Malizika</span>
-                        </div>
-                      </div>
+                    <div className="mt-2">
+                      <span className="text-xs text-muted-foreground font-medium mr-2">Workflow:</span>
+                      <WorkflowSteps steps={getComplaintWorkflowSteps(complaint.status)} />
                     </div>
                     <p className="text-sm ">
                       <strong className="text-muted-foreground">
@@ -1771,77 +1759,9 @@ export default function ComplaintsPage() {
                       </span>
                     </div>
                     {/* Workflow Progress Indicator for Complaints */}
-                    <div className="flex items-center space-x-2 mt-2">
-                      <div className="flex items-center space-x-1 text-xs text-muted-foreground">
-                        <span>Workflow:</span>
-                        <div className="flex items-center space-x-1">
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              [
-                                'Submitted',
-                                'lalamiko lako limepokelewa, linafanyiwa kazi',
-                                'Under Review',
-                                'Under Review - Additional Information Provided',
-                                'Resolved - Pending Employee Confirmation',
-                                'Rejected - Pending Employee Confirmation',
-                                'Mtumishi ameridhika na hatua',
-                                'Closed - Satisfied',
-                              ].includes(complaint.status) ||
-                              complaint.status.startsWith('Resolved') ||
-                              complaint.status.startsWith('Rejected by') ||
-                              complaint.status.startsWith('Closed - Commission')
-                                ? 'bg-green-500'
-                                : 'bg-gray-300'
-                            }`}
-                          ></div>
-                          <span className="text-[10px]">Wasilisha</span>
-                          <div className="w-3 h-px bg-gray-300"></div>
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              [
-                                'lalamiko lako limepokelewa, linafanyiwa kazi',
-                                'Under Review',
-                                'Under Review - Additional Information Provided',
-                                'Resolved - Pending Employee Confirmation',
-                                'Rejected - Pending Employee Confirmation',
-                                'Mtumishi ameridhika na hatua',
-                                'Closed - Satisfied',
-                              ].includes(complaint.status) ||
-                              complaint.status.startsWith('Resolved') ||
-                              complaint.status.startsWith('Rejected by') ||
-                              complaint.status.startsWith('Closed - Commission')
-                                ? 'bg-green-500'
-                                : 'bg-gray-300'
-                            }`}
-                          ></div>
-                          <span className="text-[10px]">Mkaguzi</span>
-                          <div className="w-3 h-px bg-gray-300"></div>
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              [
-                                'Mtumishi ameridhika na hatua',
-                                'Closed - Satisfied',
-                              ].includes(complaint.status)
-                                ? 'bg-green-500'
-                                : complaint.status ===
-                                      'Resolved - Pending Employee Confirmation' ||
-                                    complaint.status ===
-                                      'Rejected - Pending Employee Confirmation'
-                                  ? 'bg-blue-500'
-                                  : complaint.status.startsWith('Resolved') ||
-                                      complaint.status.startsWith(
-                                        'Rejected by'
-                                      ) ||
-                                      complaint.status.startsWith(
-                                        'Closed - Commission'
-                                      )
-                                    ? 'bg-orange-500'
-                                    : 'bg-gray-300'
-                            }`}
-                          ></div>
-                          <span className="text-[10px]">Malizika</span>
-                        </div>
-                      </div>
+                    <div className="mt-2">
+                      <span className="text-xs text-muted-foreground font-medium mr-2">Workflow:</span>
+                      <WorkflowSteps steps={getComplaintWorkflowSteps(complaint.status)} />
                     </div>
                     <p className="text-sm text-muted-foreground">
                       From: {complaint.employeeName}{' '}
@@ -2944,7 +2864,7 @@ export default function ComplaintsPage() {
             }
           }}
         >
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Pinga Uamuzi wa Lalamiko</DialogTitle>
               <DialogDescription>
