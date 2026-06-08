@@ -2,108 +2,206 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Quick Reference (read this first)
+
+### Key File Paths
+
+| Purpose | Path |
+|---------|------|
+| Prisma schema | `prisma/schema.prisma` |
+| Auth store (Zustand) | `src/store/auth-store.ts` |
+| Session CRUD + limit checking | `src/lib/session-manager.ts` |
+| Login handler (`completeLogin`) | `src/lib/auth-helpers.ts` |
+| Route protection (`withAuth`) | `src/lib/api-auth.ts` |
+| API client | `src/lib/api-client.ts` |
+| Staff login form | `src/components/auth/login-form.tsx` |
+| Employee login form | `src/components/auth/employee-login-form.tsx` |
+| Device limit dialog | `src/components/auth/device-limit-dialog.tsx` |
+| Rate limiter | `src/lib/rate-limiter.ts` |
+| Redis connection | `src/lib/redis.ts` |
+| UI components (shadcn) | `src/components/ui/` |
+| Constants/roles | `src/lib/constants.ts` |
+| API routes | `src/app/api/` |
+| Logger | `src/lib/logger.ts` / `src/lib/logger-client.ts` |
+| BullMQ queue | `src/lib/jobs/hrims-sync-queue.ts` |
+| BullMQ worker | `src/lib/jobs/hrims-sync-worker.ts` |
+| Suspicious login detector | `src/lib/suspicious-login-detector.ts` |
+| Account lockout utils | `src/lib/account-lockout-utils.ts` |
+| Password utils | `src/lib/password-utils.ts` |
+| Worker startup script | `scripts/start-worker.ts` |
+| Redis scripts | `scripts/start-redis.sh` / `scripts/stop-redis.sh` |
+| PM2 config | `ecosystem.config.js` |
+| Env (production) | `.env.local` |
+
+### Tech Stack
+
+| Component | Technology |
+|-----------|-----------|
+| **Framework** | Next.js 16 (full-stack, no separate backend) |
+| **Frontend** | React 19 + Tailwind CSS 3 + Radix UI / shadcn |
+| **Backend** | Next.js API Routes (`src/app/api/`) |
+| **Database** | PostgreSQL (`nody`) |
+| **ORM** | Prisma 6 (`prisma-client-js`, binary target: `debian-openssl-3.0.x`) |
+| **Auth** | Session-based (session token in DB), CSRF double-submit cookie pattern, max 3 concurrent sessions |
+| **State Mgmt** | Zustand 4 (persisted to localStorage + auth cookie for middleware) |
+| **Forms** | react-hook-form + zod 3 |
+| **AI** | Google Genkit (`@genkit-ai/google-genai`, `genkitx-ollama`) |
+| **Queue** | BullMQ + ioredis 5 + Redis 7 |
+| **File Storage** | MinIO (S3-compatible, localhost:9000) |
+| **Email** | nodemailer |
+| **Testing** | Vitest 4 (unit) + Playwright (E2E) + k6 (load) |
+| **Process Mgmt** | PM2 (4 services: redis, worker, genkit, production) |
+| **Linting** | ESLint 8 + Prettier |
+| **TypeScript** | 5.x, strict mode |
+| **Port** | 9002 (dev + production) |
+| **Node** | 20+ (not pinned, no `.nvmrc`) |
+| **Docker** | None |
+| **Domain (prod)** | `csms.zanajira.go.tz` |
+
+### Roles
+
+ADMIN, HRO, HHRMD, HRMO, DO, CSCS, PO, HRRP, EMPLOYEE (defined in `src/lib/constants.ts`)
+
+### Common Tasks
+
+| Task | Command |
+|------|---------|
+| Build | `npm run build` (errors/warnings NOT ignored, `ignoreBuildErrors: false`) |
+| Type check | `npx tsc --noEmit` |
+| Dev server | `npm run dev` (port 9002) |
+| Production | `npm start` (port 9002) |
+| Unit tests | `npm test` (Vitest) |
+| E2E tests | `npm run test:e2e` (Playwright) |
+| Load tests | `npm run loadtest` (requires k6) |
+| Restart prod | `pm2 restart csms-app` |
+| Check logs | `pm2 logs csms-app --lines 20 --nostream` |
+| Start Redis | `sudo systemctl restart redis-server` (systemd, port 6379) |
+| Start worker | `npm run worker` (BullMQ HRIMS sync worker) |
+
 ## Development Commands
 
-### Core Commands
+### Core
 
-- `npm run dev` - Start development server on port 9002
-- `npm run build` - Build the application for production
-- `npm start` - Start production server on port 9002
-- `npm run lint` - Run Next.js linting
-- `npm run typecheck` - Run TypeScript type checking
+- `npm run dev` - Development server on port 9002
+- `npm run build` - Production build
+- `npm start` - Production server on port 9002
+- `npm run lint` - Next.js linting
+- `npm run typecheck` - TypeScript type checking
 
-### AI/Genkit Commands
+### AI/Genkit
 
-- `npm run genkit:dev` - Start Genkit development server
-- `npm run genkit:watch` - Start Genkit with file watching
+- `npm run genkit:dev` - Genkit development server
+- `npm run genkit:watch` - Genkit with file watching
+- `npm run worker` - Start BullMQ HRIMS sync worker
 
-### Testing Commands
+### Testing
 
-- `npm test` - Run unit tests with Vitest
-- `npm run test:ui` - Run unit tests with Vitest UI
-- `npm run test:coverage` - Generate test coverage report
-- `npm run test:e2e` - Run end-to-end tests with Playwright
-- `npm run test:e2e:ui` - Run E2E tests with Playwright UI
-- `npm run loadtest` - Run stress load tests (requires k6)
-- `npm run loadtest:smoke` - Run quick smoke test
-- `npm run loadtest:auth` - Run authentication load tests
-- `npm run loadtest:hr` - Run HR workflows load tests
-- `npm run loadtest:files` - Run file operations load tests
-- `npm run loadtest:all` - Run all load test scenarios
+- `npm test` - Unit tests with Vitest
+- `npm run test:ui` - Unit tests with Vitest UI
+- `npm run test:coverage` - Test coverage report
+- `npm run test:e2e` - E2E tests with Playwright
+- `npm run test:e2e:ui` - E2E tests with Playwright UI
+- `npm run loadtest` - Stress load tests (requires k6)
+- `npm run loadtest:smoke` - Quick smoke test
+- `npm run loadtest:auth` - Authentication load tests
+- `npm run loadtest:hr` - HR workflows load tests
+- `npm run loadtest:files` - File operations load tests
+- `npm run loadtest:all` - All load test scenarios
 
 ## Architecture Overview
 
-This is a Next.js 14 full-stack application for a Civil Service Management System (CSMS):
+This is a Next.js 16 full-stack application for a Civil Service Management System (CSMS) used by Zanzibar's government civil service.
 
 ### Full-Stack Setup
 
-- **Frontend**: Next.js application running on port 9002
-- **Backend**: Next.js API routes (same application)
-- **Database**: PostgreSQL "nody" database with Prisma ORM
-
-The application is now completely self-contained with all API endpoints implemented as Next.js API routes, eliminating the need for a separate backend service.
+- **Frontend**: Next.js 16 / React 19 app on port 9002
+- **Backend**: Next.js API routes (same application, no separate backend)
+- **Database**: PostgreSQL `nody` database with Prisma 6 ORM
+- **File Storage**: MinIO (S3-compatible) for documents, certificates, photos, attachments
+- **Queue**: BullMQ + Redis 7 for background HRIMS sync jobs
+- **Rate Limiting**: Redis-backed (fails open if Redis is unavailable)
 
 ### Key Architecture Components
 
-#### Database Layer (Prisma)
+#### Auth System
 
-- PostgreSQL database with comprehensive schema covering HR operations
-- Main entities: User, Employee, Institution with various request types
-- Request types: Promotions, Confirmations, LWOP, Cadre Changes, Retirements, etc.
+- Session-based auth with session tokens stored in DB (Session model)
+- CSRF protection via double-submit cookie pattern (HMAC-SHA256 signed)
+- Max 3 concurrent sessions per user; device limit dialog shown on 4th device
+- Account lockout: 5 failed attempts = 30-min lockout, 10+ = admin unlock
+- Password policy: temporary passwords with expiry, password history, grace period
+- Inactivity timeout: 2 hours (client + server tracking)
+- Suspicious login detection (unusual device/IP combinations)
+
+#### Database (Prisma)
+
+- PostgreSQL with entities: User, Employee, Institution
+- Request types: Promotions, Confirmations, LWOP, Cadre Changes, Retirements, Service Extensions, Resignations, Terminations, Complaints
 - Each request follows a workflow with status tracking and review stages
 
 #### API Structure
 
-- All API routes implemented in `src/app/api/` directory
-- Complete REST API for all HR operations
-- Comprehensive endpoints for all request types and workflows
+- All routes in `src/app/api/` as Next.js route handlers
+- Route protection via `withAuth()` higher-order function (role-based access)
+- Rate limiting via `withRateLimit()` (tiers: auth=5/min, write=30/min, read=100/min)
+- CRUD for all request types, file upload/download, HRIMS sync, reports
 
 #### Frontend Structure
 
-- Dashboard-based UI with role-based access
+- Dashboard-based UI with role-based access and sidebar navigation
+- React Hook Form + Zod for form validation
 - Comprehensive form handling for all HR request types
-- File upload/download functionality with preview capabilities
-- Notification system and audit trail
+- File upload/download with preview (PDF, images)
+- Notification system with bell icon and dropdown
+- Audit trail logging throughout
 
 #### State Management
 
-- Zustand for auth state management
-- Custom hooks for API interactions and auth handling
+- Zustand with `persist` middleware (localStorage) for auth state
+- Auth cookie (`auth-storage`) synced for Next.js middleware route protection
+- Singleton API client class with auto token refresh and CSRF header injection
 
 #### UI Framework
 
-- Tailwind CSS with custom design system
-- Radix UI components with shadcn/ui
-- Responsive design with mobile support
+- Tailwind CSS 3 with HSL-based design system
+- Radix UI primitives via shadcn/ui components in `src/components/ui/`
+- Dark mode via `class`-based strategy
+- Font: Inter (body + headline), monospace for code
+
+#### Background Jobs
+
+- BullMQ queue (`hrims-sync`) for syncing employee data from HRIMS API
+- Worker processes paginated HRIMS data, upserts to PostgreSQL
+- Job status tracking via BullMQ (progress, state, failedReason)
+- Queue events for monitoring
 
 #### AI Integration
 
-- Google Genkit integration for AI-powered features
+- Google Genkit with Gemini models
 - Complaint rewriting functionality
+- Ollama support (configurable)
 
-#### Testing & Quality Assurance
+#### Infrastructure
 
-- Unit tests with Vitest
-- End-to-end tests with Playwright
-- Load testing with k6 (see `load-tests/` directory)
-- ESLint and Prettier for code quality
-- TypeScript for type safety
-- Husky and lint-staged for pre-commit hooks
+- PM2 manages 4 processes: redis, worker, genkit, production
+- Redis runs via systemd (not PM2)
+- No Docker used anywhere
+- No `.nvmrc` / Node engine pinning
+- Deployment path: `/home/latest` (per PM2 config)
 
 ## Configuration Notes
 
-- TypeScript errors and ESLint warnings are ignored during builds
-- Path alias: `@/*` maps to `./src/*`
-- Uses PostgreSQL with specific binary targets for deployment
-- Image domains configured for external placeholders
+- TypeScript: strict mode, target ES2020, module resolution `bundler`
+- Path alias: `@/*` maps to `./src/*`, `@test/*` maps to `./test/*`
+- Prisma binary targets: `native`, `debian-openssl-3.0.x`
+- Image domains: `placehold.co` (remote pattern allowed)
+- Build: `ignoreBuildErrors: false` (TypeScript errors fail the build)
+- Webpack: bullmq warnings suppressed; handlebars/require.extensions warnings suppressed
+- PM2 ecosystem config at `ecosystem.config.js` (cwd: `/home/latest`)
 
 ## Load Testing
 
-The project includes comprehensive load testing scenarios using k6:
-
-- **Location**: `load-tests/` directory
-- **Documentation**: See `load-tests/README.md` for detailed instructions
-- **Prerequisites**: Install k6 from https://k6.io/docs/get-started/installation/
+Comprehensive k6 load testing scenarios in `load-tests/` directory.
 
 ### Quick Start
 
@@ -129,17 +227,17 @@ npm run loadtest:all         # All scenarios
 1. **Authentication**: Login, logout, session management
 2. **HR Workflows**: Promotions, confirmations, employee management
 3. **File Operations**: Upload, download, metadata
-4. **Stress Test**: Combined scenarios with progressive load to find breaking point
+4. **Stress Test**: Combined scenarios with progressive load
 
 ### CI/CD Integration
 
-Load tests run automatically via GitHub Actions:
+Load tests via GitHub Actions:
 - Weekly on Sundays at 2 AM UTC
 - On releases
 - Manual trigger via GitHub Actions UI
 
-See `.github/workflows/load-test.yml` for configuration.
+See `.github/workflows/load-test.yml`.
 
 ## Project Context
 
-This is a government HR management system for Zanzibar's civil service, handling employee lifecycle management including hiring, promotions, transfers, and separations.
+Government HR management system for Zanzibar's civil service, under the Civil Service Commission (TUME YA UTUMISHI SERIKALINI). Handles employee lifecycle management including hiring, promotions, transfers, complaints, and separations across all Zanzibar government institutions.

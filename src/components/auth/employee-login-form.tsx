@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { useRouter } from 'next/navigation';
 import { toast } from '@/hooks/use-toast';
 import { useAuthStore } from '@/store/auth-store';
+import { DeviceLimitDialog } from './device-limit-dialog';
 import { Loader2, User, CreditCard, Hash } from 'lucide-react';
 
 const employeeLoginSchema = z.object({
@@ -31,6 +32,14 @@ export function EmployeeLoginForm() {
   const router = useRouter();
   const { setUserManually } = useAuthStore();
   const [isLoading, setIsLoading] = React.useState(false);
+  const [showDeviceLimitDialog, setShowDeviceLimitDialog] = React.useState(false);
+  const [activeSessions, setActiveSessions] = React.useState<any[]>([]);
+  const [pendingCredentials, setPendingCredentials] = React.useState<{
+    zanId: string;
+    zssfNumber: string;
+    payrollNumber: string;
+    userId?: string;
+  } | null>(null);
 
   // Clear any existing auth state when component mounts (without API call)
   React.useEffect(() => {
@@ -71,6 +80,19 @@ export function EmployeeLoginForm() {
       });
 
       const result = await response.json();
+
+      if (!response.ok && result.code === 'SESSION_LIMIT_REACHED') {
+        setActiveSessions(result.data?.activeSessions || []);
+        setPendingCredentials({
+          zanId: data.zanId,
+          zssfNumber: data.zssfNumber,
+          payrollNumber: data.payrollNumber,
+          userId: result.data?.userId,
+        });
+        setShowDeviceLimitDialog(true);
+        setIsLoading(false);
+        return;
+      }
 
       if (response.ok && result.success) {
         // Use the auth store to set user data with session and CSRF tokens
@@ -127,6 +149,50 @@ export function EmployeeLoginForm() {
       });
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  const handleForceLogout = async (sessionId: string) => {
+    try {
+      const response = await fetch('/api/auth/sessions/force-logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          userId: pendingCredentials?.userId,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Failed to terminate session');
+      }
+
+      setShowDeviceLimitDialog(false);
+
+      toast({
+        title: 'Device Logged Out',
+        description: 'Retrying login...',
+      });
+
+      // Wait a moment for session cleanup
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Auto-retry login with stored credentials
+      if (pendingCredentials) {
+        await onSubmit({
+          zanId: pendingCredentials.zanId,
+          zssfNumber: pendingCredentials.zssfNumber,
+          payrollNumber: pendingCredentials.payrollNumber,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to log out the selected device. Please try again.',
+        variant: 'destructive',
+      });
     }
   }
 
@@ -198,6 +264,16 @@ export function EmployeeLoginForm() {
           Login as Employee
         </Button>
       </form>
+      <DeviceLimitDialog
+        open={showDeviceLimitDialog}
+        onClose={() => {
+          setShowDeviceLimitDialog(false);
+          setPendingCredentials(null);
+          setIsLoading(false);
+        }}
+        sessions={activeSessions}
+        onForceLogout={handleForceLogout}
+      />
     </Form>
   );
 }

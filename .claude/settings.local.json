@@ -38,7 +38,9 @@
       "Bash(fuser:*)",
       "Bash(PORT=9002 npm run build:*)",
       "Bash(PORT=9002 pm2 start:*)",
-      "Bash(pm2 status:*)"
+      "Bash(pm2 status:*)",
+      "Bash(redis-server:*)",
+      "Bash(redis-cli EVAL:*)"
     ],
     "deny": [],
     "ask": []

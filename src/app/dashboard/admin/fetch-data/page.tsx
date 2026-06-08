@@ -274,9 +274,20 @@ export default function FetchDataPage() {
     setProgress(null);
     setFetchResults([]);
 
+    // Create an AbortController with a 10-minute overall timeout
+    const abortController = new AbortController();
+    const overallTimeout = setTimeout(() => {
+      abortController.abort();
+    }, 600000); // 10 minutes max
+
+    // Track last meaningful event timestamp for progress timeout detection
+    let lastEventTime = Date.now();
+    let progressTimeout: ReturnType<typeof setInterval> | null = null;
+
     try {
       // Step 1: Create the background job
       const response = await fetch('/api/hrims/fetch-by-institution', {
+        signal: abortController.signal,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -309,7 +320,8 @@ export default function FetchDataPage() {
 
       // Step 2: Connect to SSE endpoint for progress updates
       const sseResponse = await fetch(
-        `/api/hrims/sync-status/${jobData.jobId}`
+        `/api/hrims/sync-status/${jobData.jobId}`,
+        { signal: abortController.signal }
       );
 
       if (!sseResponse.ok) {
@@ -323,6 +335,14 @@ export default function FetchDataPage() {
       if (!reader) {
         throw new Error('No response body');
       }
+
+      // Start a progress timeout checker (heartbeats come every 15s, so 45s without any event = stalled)
+      progressTimeout = setInterval(() => {
+        const idleTime = Date.now() - lastEventTime;
+        if (idleTime > 90000) { // 90 seconds without any event
+          abortController.abort();
+        }
+      }, 15000);
 
       let buffer = '';
       while (true) {
@@ -344,6 +364,7 @@ export default function FetchDataPage() {
           const data = JSON.parse(dataStr);
 
           if (eventType === 'progress') {
+            lastEventTime = Date.now();
             const progressData = data.progress;
             if (progressData) {
               setProgress({
@@ -359,6 +380,9 @@ export default function FetchDataPage() {
               });
             }
           } else if (eventType === 'complete') {
+            lastEventTime = Date.now();
+            if (progressTimeout) clearInterval(progressTimeout);
+            clearTimeout(overallTimeout);
             const result = data.result;
             toast({
               title: 'Fetch Successful',
@@ -369,26 +393,36 @@ export default function FetchDataPage() {
               setFetchResults(result.employees || []);
             }
           } else if (eventType === 'error') {
+            if (progressTimeout) clearInterval(progressTimeout);
+            clearTimeout(overallTimeout);
             throw new Error(data.error || 'Job failed');
           } else if (eventType === 'heartbeat') {
-            // Ignore heartbeat events
+            lastEventTime = Date.now();
             continue;
           } else if (eventType === 'status') {
-            // Initial status event - ignore or log
+            lastEventTime = Date.now();
             log.info({ state: data.state }, 'Job status');
           }
         }
       }
-    } catch (error) {
+
+      clearInterval(progressTimeout!);
+      clearTimeout(overallTimeout);
+    } catch (error: any) {
+      if (progressTimeout) clearInterval(progressTimeout);
+      const isAbort = error?.name === 'AbortError' || error?.type === 'abort';
       toast({
-        title: 'Error',
-        description:
-          error instanceof Error
+        title: isAbort ? 'Request Timed Out' : 'Error',
+        description: isAbort
+          ? 'The sync request timed out. The worker may not be running or the data is too large. Check that the HRIMS sync worker is active.'
+          : error instanceof Error
             ? error.message
             : 'Failed to fetch employees by institution',
         variant: 'destructive',
       });
     } finally {
+      if (progressTimeout) clearInterval(progressTimeout);
+      clearTimeout(overallTimeout);
       setIsFetching(false);
       setProgress(null);
     }

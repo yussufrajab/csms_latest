@@ -293,6 +293,7 @@ class ApiClient {
             data.message || `HTTP ${response.status}: ${response.statusText}`,
           errors: data.errors || [],
           code: data.code,
+          data: data.data,
         };
       }
 
