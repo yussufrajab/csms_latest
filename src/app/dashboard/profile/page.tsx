@@ -65,6 +65,18 @@ const STANDARD_CERTIFICATE_TYPES = [
   'Bachelor Degree',
   'Master Degree',
   'PHd',
+  // Migrated HRIMS certificate types (Educational Certification through Educational Certification 11)
+  'Educational Certification',
+  'Educational Certification 2',
+  'Educational Certification 3',
+  'Educational Certification 4',
+  'Educational Certification 5',
+  'Educational Certification 6',
+  'Educational Certification 7',
+  'Educational Certification 8',
+  'Educational Certification 9',
+  'Educational Certification 10',
+  'Educational Certification 11',
 ];
 
 // Helper function to get initials for avatar
@@ -75,35 +87,34 @@ const getInitials = (name?: string) => {
   return (names[0][0] + names[names.length - 1][0]).toUpperCase();
 };
 
-async function getEmployeesList() {
-  const url = '/api/external/employees';
-
-  const payload = {
-    RequestId: '203',
-    RequestPayloadData: {
-      // PageNumber: 0,
-      // PageSize: 100
-      RequestBody: '536151',
-    },
-  };
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return response.json();
-}
-
-async function loadExternalEmployees() {
+async function fetchEmployeeFromHRIMS(
+  payrollNumber: string,
+  institutionVoteNumber: string,
+  zanId?: string,
+): Promise<{ success: boolean; message?: string }> {
   try {
-    const data = await getEmployeesList();
-    log.info({ data }, 'External Employees API Response:');
+    const response = await fetch('/api/hrims/fetch-employee', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        payrollNumber,
+        institutionVoteNumber,
+        ...(zanId ? { zanId } : {}),
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      log.info({ payrollNumber, zanId }, 'HRIMS employee data fetched and stored successfully');
+      return { success: true };
+    } else {
+      log.error({ message: result.message }, 'HRIMS employee fetch failed');
+      return { success: false, message: result.message };
+    }
   } catch (error) {
-    log.error({ err: error }, 'Error fetching employees:');
+    log.error({ err: error }, 'Error fetching employee from HRIMS:');
+    return { success: false, message: error instanceof Error ? error.message : 'Unknown error' };
   }
 }
 
@@ -138,11 +149,13 @@ const EmployeeDetailsCard = ({
   onBack,
   userRole,
   userInstitutionId,
+  onHrimsSyncComplete,
 }: {
   emp: Employee;
   onBack: () => void;
   userRole?: string;
   userInstitutionId?: string;
+  onHrimsSyncComplete?: () => void;
 }) => {
   const [documentUrls, setDocumentUrls] = useState({
     'ardhil-hali': emp.ardhilHaliUrl,
@@ -155,6 +168,8 @@ const EmployeeDetailsCard = ({
   const [profileImageUrl, setProfileImageUrl] = useState(emp.profileImageUrl);
   const [isFetchingPhoto, setIsFetchingPhoto] = useState(false);
   const [isFetchingDocuments, setIsFetchingDocuments] = useState(false);
+  const [isHrimsSyncing, setIsHrimsSyncing] = useState(false);
+  const hrimsSyncTriggered = React.useRef(false);
 
   // Sync state with emp prop when it changes (e.g., after data refresh)
   useEffect(() => {
@@ -176,6 +191,48 @@ const EmployeeDetailsCard = ({
     emp.profileImageUrl,
   ]);
 
+  // Auto-sync employee data from HRIMS when profile is opened
+  // This fetches fresh data, photo, documents, and certificates from HRIMS
+  useEffect(() => {
+    const syncFromHRIMS = async () => {
+      // Only sync once per employee view
+      if (hrimsSyncTriggered.current) return;
+
+      // Need payrollNumber and institution voteNumber to call HRIMS
+      const payrollNum = emp.payrollNumber;
+      const voteNumber = typeof emp.institution === 'object' ? emp.institution?.voteNumber : undefined;
+
+      if (!payrollNum || !voteNumber) {
+        log.info({ empId: emp.id, payrollNumber: payrollNum, voteNumber }, 'Skipping HRIMS sync - missing payroll number or institution vote number');
+        return;
+      }
+
+      // Skip for manually entered employees
+      if (emp.dataSource === 'MANUAL_ENTRY') return;
+
+      hrimsSyncTriggered.current = true;
+      setIsHrimsSyncing(true);
+
+      try {
+        log.info({ payrollNumber: payrollNum, zanId: emp.zanId, voteNumber }, 'Fetching fresh employee data from HRIMS...');
+        const result = await fetchEmployeeFromHRIMS(payrollNum, voteNumber, emp.zanId);
+
+        if (result.success) {
+          // Re-fetch the employee from local DB to get the updated data including photo, documents, and certificates
+          if (onHrimsSyncComplete) {
+            onHrimsSyncComplete();
+          }
+        }
+      } catch (error) {
+        log.error({ err: error }, 'Error syncing employee from HRIMS:');
+      } finally {
+        setIsHrimsSyncing(false);
+      }
+    };
+
+    syncFromHRIMS();
+  }, [emp.id, emp.payrollNumber, emp.institution, emp.zanId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Check if user can upload documents (HRO or CSC roles)
   const canUploadDocuments =
     userRole &&
@@ -194,7 +251,7 @@ const EmployeeDetailsCard = ({
         (profileImageUrl.startsWith('data:image') ||
           profileImageUrl.startsWith('/api/files/employee-photos/'));
 
-      const isManuallyEntered = (emp as any).dataSource === 'MANUAL_ENTRY';
+      const isManuallyEntered = emp.dataSource === 'MANUAL_ENTRY';
 
       if (!hasExistingPhoto && emp.payrollNumber && !isFetchingPhoto && !isManuallyEntered) {
         setIsFetchingPhoto(true);
@@ -255,7 +312,7 @@ const EmployeeDetailsCard = ({
           '/api/files/employee-documents/'
         );
 
-      const isManuallyEntered = (emp as any).dataSource === 'MANUAL_ENTRY';
+      const isManuallyEntered = emp.dataSource === 'MANUAL_ENTRY';
 
       if (!hasAllDocuments && emp.payrollNumber && !isFetchingDocuments && !isManuallyEntered) {
         setIsFetchingDocuments(true);
@@ -404,7 +461,15 @@ const EmployeeDetailsCard = ({
                 </div>
               )}
             </div>
-            <CardTitle className="text-2xl font-headline">{emp.name}</CardTitle>
+            <CardTitle className="text-2xl font-headline">
+              {emp.name}
+              {isHrimsSyncing && (
+                <span className="ml-3 text-sm font-normal text-muted-foreground inline-flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Syncing from HRIMS (data, photo, documents, certificates)...
+                </span>
+              )}
+            </CardTitle>
             <CardDescription>
               ZanID: {emp.zanId} | Status:{' '}
               <span className={`font-semibold ${getStatusColor(emp.status)}`}>
@@ -705,7 +770,7 @@ const EmployeeDetailsCard = ({
               {/* Display all standard certificate types with upload capability */}
               {(() => {
                 // Check if employee is manually entered
-                const isManuallyEntered = (emp as any).dataSource === 'MANUAL_ENTRY';
+                const isManuallyEntered = emp.dataSource === 'MANUAL_ENTRY';
 
                 // For HRO, only show upload if employee is manually entered
                 const canUploadForThisEmployee = canUploadDocuments &&
@@ -732,6 +797,40 @@ const EmployeeDetailsCard = ({
                     />
                   );
                 });
+              })()}
+
+              {/* Display any certificates that don't match standard types (migrated/unknown types) */}
+              {(() => {
+                const unrecognizedCerts = certificates?.filter(
+                  (cert) => !STANDARD_CERTIFICATE_TYPES.includes(cert.type)
+                ) || [];
+                if (unrecognizedCerts.length === 0) return null;
+
+                const isManuallyEntered = (emp as any).dataSource === 'MANUAL_ENTRY';
+                const canUploadForThisEmployee = canUploadDocuments &&
+                  (userRole !== 'HRO' || isManuallyEntered);
+
+                return (
+                  <div className="mt-2 pt-2 border-t">
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Additional certificates from HRIMS:
+                    </p>
+                    {unrecognizedCerts.map((cert) => (
+                      <CertificateUpload
+                        key={cert.id}
+                        employeeId={emp.id}
+                        certificateType={cert.type}
+                        certificateTitle={cert.name || cert.type}
+                        currentCertificate={cert}
+                        canUpload={canUploadForThisEmployee || false}
+                        userRole={userRole}
+                        userInstitutionId={userInstitutionId}
+                        onUploadSuccess={handleCertificateUploadSuccess}
+                        onDeleteSuccess={handleCertificateDeleteSuccess}
+                      />
+                    ))}
+                  </div>
+                );
               })()}
             </CardContent>
           </Card>
@@ -816,7 +915,6 @@ export default function ProfilePage() {
         params.append('q', query);
         params.append('page', page.toString());
         params.append('size', itemsPerPage.toString());
-        loadExternalEmployees();
 
         if (status && status !== 'all') params.append('status', status);
         if (gender && gender !== 'all') params.append('gender', gender);
@@ -1093,12 +1191,32 @@ export default function ProfilePage() {
   if (selectedEmployee) {
     const onBack =
       role === ROLES.EMPLOYEE ? () => {} : () => setSelectedEmployee(null);
+
+    const refreshEmployeeData = async () => {
+      try {
+        // Use the search endpoint which includes certificates and institution data
+        const response = await fetch(
+          `/api/employees/search?employeeId=${selectedEmployee.id}`
+        );
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data && result.data.length > 0) {
+            setSelectedEmployee(result.data[0]);
+          }
+        }
+      } catch (error) {
+        log.error({ err: error }, 'Error refreshing employee data after HRIMS sync:');
+      }
+    };
+
     return (
       <EmployeeDetailsCard
+        key={selectedEmployee.id}
         emp={selectedEmployee}
         onBack={onBack}
         userRole={role || undefined}
         userInstitutionId={user?.institutionId || undefined}
+        onHrimsSyncComplete={refreshEmployeeData}
       />
     );
   }

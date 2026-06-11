@@ -104,8 +104,8 @@ export interface Employee {
   salaryScale?: string | null;
   ministry?: string | null;
   institutionId?: string;
-  institution?: string | { name: string };
-  Institution?: { id: string; name: string }; // API returns this (capital I)
+  institution?: string | { name: string; voteNumber?: string };
+  Institution?: { id: string; name: string; voteNumber?: string }; // API returns this (capital I)
   department?: string | null;
   appointmentType?: string | null;
   contractType?: string | null;
@@ -121,6 +121,7 @@ export interface Employee {
   confirmationLetterUrl?: string | null;
   jobContractUrl?: string | null;
   birthCertificateUrl?: string | null;
+  dataSource?: string | null;
   certificates?: EmployeeCertificate[];
 }
 

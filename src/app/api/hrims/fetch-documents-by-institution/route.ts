@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getHrimsApiConfig } from '@/lib/hrims-config';
 import { db as prisma } from '@/lib/db';
-import { uploadFile } from '@/lib/minio';
+import { uploadFile, getFileMetadata } from '@/lib/minio';
+import { validateFileUpload } from '@/lib/file-validation';
 import { hrimsLogger } from '@/lib/logger';
 import { verifyAuth } from '@/lib/api-auth';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limiter';
@@ -12,6 +13,59 @@ export const dynamic = 'force-dynamic';
 
 // Utility function to add delay between requests
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Maps HRIMS certificate names to standardized types
+ */
+function mapCertificateType(attachmentType: string): string | null {
+  const normalized = attachmentType.toLowerCase().trim();
+
+  if (
+    normalized.includes('form iv') || normalized.includes('form 4') ||
+    normalized.includes('o-level') || normalized.includes('o level') ||
+    normalized.includes('csee') ||
+    (normalized.includes('secondary') && (normalized.includes('certificate') || normalized.includes('education')) && !normalized.includes('advanced'))
+  ) {
+    return 'Certificate of Secondary education (Form IV)';
+  }
+
+  if (
+    normalized.includes('form vi') || normalized.includes('form 6') ||
+    normalized.includes('a-level') || normalized.includes('a level') ||
+    normalized.includes('acsee') ||
+    (normalized.includes('advanced') && normalized.includes('secondary'))
+  ) {
+    return 'Advanced Certificate of Secondary education (Form VII)';
+  }
+
+  if (normalized.includes('phd') || normalized.includes('ph.d') || normalized.includes('doctorate') || normalized.includes('doctoral')) {
+    return 'PHd';
+  }
+
+  if (normalized.includes('master') || normalized.includes('msc') || normalized.includes('mba') || normalized.includes('med') || normalized.includes('m.sc') || normalized.includes('m.a')) {
+    return 'Master Degree';
+  }
+
+  if (normalized.includes('bachelor') || normalized.includes('bsc') || normalized.includes('ba ') || normalized.includes('bed') || normalized.includes('beng') || normalized.includes('b.sc') || normalized.includes('b.a') ||
+    (normalized.includes('degree') && !normalized.includes('master') && !normalized.includes('advanced'))
+  ) {
+    return 'Bachelor Degree';
+  }
+
+  if (normalized.includes('advanced diploma') || normalized.includes('higher diploma') || normalized.includes('postgraduate diploma')) {
+    return 'Advanced Diploma';
+  }
+
+  if (normalized.includes('diploma') && !normalized.includes('advanced') && !normalized.includes('higher') && !normalized.includes('postgraduate')) {
+    return 'Diploma';
+  }
+
+  if ((normalized.includes('certificate') && !normalized.includes('secondary') && !normalized.includes('form')) || normalized.includes('cert.')) {
+    return 'Certificate';
+  }
+
+  return null;
+}
 
 // Document types for HRIMS RequestId 206
 const DOCUMENT_TYPES = [
@@ -85,7 +139,7 @@ async function fetchDocumentsFromHRIMS(
  for (let i = 0; i < DOCUMENT_TYPES.length; i++) {
  const docType = DOCUMENT_TYPES[i];
 
- // Skip if document already exists in MinIO
+ // Skip if document already exists in MinIO (verify file actually exists)
  const currentUrl = employee[docType.dbField as keyof typeof employee] as
  | string
  | null;
@@ -93,10 +147,24 @@ async function fetchDocumentsFromHRIMS(
  currentUrl &&
  currentUrl.startsWith('/api/files/employee-documents/')
  ) {
+ const filename = currentUrl.split('/').pop();
+ const filePath = `employee-documents/${filename}`;
+ try {
+ await getFileMetadata(filePath);
  hrimsLogger.info(
  `⏭ Skipping ${docType.name} - already stored in MinIO for ${employee.name}`
  );
  continue;
+ } catch {
+ // File not found in MinIO, clear stale URL and proceed to re-fetch
+ hrimsLogger.info(
+ ` Document URL exists in DB but file not found in MinIO: ${filePath}. Re-fetching ${docType.name} for ${employee.name}.`
+ );
+ await prisma.employee.update({
+ where: { id: employee.id },
+ data: { [docType.dbField as string]: null },
+ });
+ }
  }
 
  hrimsLogger.info(
@@ -196,20 +264,47 @@ async function storeDocumentInMinIO(
  base64Data: string
 ): Promise<{ success: boolean; url?: string; error?: string }> {
  try {
- // Convert base64 to buffer
- const buffer = Buffer.from(base64Data, 'base64');
+ // Strip data URI prefix if present (e.g., "data:application/pdf;base64,")
+ let cleanBase64 = base64Data;
+ let mimeType = 'application/pdf';
+ let extension = 'pdf';
 
- // Determine file extension and content type
- // Most HRIMS documents are PDFs, but could be images
- const contentType = 'application/pdf';
- const extension = 'pdf';
+ if (base64Data.startsWith('data:')) {
+ const matches = base64Data.match(/^data:([^;]+);base64,(.+)$/);
+ if (matches) {
+ mimeType = matches[1];
+ cleanBase64 = matches[2];
+ // Determine extension from MIME type
+ const extensionMap: Record<string, string> = {
+ 'application/pdf': 'pdf',
+ 'image/jpeg': 'jpg',
+ 'image/png': 'png',
+ 'image/gif': 'gif',
+ 'image/webp': 'webp',
+ };
+ extension = extensionMap[mimeType.toLowerCase()] || 'pdf';
+ }
+ }
+
+ // Convert base64 to buffer
+ const buffer = Buffer.from(cleanBase64, 'base64');
+
+ // Validate file before uploading
+ const validation = await validateFileUpload(buffer, `${documentType}.${extension}`, mimeType, 'documents');
+ if (!validation.success) {
+ hrimsLogger.error(`File validation failed for ${documentType}: ${validation.error}`);
+ return {
+ success: false,
+ error: `File validation failed: ${validation.error}`,
+ };
+ }
 
  // Generate file path
  const fileName = `${employeeId}_${documentType}.${extension}`;
  const filePath = `employee-documents/${fileName}`;
 
  // Upload to MinIO
- await uploadFile(buffer, filePath, contentType);
+ await uploadFile(buffer, filePath, mimeType);
 
  // Return MinIO URL
  const url = `/api/files/employee-documents/${fileName}`;
@@ -322,9 +417,13 @@ async function processEmployeeDocuments(
  // Process each attachment
  for (const attachment of attachments) {
  const attachmentType = attachment.attachmentType || '';
- const attachmentContent = attachment.attachmentContent || '';
+ // Check both content and attachmentContent fields (HRIMS may use either)
+ const attachmentContent = attachment.content || attachment.attachmentContent || '';
 
  if (!attachmentContent) {
+ hrimsLogger.warn(
+ ` Skipping ${attachmentType || 'unknown'} attachment for ${employee.name} - no content provided by HRIMS (contentSize: ${attachment.contentSize || attachment.contentLength || 'unknown'})`
+ );
  continue;
  }
 
@@ -335,7 +434,7 @@ async function processEmployeeDocuments(
  const docMapping = documentTypeMapping[normalizedType];
 
  if (docMapping) {
- // Check if already stored in MinIO
+ // Check if already stored in MinIO (verify file actually exists)
  const currentUrl = employee[docMapping.field as keyof typeof employee] as
  | string
  | null;
@@ -343,10 +442,27 @@ async function processEmployeeDocuments(
  currentUrl &&
  currentUrl.startsWith('/api/files/employee-documents/')
  ) {
+ const existingFilename = currentUrl.split('/').pop();
+ const existingFilePath = `employee-documents/${existingFilename}`;
+ try {
+ await getFileMetadata(existingFilePath);
+ hrimsLogger.info(
+ `⏭ Skipping ${docMapping.label} - already stored in MinIO for ${employee.name}`
+ );
  result.documentsStored[
  docMapping.dbKey as keyof typeof result.documentsStored
  ] = currentUrl;
  continue;
+ } catch {
+ // File not found in MinIO, clear stale URL and proceed
+ hrimsLogger.info(
+ ` Document URL exists in DB but file not found in MinIO: ${existingFilePath}. Re-fetching ${docMapping.label} for ${employee.name}.`
+ );
+ await prisma.employee.update({
+ where: { id: employee.id },
+ data: { [docMapping.field]: null },
+ });
+ }
  }
 
  // Store document in MinIO
@@ -373,8 +489,8 @@ async function processEmployeeDocuments(
  attachmentType.toLowerCase().includes('certification') ||
  attachmentType.toLowerCase().includes('certificate')
  ) {
- // It's an educational certificate - check if already exists in database
- const certificateType = attachmentType;
+ // It's an educational certificate - use standardized type name
+ const certificateType = mapCertificateType(attachmentType) || attachmentType;
 
  // Check if certificate already exists in database
  const existingCert = await prisma.employeeCertificate.findFirst({
@@ -389,6 +505,11 @@ async function processEmployeeDocuments(
  existingCert.url &&
  existingCert.url.startsWith('/api/files/')
  ) {
+ // Verify the file actually exists in MinIO before skipping
+ const certFilename = existingCert.url.split('/').pop();
+ const certFilePath = `employee-documents/${certFilename}`;
+ try {
+ await getFileMetadata(certFilePath);
  hrimsLogger.info(
  `⏭ Skipping certificate "${certificateType}" - already stored in MinIO for ${employee.name}`
  );
@@ -397,23 +518,32 @@ async function processEmployeeDocuments(
  fileUrl: existingCert.url,
  });
  continue;
+ } catch {
+ // File not found in MinIO, delete stale certificate record
+ hrimsLogger.info(
+ ` Certificate URL exists in DB but file not found in MinIO: ${certFilePath}. Re-fetching for ${employee.name}.`
+ );
+ await prisma.employeeCertificate.delete({
+ where: { id: existingCert.id },
+ });
+ }
  }
 
  // Store new certificate
  const storeResult = await storeDocumentInMinIO(
  employee.id,
- `certificate_${attachmentType.replace(/[\s_-]/g, '_')}`,
+ `certificate_${certificateType.replace(/[\s_-]/g, '_')}`,
  attachmentContent
  );
 
  if (storeResult.success && storeResult.url) {
  result.certificatesStored.push({
- type: attachmentType,
+ type: certificateType,
  fileUrl: storeResult.url,
  });
  documentsProcessed++;
  hrimsLogger.info(
- ` Stored certificate: ${attachmentType} for ${employee.name}`
+ ` Stored certificate: ${certificateType} for ${employee.name}`
  );
  }
  }
@@ -465,6 +595,7 @@ async function processEmployeeDocuments(
  }
  } else {
  // Create new certificate
+ try {
  await prisma.employeeCertificate.create({
  data: {
  id: `${employee.id}_${cert.type.replace(/\s+/g, '_')}`,
@@ -477,6 +608,16 @@ async function processEmployeeDocuments(
  hrimsLogger.info(
  ` Created new certificate "${cert.type}" for ${employee.name}`
  );
+ } catch (createError: any) {
+ // Handle duplicate key errors gracefully
+ if (createError?.code === 'P2002') {
+ hrimsLogger.info(
+ ` Certificate "${cert.type}" already exists (concurrent create) for ${employee.name}`
+ );
+ } else {
+ throw createError;
+ }
+ }
  }
  }
  hrimsLogger.info(
@@ -488,9 +629,16 @@ async function processEmployeeDocuments(
  }
 
  // Determine overall status
+ const totalExpected = Object.keys(documentTypeMapping).length;
+ const coreDocsStored = Object.keys(result.documentsStored).length;
+ const certsStored = result.certificatesStored.length;
+
  if (documentsProcessed === 0) {
  result.status = 'failed';
  result.message = 'No documents found in HRIMS response';
+ } else if (coreDocsStored + certsStored < totalExpected && totalExpected > 0) {
+ result.status = 'partial';
+ result.message = `Partially stored ${documentsProcessed} document(s) - some document types were not available`;
  } else {
  result.status = 'success';
  result.message = `Successfully stored ${documentsProcessed} document(s)`;

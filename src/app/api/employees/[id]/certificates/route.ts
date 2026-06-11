@@ -18,6 +18,18 @@ const VALID_CERTIFICATE_TYPES = [
   'Bachelor Degree',
   'Master Degree',
   'PHd',
+  // Migrated HRIMS certificate types (Educational Certification through Educational Certification 11)
+  'Educational Certification',
+  'Educational Certification 2',
+  'Educational Certification 3',
+  'Educational Certification 4',
+  'Educational Certification 5',
+  'Educational Certification 6',
+  'Educational Certification 7',
+  'Educational Certification 8',
+  'Educational Certification 9',
+  'Educational Certification 10',
+  'Educational Certification 11',
 ] as const;
 
 /** Extract the [id] segment from /api/employees/[id]/certificates */

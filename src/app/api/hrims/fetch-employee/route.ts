@@ -222,7 +222,114 @@ const DOCUMENT_TYPES = [
     dbField: 'birthCertificateUrl',
     dbKey: 'birthCertificate',
   },
+  {
+    code: '23',
+    name: 'Confirmation Letter',
+    dbField: 'confirmationLetterUrl',
+    dbKey: 'confirmationLetter',
+  },
+  {
+    code: '8',
+    name: 'Educational Certificate',
+    dbField: null, // Stored as EmployeeCertificate, not core document
+    dbKey: null,
+  },
 ] as const;
+
+/**
+ * Maps HRIMS attachment type names to standardized certificate types
+ */
+function mapCertificateType(attachmentType: string): string | null {
+  const normalized = attachmentType.toLowerCase().trim();
+
+  if (
+    normalized.includes('form iv') ||
+    normalized.includes('form 4') ||
+    normalized.includes('o-level') ||
+    normalized.includes('o level') ||
+    normalized.includes('csee') ||
+    (normalized.includes('secondary') &&
+      (normalized.includes('certificate') || normalized.includes('education')) &&
+      !normalized.includes('advanced'))
+  ) {
+    return 'Certificate of Secondary education (Form IV)';
+  }
+
+  if (
+    normalized.includes('form vi') ||
+    normalized.includes('form 6') ||
+    normalized.includes('a-level') ||
+    normalized.includes('a level') ||
+    normalized.includes('acsee') ||
+    (normalized.includes('advanced') && normalized.includes('secondary'))
+  ) {
+    return 'Advanced Certificate of Secondary education (Form VII)';
+  }
+
+  if (
+    normalized.includes('phd') ||
+    normalized.includes('ph.d') ||
+    normalized.includes('doctorate') ||
+    normalized.includes('doctoral')
+  ) {
+    return 'PHd';
+  }
+
+  if (
+    normalized.includes('master') ||
+    normalized.includes('msc') ||
+    normalized.includes('ma ') ||
+    normalized.includes('mba') ||
+    normalized.includes('med') ||
+    normalized.includes('m.sc') ||
+    normalized.includes('m.a')
+  ) {
+    return 'Master Degree';
+  }
+
+  if (
+    normalized.includes('bachelor') ||
+    normalized.includes('bsc') ||
+    normalized.includes('ba ') ||
+    normalized.includes('bed') ||
+    normalized.includes('beng') ||
+    normalized.includes('b.sc') ||
+    normalized.includes('b.a') ||
+    (normalized.includes('degree') &&
+      !normalized.includes('master') &&
+      !normalized.includes('advanced'))
+  ) {
+    return 'Bachelor Degree';
+  }
+
+  if (
+    normalized.includes('advanced diploma') ||
+    normalized.includes('higher diploma') ||
+    normalized.includes('postgraduate diploma')
+  ) {
+    return 'Advanced Diploma';
+  }
+
+  if (
+    normalized.includes('diploma') &&
+    !normalized.includes('advanced') &&
+    !normalized.includes('higher') &&
+    !normalized.includes('postgraduate')
+  ) {
+    return 'Diploma';
+  }
+
+  if (
+    (normalized.includes('certificate') &&
+      !normalized.includes('secondary') &&
+      !normalized.includes('form')) ||
+    normalized.includes('cert.')
+  ) {
+    return 'Certificate';
+  }
+
+  return null;
+}
 
 async function processDocuments(
   payrollNumber: string,
@@ -234,6 +341,7 @@ async function processDocuments(
       ` Fetching documents for employee (Payroll: ${payrollNumber})`
     );
     let savedDocuments = 0;
+    const savedCertificates: Array<{ type: string; name: string; url: string }> = [];
 
     // Fetch each document type separately using RequestId 206
     for (const docType of DOCUMENT_TYPES) {
@@ -281,36 +389,154 @@ async function processDocuments(
           continue;
         }
 
-        // Take first attachment (most recent)
-        const doc = attachments[0];
+        // Core documents (Ardhilihal, Employment Contract, Birth Certificate, Confirmation Letter)
+        // Only store the first attachment for these types
+        if (docType.dbField && docType.dbKey) {
+          const doc = attachments[0];
 
-        // Convert base64 to buffer and upload to MinIO
-        const buffer = Buffer.from(doc.content, 'base64');
-        const fileName = `${employeeId}_${docType.dbKey}.pdf`;
-        const filePath = `employee-documents/${fileName}`;
+          // Check both content and attachmentContent fields (HRIMS may use either)
+          const docContent = doc.content || doc.attachmentContent || '';
 
-        await uploadFile(buffer, filePath, 'application/pdf');
-        hrimsLogger.info(` Uploaded ${docType.name} to MinIO: ${filePath}`);
+          if (!docContent) {
+            const contentSize = doc.contentSize || doc.contentLength || 0;
+            if (contentSize > 0) {
+              hrimsLogger.warn(` HRIMS returned metadata for "${docType.name}" (size: ${contentSize} bytes) but content is empty. The HRIMS server did not provide the actual file data.`);
+            } else {
+              hrimsLogger.info(` Skipping ${docType.name} - no content`);
+            }
+            continue;
+          }
 
-        // Update employee record with MinIO URL
-        const minioUrl = `/api/files/employee-documents/${fileName}`;
-        await db.employee.update({
-          where: { id: employeeId },
-          data: {
-            [docType.dbField]: minioUrl,
-          },
-        });
+          // Strip data URI prefix if present and determine MIME type
+          let cleanBase64 = docContent;
+          let mimeType = 'application/pdf';
+          let extension = 'pdf';
 
-        savedDocuments++;
+          if (docContent.startsWith('data:')) {
+            const matches = docContent.match(/^data:([^;]+);base64,(.+)$/);
+            if (matches) {
+              mimeType = matches[1];
+              cleanBase64 = matches[2];
+              const extensionMap: Record<string, string> = {
+                'application/pdf': 'pdf',
+                'image/jpeg': 'jpg',
+                'image/png': 'png',
+                'image/gif': 'gif',
+                'image/webp': 'webp',
+              };
+              extension = extensionMap[mimeType.toLowerCase()] || 'pdf';
+            }
+          }
+
+          // Convert base64 to buffer and upload to MinIO
+          const buffer = Buffer.from(cleanBase64, 'base64');
+          const fileName = `${employeeId}_${docType.dbKey}.${extension}`;
+          const filePath = `employee-documents/${fileName}`;
+
+          await uploadFile(buffer, filePath, mimeType);
+          hrimsLogger.info(` Uploaded ${docType.name} to MinIO: ${filePath}`);
+
+          // Update employee record with MinIO URL
+          const minioUrl = `/api/files/employee-documents/${fileName}`;
+          await db.employee.update({
+            where: { id: employeeId },
+            data: {
+              [docType.dbField]: minioUrl,
+            },
+          });
+
+          savedDocuments++;
+        }
+        // Educational Certificates (type 8) - store ALL attachments as certificates
+        else if (docType.code === '8') {
+          for (const attachment of attachments) {
+            const attachmentContent = attachment.content || attachment.attachmentContent;
+            const attachmentName = attachment.attachmentType || attachment.name || docType.name;
+
+            if (!attachmentContent) {
+              const contentSize = attachment.contentSize || attachment.contentLength || 0;
+              if (contentSize > 0) {
+                hrimsLogger.warn(` HRIMS returned metadata for certificate "${attachmentName}" (size: ${contentSize} bytes) but content is empty.`);
+              } else {
+                hrimsLogger.info(` Skipping certificate attachment - no content`);
+              }
+              continue;
+            }
+
+            // Map the HRIMS attachment type to a standardized certificate type
+            const certificateType = mapCertificateType(attachmentName) || attachmentName;
+
+            // Store certificate file in MinIO
+            let cleanBase64 = attachmentContent;
+            let mimeType = 'application/pdf';
+            let extension = 'pdf';
+            if (attachmentContent.startsWith('data:')) {
+              const matches = attachmentContent.match(/^data:([^;]+);base64,(.+)$/);
+              if (matches) {
+                mimeType = matches[1];
+                cleanBase64 = matches[2];
+                const extensionMap: Record<string, string> = {
+                  'application/pdf': 'pdf',
+                  'image/jpeg': 'jpg',
+                  'image/png': 'png',
+                  'image/gif': 'gif',
+                  'image/webp': 'webp',
+                };
+                extension = extensionMap[mimeType.toLowerCase()] || 'pdf';
+              }
+            }
+
+            const buffer = Buffer.from(cleanBase64, 'base64');
+            const safeName = certificateType.replace(/[\s_-]/g, '_');
+            const fileName = `${employeeId}_certificate_${safeName}.${extension}`;
+            const filePath = `employee-documents/${fileName}`;
+
+            await uploadFile(buffer, filePath, mimeType);
+            hrimsLogger.info(` Uploaded certificate "${certificateType}" to MinIO: ${filePath}`);
+
+            const minioUrl = `/api/files/employee-documents/${fileName}`;
+
+            // Save or update certificate in EmployeeCertificate table
+            const existingCert = await db.employeeCertificate.findFirst({
+              where: { employeeId, type: certificateType },
+            });
+
+            if (existingCert) {
+              await db.employeeCertificate.update({
+                where: { id: existingCert.id },
+                data: { url: minioUrl, name: certificateType },
+              });
+              hrimsLogger.info(` Updated existing certificate "${certificateType}"`);
+            } else {
+              await db.employeeCertificate.create({
+                data: {
+                  id: `${employeeId}_${certificateType.replace(/\s+/g, '_')}`,
+                  employeeId,
+                  type: certificateType,
+                  name: certificateType,
+                  url: minioUrl,
+                },
+              });
+              hrimsLogger.info(` Created new certificate "${certificateType}"`);
+            }
+
+            savedCertificates.push({ type: certificateType, name: certificateType, url: minioUrl });
+            savedDocuments++;
+          }
+        }
       } catch (error) {
         hrimsLogger.error({ err: error }, `Error processing ${docType.name}:`);
       }
     }
 
-    return savedDocuments;
+    hrimsLogger.info(
+      ` Document processing complete: ${savedDocuments} documents saved, ${savedCertificates.length} certificates saved`
+    );
+
+    return { savedDocuments, savedCertificates };
   } catch (error) {
     hrimsLogger.error({ err: error }, 'Error processing documents:');
-    return 0;
+    return { savedDocuments: 0, savedCertificates: [] };
   }
 }
 
@@ -492,21 +718,23 @@ export async function POST(req: NextRequest) {
     // Process photo and documents in parallel
     let photoStored = false;
     let documentsCount = 0;
+    let certificatesCount = 0;
 
     if (employeePayrollNumber) {
       hrimsLogger.info(' Processing photo and documents...');
 
       // Run photo and documents fetch in parallel for better performance
-      const [photoResult, docsCount] = await Promise.all([
+      const [photoResult, docsResult] = await Promise.all([
         processPhoto(employeePayrollNumber, employeeId, HRIMS_CONFIG),
         processDocuments(employeePayrollNumber, employeeId, HRIMS_CONFIG),
       ]);
 
       photoStored = photoResult;
-      documentsCount = docsCount;
+      documentsCount = docsResult.savedDocuments;
+      certificatesCount = docsResult.savedCertificates.length;
 
       hrimsLogger.info(
-        ` Completed: Photo=${photoStored ? 'stored' : 'not found'}, Documents=${documentsCount} stored`
+        ` Completed: Photo=${photoStored ? 'stored' : 'not found'}, Documents=${documentsCount} stored, Certificates=${certificatesCount} stored`
       );
     } else {
       hrimsLogger.info(
@@ -539,6 +767,7 @@ export async function POST(req: NextRequest) {
             : 'On Probation',
         },
         documents: documentsCount,
+        certificates: certificatesCount,
         photo: photoStored,
         hrimsData: {
           employmentHistories:

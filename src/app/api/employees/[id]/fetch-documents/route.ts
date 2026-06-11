@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as prisma } from '@/lib/db';
-import { uploadFile } from '@/lib/minio';
+import { uploadFile, getFileMetadata } from '@/lib/minio';
 import { validateFileUpload } from '@/lib/file-validation';
 import { getHrimsApiConfig } from '@/lib/hrims-config';
 import { logger } from '@/lib/logger';
@@ -17,6 +17,18 @@ const VALID_CERTIFICATE_TYPES = [
  'Bachelor Degree',
  'Master Degree',
  'PHd',
+ // Migrated HRIMS certificate types
+ 'Educational Certification',
+ 'Educational Certification 2',
+ 'Educational Certification 3',
+ 'Educational Certification 4',
+ 'Educational Certification 5',
+ 'Educational Certification 6',
+ 'Educational Certification 7',
+ 'Educational Certification 8',
+ 'Educational Certification 9',
+ 'Educational Certification 10',
+ 'Educational Certification 11',
 ] as const;
 
 // Document types for HRIMS RequestId 206
@@ -164,14 +176,25 @@ async function storeDocumentInMinIO(
  base64Data: string
 ): Promise<{ success: boolean; url?: string; error?: string }> {
  try {
- // Remove data URI prefix if present
+ // Strip data URI prefix if present (e.g., "data:application/pdf;base64,")
  let cleanBase64 = base64Data;
- let mimeType = 'application/pdf'; // default for documents
+ let mimeType = 'application/pdf';
+ let extension = 'pdf';
+
  if (base64Data.startsWith('data:')) {
  const matches = base64Data.match(/^data:([^;]+);base64,(.+)$/);
  if (matches) {
  mimeType = matches[1];
  cleanBase64 = matches[2];
+ // Determine extension from MIME type
+ const extensionMap: Record<string, string> = {
+ 'application/pdf': 'pdf',
+ 'image/jpeg': 'jpg',
+ 'image/png': 'png',
+ 'image/gif': 'gif',
+ 'image/webp': 'webp',
+ };
+ extension = extensionMap[mimeType.toLowerCase()] || 'pdf';
  }
  }
 
@@ -179,20 +202,20 @@ async function storeDocumentInMinIO(
  const buffer = Buffer.from(cleanBase64, 'base64');
 
  // Validate file before uploading
- const validation = await validateFileUpload(buffer, `${documentType}.pdf`, mimeType, 'documents');
+ const validation = await validateFileUpload(buffer, `${documentType}.${extension}`, mimeType, 'documents');
  if (!validation.success) {
  return {
  success: false,
- error: `Document validation failed: ${validation.error}`,
+ error: `File validation failed: ${validation.error}`,
  };
  }
 
  // Generate file path
- const fileName = `${employeeId}_${documentType}.pdf`;
+ const fileName = `${employeeId}_${documentType}.${extension}`;
  const filePath = `employee-documents/${fileName}`;
 
  // Upload to MinIO
- await uploadFile(buffer, filePath, 'application/pdf');
+ await uploadFile(buffer, filePath, mimeType);
 
  // Return MinIO URL
  const url = `/api/files/employee-documents/${fileName}`;
@@ -287,8 +310,21 @@ export async function POST(
  currentUrl &&
  currentUrl.startsWith('/api/files/employee-documents/')
  ) {
+ // Verify the file actually exists in MinIO before skipping
+ const filename = currentUrl.split('/').pop();
+ const filePath = `employee-documents/${filename}`;
+ try {
+ await getFileMetadata(filePath);
  logger.info(`⏭ Skipping ${docType.name} - already stored in MinIO`);
  continue;
+ } catch {
+ // File not found in MinIO, clear stale URL and proceed to re-fetch
+ logger.info(` Document URL exists in DB but file not found in MinIO: ${filePath}. Re-fetching ${docType.name} from HRIMS.`);
+ await prisma.employee.update({
+ where: { id: employee.id },
+ data: { [docType.dbField as string]: null },
+ });
+ }
  }
 
  logger.info(
@@ -421,10 +457,16 @@ export async function POST(
  // Process each attachment
  for (const attachment of allAttachments) {
  const attachmentType = attachment.attachmentType || '';
- const attachmentContent = attachment.attachmentContent || '';
+ // Check both content and attachmentContent fields (HRIMS may use either)
+ const attachmentContent = attachment.content || attachment.attachmentContent || '';
 
  if (!attachmentContent) {
- logger.info(` Skipping ${attachmentType} - no content`);
+ const contentSize = attachment.contentSize || attachment.contentLength || 0;
+ if (contentSize > 0) {
+ logger.warn(` HRIMS returned metadata for "${attachmentType}" (size: ${contentSize} bytes) but content is empty. The HRIMS server did not provide the actual file data.`);
+ } else {
+ logger.info(` Skipping ${attachmentType} - no content and no contentSize`);
+ }
  continue;
  }
 
@@ -445,11 +487,26 @@ export async function POST(
  currentUrl &&
  currentUrl.startsWith('/api/files/employee-documents/')
  ) {
+ // Verify the file actually exists in MinIO before skipping
+ const existingFilename = currentUrl.split('/').pop();
+ const existingFilePath = `employee-documents/${existingFilename}`;
+ try {
+ await getFileMetadata(existingFilePath);
  logger.info(
  `⏭ Skipping ${docMapping.label} - already stored in MinIO`
  );
  documentsStored[docMapping.dbKey] = currentUrl;
  continue;
+ } catch {
+ // File not found in MinIO, clear stale URL and proceed
+ logger.info(
+ ` Document URL exists in DB but file not found in MinIO: ${existingFilePath}. Re-fetching ${docMapping.label} from HRIMS.`
+ );
+ await prisma.employee.update({
+ where: { id: employee.id },
+ data: { [docMapping.field]: null },
+ });
+ }
  }
 
  // Store document in MinIO
@@ -474,8 +531,8 @@ export async function POST(
  attachmentType.toLowerCase().includes('certification') ||
  attachmentType.toLowerCase().includes('certificate')
  ) {
- // It's an educational certificate - check if already exists in database
- const certificateType = attachmentType; // Use original HRIMS certificate name
+ // It's an educational certificate - map to standardized type name
+ const certificateType = mapCertificateType(attachmentType) || attachmentType;
 
  // Check if certificate already exists in database
  const existingCert = await prisma.employeeCertificate.findFirst({
@@ -490,6 +547,11 @@ export async function POST(
  existingCert.url &&
  existingCert.url.startsWith('/api/files/')
  ) {
+ // Verify the file actually exists in MinIO before skipping
+ const certFilename = existingCert.url.split('/').pop();
+ const certFilePath = `employee-documents/${certFilename}`;
+ try {
+ await getFileMetadata(certFilePath);
  logger.info(
  `⏭ Skipping certificate "${certificateType}" - already stored in MinIO`
  );
@@ -498,6 +560,15 @@ export async function POST(
  fileUrl: existingCert.url,
  });
  continue;
+ } catch {
+ // File not found in MinIO, delete stale certificate record
+ logger.info(
+ ` Certificate URL exists in DB but file not found in MinIO: ${certFilePath}. Re-fetching from HRIMS.`
+ );
+ await prisma.employeeCertificate.delete({
+ where: { id: existingCert.id },
+ });
+ }
  }
 
  // Check if we've already processed a certificate with this exact name in this batch

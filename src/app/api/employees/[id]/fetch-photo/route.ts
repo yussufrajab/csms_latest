@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db as prisma } from '@/lib/db';
-import { uploadFile } from '@/lib/minio';
+import { uploadFile, getFileMetadata } from '@/lib/minio';
 import { validateFileUpload } from '@/lib/file-validation';
 import { getHrimsApiConfig } from '@/lib/hrims-config';
 import { logger } from '@/lib/logger';
@@ -68,16 +68,44 @@ export async function POST(
       (employee.profileImageUrl.startsWith('data:image') ||
       employee.profileImageUrl.startsWith('/api/files/employee-photos/'))
     ) {
-      return NextResponse.json({
-        success: true,
-        message: 'Photo already exists',
-        data: {
-          employeeId: employee.id,
-          employeeName: employee.name,
-          photoUrl: employee.profileImageUrl,
-          alreadyExists: true,
-        },
-      });
+      // Verify the file actually exists in MinIO before skipping
+      if (employee.profileImageUrl.startsWith('/api/files/employee-photos/')) {
+        const filename = employee.profileImageUrl.split('/').pop();
+        const filePath = `employee-photos/${filename}`;
+        try {
+          await getFileMetadata(filePath);
+          // File exists in MinIO, skip re-fetch
+          return NextResponse.json({
+            success: true,
+            message: 'Photo already exists',
+            data: {
+              employeeId: employee.id,
+              employeeName: employee.name,
+              photoUrl: employee.profileImageUrl,
+              alreadyExists: true,
+            },
+          });
+        } catch {
+          // File not found in MinIO, clear stale URL and proceed to re-fetch
+          logger.info(` Photo URL exists in DB but file not found in MinIO: ${filePath}. Re-fetching from HRIMS.`);
+          await prisma.employee.update({
+            where: { id: employee.id },
+            data: { profileImageUrl: null },
+          });
+        }
+      } else {
+        // data:image URL - photo stored inline, skip re-fetch
+        return NextResponse.json({
+          success: true,
+          message: 'Photo already exists',
+          data: {
+            employeeId: employee.id,
+            employeeName: employee.name,
+            photoUrl: employee.profileImageUrl,
+            alreadyExists: true,
+          },
+        });
+      }
     }
 
     logger.info(

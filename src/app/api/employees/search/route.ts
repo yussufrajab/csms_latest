@@ -106,6 +106,7 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
             select: {
               id: true,
               name: true,
+              voteNumber: true,
             },
           },
           EmployeeCertificate: {

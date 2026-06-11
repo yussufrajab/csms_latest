@@ -41,12 +41,12 @@ const MB = 1024 * 1024;
 
 export const UPLOAD_CONFIGS: Record<UploadContext, UploadConfig> = {
   documents: {
-    allowedMimes: ['application/pdf'],
-    maxSize: 1 * MB,
+    allowedMimes: ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+    maxSize: 5 * MB,
   },
   certificates: {
-    allowedMimes: ['application/pdf'],
-    maxSize: 1 * MB,
+    allowedMimes: ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+    maxSize: 5 * MB,
   },
   templates: {
     allowedMimes: [

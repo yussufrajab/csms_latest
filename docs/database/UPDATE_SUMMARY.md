@@ -1,121 +1,80 @@
 # Database Documentation Update Summary
 
-**Date:** 2026-05-28
+**Date:** 2026-06-11
 
 ## Overview
 
-Updated all database documentation in `/home/latest/docs/database/` to reflect recent schema changes.
+Updated all database documentation and created fresh backup reflecting the complete live schema including 2 additional migrations that were not captured in the 2026-05-28 backup.
 
 ## Changes Made
 
 ### 1. Updated Schema File (`schema.prisma`)
 
-Synced with the current production schema from `/home/latest/prisma/schema.prisma`.
-
-**Key Changes:**
-- Added HRRP review fields to all request types
-- Added `email` field to Employee model
-- Added indexes on `hrrpReviewedById` fields
-- Added `MfaToken` model
-- Updated `Notification` model with indexes
-- Removed `AuditLog` model (moved to partitioned table in `audit` schema)
+Synced with the current production schema from `/home/nextjstest/csms/prisma/schema.prisma`.
 
 ### 2. Updated Migrations Folder
 
-Copied all new migrations from `/home/latest/prisma/migrations/`:
+Copied live migrations that were missing from docs (2 new migrations):
 
 | Migration | Description |
 |-----------|-------------|
-| `20260522000000_add_audit_comprehensive_logging` | Enhanced audit logging fields |
-| `20260522010000_migrate_audit_to_partitioned` | Partitioned audit table |
-| `20260525000000_add_hrrp_review_fields` | HRRP review for ConfirmationRequest |
-| `20260525010000_add_hrrp_review_fields_to_lwop` | HRRP review for LwopRequest |
-| `20260525020000_add_hrrp_review_fields_to_promotion` | HRRP review for PromotionRequest |
+| `20260602000000_add_missing_columns` | Added `email` to Employee; `hrrpReviewedById`, `hrrpReviewedAt`, `commissionLetterKey` to CadreChange/Retirement/Separation/ServiceExtension/Resignation requests; `commissionLetterKey` to Confirmation/Promotion/Lwop |
+| `20260602010000_add_decision_date_columns` | Added `decisionDate` and `commissionDecisionDate` to 7 request tables |
 
-### 3. Updated Backup Script (`backup.sh`)
+### 3. Updated Migration Changelog
 
-**Changes:**
-- Added `MfaToken` to exclusion list
-- Added `--exclude-schema='audit'` to exclude partitioned audit tables
-- Ensures backup only includes core configuration tables
+Added detailed documentation of the 2 new migrations to `MIGRATION_CHANGELOG.md`.
 
-### 4. Created Documentation Files
+### 4. Created Fresh Backups
 
-#### `README.md`
-- Overview of database schema
-- Description of core entities and request types
-- List of recent schema changes
-- Migration history table
-- Database maintenance instructions
+| Backup File | Date | Size | Description |
+|-------------|------|------|-------------|
+| `nody_with_employees_20260611_191958.sql` | 2026-06-11 | 28M | Full data backup including employees (excludes EmployeeCertificate) |
+| `schema_full_20260611_191955.sql` | 2026-06-11 | 120K | Schema-only backup |
 
-#### `MIGRATION_CHANGELOG.md`
-- Detailed documentation of all migrations
-- SQL changes for each migration
-- Purpose and impact of each change
-- Migration best practices
-- Rollback procedures
+### 5. Schema Drift Detected (May 28 vs June 11)
 
-#### `UPDATE_SUMMARY.md`
-- This file
-- Summary of all changes made during this update
+The docs backup from 2026-05-28 was missing 2 migrations that were present on the live database:
+- `20260602000000_add_missing_columns` — Completes HRRP fields across all request types
+- `20260602010000_add_decision_date_columns` — Adds decision date tracking across all tables
 
-### 5. Created New Backup
-
-- `nody_core_20260528_211830.sql` (87K)
-- Includes current User, Institution, and SystemSettings data
-- Excludes MfaToken and audit schema
-
-## Schema Changes Summary
-
-### New Fields Added
-
-**All Request Types (CadreChange, Confirmation, LWOP, Promotion, Resignation, Retirement, Separation, ServiceExtension):**
-- `hrrpReviewedById` - HRRP reviewer user ID
-- `hrrpReviewedAt` - HRRP review timestamp
-- `commissionLetterKey` - Commission letter key
-- `decisionDate` - Decision date
-- `commissionDecisionDate` - Commission decision date
-
-**Employee:**
-- `email` - Employee email address
-
-**Notification:**
-- Added indexes on `userId`, `createdAt`, `isRead`
-
-### New Models
-
-**MfaToken:**
-- Multi-factor authentication token management
-- Supports OTP and Magic Link token types
-- Tracks email, attempts, expiration, and usage
-
-### Removed Models
-
-**AuditLog (public schema):**
-- Migrated to partitioned table in `audit` schema
-- Improved performance and data management
+Both migrations are now synced into the docs folder.
 
 ## File Structure
 
 ```
 docs/database/
-├── backup.sh                 # Database backup script (updated)
-├── restore.sh                # Database restore script
-├── schema.prisma             # Current schema (updated)
-├── README.md                 # Documentation overview (new)
-├── MIGRATION_CHANGELOG.md    # Migration details (new)
-├── UPDATE_SUMMARY.md         # This file (new)
-├── nody_core_20260518_123735.sql  # Previous backup
-├── nody_core_20260528_211830.sql  # New backup
+├── backup.sh                          # Database backup script (core only)
+├── backup-full.sh                     # Database backup script (full)
+├── backup-with-employees.sh           # Database backup script (with employees)
+├── restore.sh                         # Database restore script
+├── disaster-recovery.sh               # Automated disaster recovery
+├── package-backup.sh                  # Package recovery archive
+├── package-backup-with-employees.sh   # Package recovery archive (with employees)
+├── schema.prisma                      # Current schema (updated 2026-06-11)
+├── README.md
+├── MIGRATION_CHANGELOG.md             # Updated with 2 new migrations
+├── UPDATE_SUMMARY.md                  # This file (updated 2026-06-11)
+├── QUICK_REFERENCE.md
+├── DISASTER_RECOVERY.md
+├── DISASTER_RECOVERY_WITH_EMPLOYEES.md
+├── RESTORE_GUIDE.md
+├── COMPLETE_PACKAGE_SUMMARY.md
+├── BACKUP_MANIFEST.md
+├── BACKUP_OPTIONS.md
+├── *.tar.gz archives
+├── *.sql backups
 └── migrations/
     ├── 20250712105050_init/
     ├── 20250715102327_add_commission_decision_reason_to_promotion/
     ├── 20260104120500_add_institution_fields/
-    ├── 20260522000000_add_audit_comprehensive_logging/      # New
-    ├── 20260522010000_migrate_audit_to_partitioned/          # New
-    ├── 20260525000000_add_hrrp_review_fields/               # New
-    ├── 20260525010000_add_hrrp_review_fields_to_lwop/       # New
-    └── 20260525020000_add_hrrp_review_fields_to_promotion/  # New
+    ├── 20260522000000_add_audit_comprehensive_logging/
+    ├── 20260522010000_migrate_audit_to_partitioned/
+    ├── 20260525000000_add_hrrp_review_fields/
+    ├── 20260525010000_add_hrrp_review_fields_to_lwop/
+    ├── 20260525020000_add_hrrp_review_fields_to_promotion/
+    ├── 20260602000000_add_missing_columns/         # NEW
+    └── 20260602010000_add_decision_date_columns/   # NEW
 ```
 
 ## Verification
@@ -124,23 +83,16 @@ To verify the documentation is up to date:
 
 1. Compare schema files:
    ```bash
-   diff /home/latest/prisma/schema.prisma /home/latest/docs/database/schema.prisma
+   diff /home/nextjstest/csms/prisma/schema.prisma /home/nextjstest/csms/docs/database/schema.prisma
    ```
 
-2. Check migration count:
+2. Check migration count (should match: 10 migrations):
    ```bash
-   ls -1 /home/latest/docs/database/migrations/ | wc -l
-   ls -1 /home/latest/prisma/migrations/ | wc -l
+   echo "Docs: $(ls -1d /home/nextjstest/csms/docs/database/migrations/2026*/ 2>/dev/null | wc -l)"
+   echo "Live: $(ls -1d /home/nextjstest/csms/prisma/migrations/2026*/ 2>/dev/null | wc -l)"
    ```
 
-3. Verify backup works:
+3. Verify backup integrity:
    ```bash
-   cd /home/latest/docs/database && ./backup.sh
+   head -5 /home/nextjstest/csms/docs/database/nody_with_employees_20260611_191958.sql
    ```
-
-## Next Steps
-
-- Review documentation for accuracy
-- Test backup/restore procedures
-- Update any related documentation in other folders
-- Commit changes to version control

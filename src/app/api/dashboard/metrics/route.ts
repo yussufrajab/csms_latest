@@ -55,13 +55,39 @@ export const GET = withRateLimit(withAuth(async (request, { auth }) => {
       userInstitutionId,
      }, 'Dashboard metrics API called with');
 
+    // Admin users don't need business process metrics - return empty stats
+    // Admin dashboard is focused on system administration, not HR workflows
+    if (userRole === 'Admin') {
+      return NextResponse.json({
+        success: true,
+        data: {
+          stats: {
+            totalEmployees: 0,
+            pendingConfirmations: 0,
+            pendingPromotions: 0,
+            employeesOnLwop: 0,
+            pendingTerminations: 0,
+            openComplaints: 0,
+            pendingCadreChanges: 0,
+            pendingRetirements: 0,
+            pendingResignations: 0,
+            pendingServiceExtensions: 0,
+          },
+          recentActivities: [],
+          pagination: {
+            currentPage: 1,
+            totalPages: 0,
+            totalActivities: 0,
+            limit: 10,
+            hasNextPage: false,
+            hasPrevPage: false,
+          },
+        },
+      });
+    }
+
     // Determine if institution filtering should be applied
-    // Admin sees total system counts (no filtering) for system administration purposes
-    // but doesn't have HR oversight permissions (handled separately)
-    const shouldFilter =
-      userRole === 'Admin'
-        ? false
-        : shouldApplyInstitutionFilter(userRole, userInstitutionId);
+    const shouldFilter = shouldApplyInstitutionFilter(userRole, userInstitutionId);
     logger.info(
       `Should apply institution filter: ${shouldFilter} (role: ${userRole})`
     );

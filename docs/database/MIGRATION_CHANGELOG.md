@@ -171,6 +171,35 @@ CREATE TABLE audit.audit_log (
 
 ---
 
+## 2026-06-02: Remaining HRRP Fields & Decision Dates (LIVE — added after docs backup)
+
+### Migration: `20260602000000_add_missing_columns`
+
+**Affected Tables:** `Employee`, `CadreChangeRequest`, `ConfirmationRequest`, `PromotionRequest`, `LwopRequest`, `RetirementRequest`, `SeparationRequest`, `ServiceExtensionRequest`, `ResignationRequest`
+
+**Changes:**
+- Added `email` (TEXT) to `Employee`
+- Added `hrrpReviewedById` (TEXT), `hrrpReviewedAt` (TIMESTAMP), `commissionLetterKey` (TEXT) to remaining request tables: `CadreChangeRequest`, `RetirementRequest`, `SeparationRequest`, `ServiceExtensionRequest`, `ResignationRequest`
+- Added `commissionLetterKey` (TEXT) to `ConfirmationRequest`, `PromotionRequest`, `LwopRequest`
+- Added 5 indexes on `hrrpReviewedById` for all newly added columns
+- Added 5 foreign key constraints linking `hrrpReviewedById` to `User` table
+
+**Purpose:** Complete the HRRP review workflow across all request types and add commission letter tracking.
+
+---
+
+### Migration: `20260602010000_add_decision_date_columns`
+
+**Affected Tables:** `CadreChangeRequest`, `LwopRequest`, `PromotionRequest`, `RetirementRequest`, `SeparationRequest`, `ServiceExtensionRequest`, `ResignationRequest`
+
+**Changes:**
+- Added `decisionDate` (TIMESTAMP) to 7 request tables
+- Added `commissionDecisionDate` (TIMESTAMP) to 7 request tables
+
+**Purpose:** Track decision and commission decision dates across all request types for audit and reporting.
+
+---
+
 ## Migration Best Practices
 
 1. **Always backup** before running migrations in production
@@ -199,5 +228,8 @@ For rollback procedures, refer to the individual migration files. Each migration
 
 | Backup File | Date | Size |
 |-------------|------|------|
+| `nody_with_employees_20260611_191958.sql` | 2026-06-11 | 28M |
+| `schema_full_20260611_191955.sql` | 2026-06-11 | 120K |
+| `nody_full_20260601_074200.sql` | 2026-06-01 | 31M |
 | `nody_core_20260528_211830.sql` | 2026-05-28 | 87K |
 | `nody_core_20260518_123735.sql` | 2026-05-18 | 80K |
